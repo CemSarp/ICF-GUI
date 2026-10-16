@@ -3,7 +3,6 @@
 
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 pub const POLL_MIN_SECS: u64 = 45;
@@ -97,6 +96,16 @@ pub fn validate_host(h: &str) -> Result<(), &'static str> {
         return Err("may only contain letters, digits, '.', '-' and '_'");
     }
     Ok(())
+}
+
+/// UUNs are lowercase and Linux usernames are case-sensitive: `-l S1234567` logs into a different
+/// (nonexistent) account and the password is rejected, while the gateway (user from ssh_config) works.
+// ponytail: always lowercase; revisit if a site ever needs mixed-case usernames.
+/// Public Informatics gateway; `icf` only resolves from behind it.
+pub const ICF_GATEWAY: &str = "student.ssh.inf.ed.ac.uk";
+
+pub fn normalize_user(u: &str) -> String {
+    u.trim().to_ascii_lowercase()
 }
 
 pub fn validate_user(u: &str) -> AppResult<()> {
@@ -194,20 +203,8 @@ impl ProfileStore {
 
     /// Write atomically with owner-only permissions.
     pub fn save(&self) -> AppResult<()> {
-        let dir = self.path.parent().ok_or_else(|| AppError::internal("bad config path"))?;
-        std::fs::create_dir_all(dir).map_err(|_| AppError::internal("Cannot create config directory"))?;
-        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
-        let tmp = self.path.with_extension("json.tmp");
         let bytes = serde_json::to_vec_pretty(&self.data).map_err(|_| AppError::internal("serialize profiles"))?;
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&tmp)
-            .and_then(|mut f| std::io::Write::write_all(&mut f, &bytes))
-            .and_then(|_| std::fs::rename(&tmp, &self.path))
-            .map_err(|_| AppError::internal("Cannot write profiles"))
+        crate::util::write_private_file(&self.path, &bytes).map_err(|_| AppError::internal("Cannot write profiles"))
     }
 }
 
@@ -227,10 +224,12 @@ mod tests {
             assert!(validate_jump(bad).is_err(), "{bad:?}");
         }
         assert!(validate_host("icf").is_ok() && validate_host("student.ssh.inf.ed.ac.uk").is_ok());
-        assert!(validate_user("s3019665").is_ok());
-        assert!(validate_jump("s3019665@student.ssh.inf.ed.ac.uk").is_ok());
+        assert!(validate_user("s1234567").is_ok());
+        assert!(validate_jump("s1234567@student.ssh.inf.ed.ac.uk").is_ok());
         assert!(validate_jump("edinburgh-jump,h2:2222").is_ok());
     }
+
+    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn store_roundtrip_is_private_and_password_free() {
@@ -245,6 +244,7 @@ mod tests {
         let text = std::fs::read_to_string(dir.join("profiles.json")).unwrap();
         assert!(!text.contains("\"password\":") && !text.contains("secret"));
         assert_eq!(ProfileStore::load(&dir).data.profiles[0].username, "s1234567");
+        assert_eq!(normalize_user(" S1234567 "), "s1234567");
         let mut bad = s.data.profiles[0].clone();
         bad.ssh_alias = "-oProxyCommand=evil".into();
         assert!(s.upsert(bad).is_err());

@@ -33,6 +33,17 @@ pub fn random_hex(bytes: usize) -> String {
     buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Atomically write a file readable only by the owner (0600), creating its directory (0700).
+pub fn write_private_file(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let dir = path.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
+    std::fs::create_dir_all(dir)?;
+    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+    let tmp = path.with_extension("tmp");
+    std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp).and_then(|mut f| std::io::Write::write_all(&mut f, bytes))?;
+    std::fs::rename(&tmp, path)
+}
+
 /// Constant-time comparison for nonces.
 pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0

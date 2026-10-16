@@ -1,6 +1,6 @@
 // In-memory stand-in for the Tauri backend used by UI tests. Never talks to SSH.
 import demoSnapshot from '../fixtures/slurm/demo_snapshot.json';
-import type { ClusterSnapshot, ConnectionProfile, ConnectionStatus, SnapshotResponse } from '../src/types';
+import type { ClusterSnapshot, ConnectionProfile, ConnectionStatus, JobRow, SnapshotResponse } from '../src/types';
 
 export const snapshot = demoSnapshot as unknown as ClusterSnapshot;
 
@@ -27,6 +27,44 @@ export const connectedDemo: ConnectionStatus = {
   failedAttempts: 0,
   lockedUntil: null,
 };
+
+export const connectedLive: ConnectionStatus = {
+  ...connectedDemo,
+  demo: false,
+  profileId: 'default',
+  capabilities: {
+    remoteUser: 's1',
+    remoteHost: 'hastings',
+    commands: [],
+    missingCommands: [],
+    slurmVersion: 'slurm 25.05.3',
+    jsonSupported: true,
+  },
+};
+
+export const jobRow = (o: Partial<JobRow>): JobRow => ({
+  jobId: '4242',
+  user: 's1',
+  name: 'semeval-train',
+  partition: 'Teaching',
+  state: 'running',
+  stateRaw: 'RUNNING',
+  gpus: 'nvidia_rtx_a6000 × 1',
+  cpus: 8,
+  memory: '32G',
+  submittedAt: '2026-10-16T09:00:00',
+  startedAt: '2026-10-16T09:05:00',
+  endedAt: null,
+  elapsed: '1:00:00',
+  timeLeft: '11:00:00',
+  timeLimit: '12:00:00',
+  nodes: 'landonia11',
+  reason: null,
+  exitCode: null,
+  comment: null,
+  source: 'squeue',
+  ...o,
+});
 
 type Handler = (args: Record<string, unknown>) => unknown;
 
@@ -63,6 +101,43 @@ export const backend = {
       connection_cancel: () => undefined,
       connection_disconnect: () => ({ ...status, state: 'disconnected' }),
       connection_profile_save: (a) => a.profile,
+      jobs_receipts: () => [],
+      jobs_dismiss_receipt: () => null,
+      jobs_list_mine: () => ({
+        list: {
+          active: [
+            jobRow({}),
+            jobRow({
+              jobId: '4243',
+              name: 'queued-one',
+              state: 'pending',
+              stateRaw: 'PENDING',
+              nodes: null,
+              startedAt: null,
+              reason: 'Resources',
+            }),
+          ],
+          history: [
+            jobRow({
+              jobId: '4100',
+              name: 'old',
+              state: 'failed',
+              stateRaw: 'FAILED',
+              exitCode: '1:0',
+              source: 'sacct',
+            }),
+          ],
+          historyNote: null,
+          fetchedAt: '2026-10-16T14:00:00Z',
+          fetchedAtMs: 0,
+          historyFetchedAt: '2026-10-16T14:00:00Z',
+          foreignRowsDropped: 0,
+        },
+        lastError: null,
+        stale: false,
+        fetched: true,
+        requests: 1,
+      }),
       ...overrides,
     };
   },

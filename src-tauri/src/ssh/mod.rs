@@ -151,10 +151,22 @@ pub struct Captured {
     pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
+    /// The deadline hit and the child was killed; `stdout` holds what arrived before that.
+    pub timed_out: bool,
 }
 
 /// Run to completion with a hard timeout and output cap. The child is killed on timeout/overflow.
-pub async fn run_capture(mut cmd: Command, stdin: Option<&str>, timeout: Duration, max_stdout: usize) -> AppResult<Captured> {
+pub async fn run_capture(cmd: Command, stdin: Option<&str>, timeout: Duration, max_stdout: usize) -> AppResult<Captured> {
+    let c = run_capture_partial(cmd, stdin, timeout, max_stdout).await?;
+    if c.timed_out {
+        return Err(AppError::new(ErrorCode::SshTimeout, format!("Command timed out after {}s", timeout.as_secs())));
+    }
+    Ok(c)
+}
+
+/// Like `run_capture`, but a timeout still returns the partial output (needed to tell
+/// "definitely not submitted" from "outcome uncertain").
+pub async fn run_capture_partial(mut cmd: Command, stdin: Option<&str>, timeout: Duration, max_stdout: usize) -> AppResult<Captured> {
     if stdin.is_some() {
         cmd.stdin(Stdio::piped());
     }
@@ -163,42 +175,41 @@ pub async fn run_capture(mut cmd: Command, stdin: Option<&str>, timeout: Duratio
     let mut sin = child.stdin.take();
     let mut sout = child.stdout.take().expect("piped stdout");
     let mut serr = child.stderr.take().expect("piped stderr");
+    let (mut out, mut err) = (Vec::new(), Vec::new());
     let work = async {
         if let (Some(s), Some(input)) = (sin.as_mut(), input) {
             let _ = s.write_all(input.as_bytes()).await;
         }
         drop(sin);
         let read_out = async {
-            let mut buf = Vec::new();
             let mut chunk = [0u8; 16384];
             loop {
                 let n = sout.read(&mut chunk).await.unwrap_or(0);
                 if n == 0 {
-                    return Ok(buf);
+                    return Ok(());
                 }
-                if buf.len() + n > max_stdout {
+                if out.len() + n > max_stdout {
                     return Err(AppError::new(ErrorCode::OutputTooLarge, "Remote output exceeded the size limit"));
                 }
-                buf.extend_from_slice(&chunk[..n]);
+                out.extend_from_slice(&chunk[..n]);
             }
         };
         let read_err = async {
-            let mut buf = Vec::new();
-            let _ = (&mut serr).take(64 * 1024).read_to_end(&mut buf).await;
-            buf
+            let _ = (&mut serr).take(64 * 1024).read_to_end(&mut err).await;
         };
-        let (out, err) = tokio::join!(read_out, read_err);
-        let status = child.wait().await.ok();
-        Ok::<_, AppError>((status, out?, err))
+        let (r, ()) = tokio::join!(read_out, read_err);
+        r?;
+        Ok::<_, AppError>(child.wait().await.ok())
     };
-    match tokio::time::timeout(timeout, work).await {
-        Ok(Ok((status, out, err))) => Ok(Captured {
-            code: status.and_then(|s| s.code()),
-            stdout: String::from_utf8_lossy(&out).into_owned(),
-            stderr: String::from_utf8_lossy(&err).into_owned(),
-        }),
+    let result = tokio::time::timeout(timeout, work).await;
+    let lossy = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+    match result {
+        Ok(Ok(status)) => Ok(Captured { code: status.and_then(|s| s.code()), stdout: lossy(&out), stderr: lossy(&err), timed_out: false }),
         Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::new(ErrorCode::SshTimeout, format!("Command timed out after {}s", timeout.as_secs()))),
+        Err(_) => {
+            let _ = child.kill().await;
+            Ok(Captured { code: None, stdout: lossy(&out), stderr: lossy(&err), timed_out: true })
+        }
     }
 }
 

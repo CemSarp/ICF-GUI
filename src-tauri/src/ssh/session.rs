@@ -311,10 +311,22 @@ fn plan_prompt(st: &mut PromptState, prompt: &str) -> Step {
     }
 }
 
+/// Out-of-the-box ICF access without an ssh config: when the default `icf` alias is not configured
+/// (no ProxyJump/ProxyCommand, hostname still `icf`) and no jump host was entered, go through the
+/// Informatics gateway as the typed user. Any user config or explicit jump host wins.
+pub fn default_gateway(profile: &ConnectionProfile, resolved: &Resolved) -> Option<String> {
+    let unconfigured = profile.jump_host.is_empty()
+        && profile.ssh_alias.eq_ignore_ascii_case("icf")
+        && !resolved.uses_proxy_command
+        && matches!(resolved.hops.as_slice(), [only] if only.hostname.eq_ignore_ascii_case("icf"));
+    let user = if profile.username.is_empty() { &resolved.hops.last()?.user } else { &profile.username };
+    unconfigured.then(|| if user.is_empty() { crate::profiles::ICF_GATEWAY.to_string() } else { format!("{user}@{}", crate::profiles::ICF_GATEWAY) })
+}
+
 /// Authenticate all hops and run the identity/capability probe. Exactly one ssh login attempt.
 pub async fn connect(
     env: &ConnectEnv,
-    req: ConnectRequest,
+    mut req: ConnectRequest,
     store: &dyn SecretStore,
     ui: Arc<dyn Ui>,
     mut cancel: watch::Receiver<bool>,
@@ -323,7 +335,11 @@ pub async fn connect(
     req.profile.validate().map_err(fail)?;
     let dir = SessionDir::create().map_err(fail)?;
     let cfg = write_config(&dir, &env.home).map_err(fail)?;
-    let resolved = resolve(&env.ssh_bin, &cfg, &req.profile).await.map_err(fail)?;
+    let mut resolved = resolve(&env.ssh_bin, &cfg, &req.profile).await.map_err(fail)?;
+    if let Some(jump) = default_gateway(&req.profile, &resolved) {
+        req.profile.jump_host = jump;
+        resolved = resolve(&env.ssh_bin, &cfg, &req.profile).await.map_err(fail)?;
+    }
     let ctl = dir.file("cm");
     let stderr_file = std::fs::File::create(dir.file("master.err")).map_err(|_| fail(AppError::internal("Cannot create log file")))?;
 
@@ -492,18 +508,27 @@ impl Session {
 
     /// Run a fixed script (stdin to `sh -s`) over the existing master. Never re-authenticates.
     pub async fn run(&self, script: &str, timeout: Duration, max_bytes: usize) -> AppResult<String> {
+        let r = self.run_raw(script, timeout, max_bytes).await?;
+        if r.timed_out {
+            return Err(AppError::new(ErrorCode::SshTimeout, format!("Remote command timed out after {}s.", timeout.as_secs())));
+        }
+        match r.code {
+            Some(0) => Ok(r.stdout),
+            Some(255) | None => Err(classify_ssh_failure(&r.stderr)),
+            Some(code) => Err(AppError::new(ErrorCode::SlurmError, format!("Remote command exited with status {code}: {}", sanitize_text(&r.stderr, 160)))),
+        }
+    }
+
+    /// Like `run` but returns partial output on timeout. `Err(NotConnected)` guarantees the
+    /// script was never sent (the master was already gone).
+    pub async fn run_raw(&self, script: &str, timeout: Duration, max_bytes: usize) -> AppResult<super::Captured> {
         if !self.is_alive().await {
             return Err(AppError::new(ErrorCode::NotConnected, "The SSH session has ended. Connect again to resume."));
         }
         self.last_used_ms.store(crate::util::now_ms(), std::sync::atomic::Ordering::Relaxed);
         let mut c = ssh_command(&self.ssh_bin);
         c.args(self.mux_args()).args(["-T", "--", &self.profile.ssh_alias, "sh", "-s"]);
-        let r = run_capture(c, Some(script), timeout, max_bytes).await?;
-        match r.code {
-            Some(0) => Ok(r.stdout),
-            Some(255) | None => Err(classify_ssh_failure(&r.stderr)),
-            Some(code) => Err(AppError::new(ErrorCode::SlurmError, format!("Remote command exited with status {code}: {}", sanitize_text(&r.stderr, 160)))),
-        }
+        super::run_capture_partial(c, Some(script), timeout, max_bytes).await
     }
 
     /// Stop the master (`-O exit`, then kill its process group) and remove the private directory.
@@ -535,6 +560,25 @@ impl Session {
 
 #[cfg(test)]
 mod tests {
+    use super::super::Hop;
+
+    #[test]
+    fn default_gateway_only_when_icf_is_unconfigured() {
+        let hop = |h: &str| Hop { alias: h.into(), user: "macuser".into(), hostname: h.into(), port: 22 };
+        let bare = Resolved { hops: vec![hop("icf")], uses_proxy_command: false };
+        let mut p = ConnectionProfile { username: "s1".into(), ..ConnectionProfile::default_icf() };
+        assert_eq!(default_gateway(&p, &bare).as_deref(), Some("s1@student.ssh.inf.ed.ac.uk"), "uses the typed UUN");
+        let configured = Resolved { hops: vec![hop("student.ssh.inf.ed.ac.uk"), hop("icf")], uses_proxy_command: false };
+        assert_eq!(default_gateway(&p, &configured), None, "user's ProxyJump wins");
+        assert_eq!(default_gateway(&p, &Resolved { hops: vec![hop("icf")], uses_proxy_command: true }), None, "ProxyCommand wins");
+        assert_eq!(default_gateway(&p, &Resolved { hops: vec![hop("icf.inf.ed.ac.uk")], uses_proxy_command: false }), None, "HostName set");
+        p.jump_host = "me@other.example".into();
+        assert_eq!(default_gateway(&p, &bare), None, "explicit jump host wins");
+        p.jump_host.clear();
+        p.ssh_alias = "mybox".into();
+        assert_eq!(default_gateway(&p, &Resolved { hops: vec![hop("mybox")], uses_proxy_command: false }), None, "other aliases untouched");
+    }
+
     use super::*;
 
     #[test]

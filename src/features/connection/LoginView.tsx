@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Dialog, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
-import { formatDateTime } from '../../lib/format';
+import { formatTime } from '../../lib/format';
 import { useNow } from '../../lib/persist';
 import type { AuthMode, ConnectionProfile, ConnectionStatus } from '../../types';
 
@@ -37,7 +37,7 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
     const p = ps.find((x) => x.id === keep) ?? ps[0] ?? null;
     setProfile(p);
     if (p) {
-      setUsername(p.username);
+      setUsername(p.username.toLowerCase());
       setAuthMode(p.authMode);
       setAlias(p.sshAlias);
       setJumpHost(p.jumpHost);
@@ -152,7 +152,7 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
           <span>Username (UUN)</span>
           <input
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
             placeholder="from SSH config if empty"
             autoComplete="username"
             autoCapitalize="off"
@@ -232,7 +232,7 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
             <input
               value={jumpHost}
               onChange={(e) => setJumpHost(e.target.value)}
-              placeholder="empty = ProxyJump from SSH config"
+              placeholder="empty = from SSH config, else student.ssh.inf.ed.ac.uk"
               autoCapitalize="off"
               spellCheck={false}
               disabled={connecting}
@@ -269,8 +269,8 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
 
         {locked && (
           <Notice tone="bad" title="Sign-in paused">
-            {status.failedAttempts} failed attempts. Wait until {formatDateTime(status.lockedUntil)} and check your
-            password to avoid an account lockout.
+            {status.failedAttempts} failed attempts. Wait until {formatTime(status.lockedUntil)} and check your password
+            to avoid an account lockout.
           </Notice>
         )}
         {error && !locked && <Notice tone="bad">{error}</Notice>}
@@ -297,7 +297,7 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
           </button>
         </div>
         {profile?.lastSuccessAt && (
-          <p className="muted small">Last successful connection: {formatDateTime(profile.lastSuccessAt)}</p>
+          <p className="muted small">Last successful connection: {formatTime(profile.lastSuccessAt)}</p>
         )}
       </form>
 

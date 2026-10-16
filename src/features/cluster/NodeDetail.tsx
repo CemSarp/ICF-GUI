@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Badge, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
-import { count, formatDateTime, memory, NODE_STATE } from '../../lib/format';
+import { count, formatTime, memory, NODE_STATE } from '../../lib/format';
 
 export function NodeDetail({ nodeId, version, onBack }: { nodeId: string; version: number; onBack: () => void }) {
   const q = useQuery({ queryKey: ['node', nodeId, version], queryFn: () => api.nodeDetail(nodeId), retry: false });
@@ -41,7 +41,7 @@ export function NodeDetail({ nodeId, version, onBack }: { nodeId: string; versio
                 {memory(n.memoryAllocatedMb)} allocated of {memory(n.memoryMb)}
               </dd>
               <dt>Data from</dt>
-              <dd>{formatDateTime(n.sourceTimestamp)}</dd>
+              <dd>{formatTime(n.sourceTimestamp)}</dd>
             </dl>
           </div>
           <div className="card">

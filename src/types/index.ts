@@ -16,6 +16,8 @@ export type ErrorCode =
   | 'AUTH_LOCKED'
   | 'KEYCHAIN'
   | 'OUTPUT_TOO_LARGE'
+  | 'NO_RESOURCE'
+  | 'JOB_SUBMIT_UNCERTAIN'
   | 'INTERNAL';
 
 export interface AppError {
@@ -149,6 +151,8 @@ export interface Partition {
   stateRaw: string;
   maxTimeSeconds: number | null;
   maxTimeRaw: string;
+  maxCpusPerNode: number | null;
+  maxMemPerNodeMb: number | null;
   nodeIds: string[];
   eligibility: 'confirmed' | 'not_permitted' | 'unknown';
   gpuTotals: GpuTotals[];
@@ -202,7 +206,7 @@ export interface ProfileInput {
   authMode: AuthMode;
 }
 
-// ---- V2 (typed only; no commands exist in V1, and the V1 capability grants no mutation) ----
+// ---- V2 jobs (mirrors src-tauri/src/jobs) ----
 
 export type JobState =
   | 'pending'
@@ -214,23 +218,145 @@ export type JobState =
   | 'cancelled'
   | 'timeout'
   | 'node_fail'
+  | 'out_of_memory'
+  | 'requeued'
+  | 'suspended'
+  | 'preempted'
   | 'unknown';
 
-export interface JobRef {
-  cluster: string;
-  profileId: string;
-  owner: string;
-  /** Validated string: preserves possible scheduler suffixes. */
+export interface JobRow {
+  /** Validated string; preserves array suffixes. */
   jobId: string;
+  user: string;
   name: string;
   partition: string;
-  resources: string;
   state: JobState;
+  stateRaw: string;
+  gpus: string | null;
+  cpus: number | null;
+  memory: string | null;
+  /** Cluster-local times as reported by SLURM. */
+  submittedAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  elapsed: string | null;
+  timeLeft: string | null;
+  timeLimit: string | null;
+  nodes: string | null;
+  reason: string | null;
+  exitCode: string | null;
+  comment: string | null;
+  source: 'squeue' | 'sacct' | 'scontrol';
+}
+
+export interface JobsList {
+  active: JobRow[];
+  history: JobRow[] | null;
+  historyNote: string | null;
+  fetchedAt: string;
+  fetchedAtMs: number;
+  historyFetchedAt: string | null;
+  foreignRowsDropped: number;
+}
+
+export interface JobsResponse {
+  list: JobsList | null;
+  lastError: AppError | null;
+  stale: boolean;
+  fetched: boolean;
+  requests: number;
+}
+
+export type Runner = 'python' | 'bash';
+
+export interface JobRequest {
+  partition: string;
+  gresType: string | null;
+  gpuCount: number;
+  cpus: number;
+  memoryMib: number;
+  timeLimitSeconds: number;
+  jobName: string;
+  workingDir: string;
+  runner: Runner;
+  program: string;
+  programArgs: string[];
+  pythonEnv: string | null;
+  setupSource: string | null;
+}
+
+export interface Issue {
+  field: string | null;
+  message: string;
+}
+
+export interface PreviewResponse {
+  previewId: string | null;
+  script: string;
+  checksum: string;
+  errors: Issue[];
+  warnings: Issue[];
+  acknowledgements: string[];
+  snapshotAt: string | null;
+  timeLimit: string;
+  stdoutPattern: string;
+  stderrPattern: string;
+  home: string;
+}
+
+export type ReceiptStatus = 'submitting' | 'accepted' | 'rejected' | 'uncertain' | 'not_found';
+
+export interface JobReceipt {
+  tag: string;
+  profileId: string;
+  user: string;
+  jobId: string | null;
+  cluster: string | null;
+  status: ReceiptStatus;
+  name: string;
+  partition: string;
+  gres: string;
+  gpuCount: number;
   submittedAt: string;
-  startedAt?: string;
-  endedAt?: string;
-  exitCode?: string;
-  stdoutPath?: string;
-  stderrPath?: string;
-  lastUpdatedAt: string;
+  checksum: string;
+  stdoutPattern: string;
+  stderrPattern: string;
+  message: string | null;
+  /** SLURM refused this partition for the account. */
+  accessDenied: boolean;
+  /** Hidden from the list; still counts for what was learned about the partition. */
+  dismissed: boolean;
+}
+
+export type SubmitOutcome =
+  | { outcome: 'accepted'; jobId: string; cluster: string | null }
+  | { outcome: 'rejected'; code: ErrorCode; message: string }
+  | { outcome: 'uncertain'; message: string };
+
+export type SubmitResponse = SubmitOutcome & { receipt: JobReceipt };
+
+export type CancelOutcome =
+  | { outcome: 'requested' }
+  | { outcome: 'refused'; code: ErrorCode; message: string }
+  | { outcome: 'uncertain'; message: string };
+
+export interface JobDetailResponse {
+  job: JobRow;
+  fields: [string, string][];
+  stdoutPath: string | null;
+  stderrPath: string | null;
+  stderrMerged: boolean;
+  logPathNote: string | null;
+  cancelToken: string | null;
+  receipt: JobReceipt | null;
+  fetchedAt: string;
+}
+
+export interface LogChunk {
+  path: string;
+  size: number;
+  from: number;
+  next: number;
+  rotated: boolean;
+  text: string;
 }

@@ -50,6 +50,9 @@ pub struct ConnectionStatus {
     pub locked_until_ms: Option<u64>,
 }
 
+/// (stdout path, stderr path) per job id, learned from `jobs_get_detail`.
+pub type LogPaths = (Option<String>, Option<String>);
+
 type Pending = Arc<Mutex<HashMap<String, (ChallengeKind, oneshot::Sender<Option<Zeroizing<String>>>)>>>;
 
 pub struct AppState {
@@ -62,6 +65,16 @@ pub struct AppState {
     pub pending: Pending,
     pub secrets: Arc<dyn SecretStore>,
     pub env: ConnectEnv,
+    // ---- V2 jobs ----
+    pub jobs_cache: tokio::sync::Mutex<crate::state::Cache<crate::jobs::remote::JobsList>>,
+    pub previews: Mutex<HashMap<String, crate::jobs::commands::StoredPreview>>,
+    /// Held during submit/cancel so two mutations never overlap.
+    pub submit_lock: tokio::sync::Mutex<()>,
+    pub seen_client_ids: Mutex<std::collections::HashSet<String>>,
+    pub cancel_tokens: Mutex<HashMap<String, (String, u64)>>,
+    pub log_paths: Mutex<HashMap<String, LogPaths>>,
+    pub log_rate: Mutex<HashMap<String, u64>>,
+    pub receipts: Mutex<crate::jobs::store::ReceiptStore>,
 }
 
 impl AppState {
@@ -76,6 +89,14 @@ impl AppState {
             pending: Default::default(),
             secrets,
             env,
+            jobs_cache: Default::default(),
+            previews: Default::default(),
+            submit_lock: Default::default(),
+            seen_client_ids: Default::default(),
+            cancel_tokens: Default::default(),
+            log_paths: Default::default(),
+            log_rate: Default::default(),
+            receipts: Mutex::new(crate::jobs::store::ReceiptStore::load(config_dir)),
         }
     }
 
@@ -90,7 +111,7 @@ impl AppState {
     }
 }
 
-fn set_status(app: &AppHandle, f: impl FnOnce(&mut ConnectionStatus)) -> ConnectionStatus {
+pub(crate) fn set_status(app: &AppHandle, f: impl FnOnce(&mut ConnectionStatus)) -> ConnectionStatus {
     let state = app.state::<AppState>();
     let s = {
         let mut st = state.status.lock().unwrap();
@@ -153,11 +174,11 @@ pub fn connection_profile_save(state: State<AppState>, profile: ProfileInput) ->
         last_success_at: None,
         ..ConnectionProfile::default_icf()
     });
-    let identity_changed = p.username != profile.username.trim() || p.ssh_alias != profile.ssh_alias.trim();
+    let identity_changed = p.username != crate::profiles::normalize_user(&profile.username) || p.ssh_alias != profile.ssh_alias.trim();
     p.id = profile.id;
     p.label = profile.label.trim().to_string();
     p.ssh_alias = profile.ssh_alias.trim().to_string();
-    p.username = profile.username.trim().to_string();
+    p.username = crate::profiles::normalize_user(&profile.username);
     p.jump_host = profile.jump_host.trim().to_string();
     p.auth_mode = profile.auth_mode;
     if identity_changed {
@@ -222,11 +243,16 @@ pub struct LoginRequest {
     use_saved: bool,
 }
 
+/// Closes the app's SSH master and forgets per-identity state. Never touches SLURM jobs.
 async fn close_session(state: &AppState) {
     if let Some(s) = state.session.lock().await.take() {
         s.close().await;
     }
     *state.cache.lock().await = SnapshotCache::default();
+    *state.jobs_cache.lock().await = Default::default();
+    state.previews.lock().unwrap().clear();
+    state.cancel_tokens.lock().unwrap().clear();
+    state.log_paths.lock().unwrap().clear();
 }
 
 /// User-initiated login. Exactly one SSH authentication attempt per call; never retried automatically.
@@ -263,8 +289,8 @@ async fn do_login(app: &AppHandle, state: &AppState, request: LoginRequest) -> A
     close_session(state).await;
     let mut profile = state.store.lock().unwrap().get(&request.profile_id)?;
     let mut changed = false;
-    if let Some(u) = request.username.as_deref().map(str::trim).filter(|u| *u != profile.username) {
-        profile.username = u.to_string();
+    if let Some(u) = request.username.as_deref().map(crate::profiles::normalize_user).filter(|u| *u != profile.username) {
+        profile.username = u;
         changed = true;
     }
     if let Some(m) = request.auth_mode.filter(|m| *m != profile.auth_mode) {
@@ -470,7 +496,7 @@ pub async fn cluster_get_snapshot(app: AppHandle, state: State<'_, AppState>, fo
             let session = state.session.lock().await.clone();
             match session {
                 Some(s) => {
-                    cache.inventory_requests += 1;
+                    cache.requests += 1;
                     let groups = status.capabilities.as_ref().map(|c| c.groups.clone()).unwrap_or_default();
                     fetch_live(&s, &groups).await
                 }
@@ -489,29 +515,7 @@ pub async fn cluster_get_snapshot(app: AppHandle, state: State<'_, AppState>, fo
             }
             Err(e) => {
                 cache.record_failure(now, e.clone());
-                match e.code {
-                    ErrorCode::NotConnected | ErrorCode::SshNetwork => {
-                        if let Some(s) = state.session.lock().await.take() {
-                            s.close().await;
-                        }
-                        set_status(&app, |s| {
-                            s.state = ConnState::Offline;
-                            s.error = Some(e.clone());
-                        });
-                    }
-                    ErrorCode::SshAuth | ErrorCode::SshHostKey => {
-                        set_status(&app, |s| {
-                            s.state = ConnState::AuthFailed;
-                            s.error = Some(e.clone());
-                        });
-                    }
-                    _ => {
-                        set_status(&app, |s| {
-                            s.state = ConnState::Degraded;
-                            s.error = Some(e.clone());
-                        });
-                    }
-                }
+                note_remote_error(&app, &state, &e).await;
             }
         }
     }
@@ -521,8 +525,37 @@ pub async fn cluster_get_snapshot(app: AppHandle, state: State<'_, AppState>, fo
         last_attempt_at: cache.last_attempt_ms.map(iso_utc),
         next_allowed_at: (cache.next_allowed_ms > now).then(|| iso_utc(cache.next_allowed_ms)),
         fetched,
-        inventory_requests: cache.inventory_requests,
+        inventory_requests: cache.requests,
     })
+}
+
+/// Reflect a failed remote read in the connection state (shared by cluster and job queries).
+pub(crate) async fn note_remote_error(app: &AppHandle, state: &AppState, e: &AppError) {
+    match e.code {
+        ErrorCode::NotConnected | ErrorCode::SshNetwork => {
+            if let Some(s) = state.session.lock().await.take() {
+                s.close().await;
+            }
+            set_status(app, |s| {
+                s.state = ConnState::Offline;
+                s.error = Some(e.clone());
+            });
+        }
+        ErrorCode::SshAuth | ErrorCode::SshHostKey => {
+            set_status(app, |s| {
+                s.state = ConnState::AuthFailed;
+                s.error = Some(e.clone());
+            });
+        }
+        _ => {
+            set_status(app, |s| {
+                if s.state == ConnState::Connected {
+                    s.state = ConnState::Degraded;
+                }
+                s.error = Some(e.clone());
+            });
+        }
+    }
 }
 
 /// Drill-down from the current snapshot (no extra scheduler query).
@@ -538,8 +571,8 @@ pub async fn cluster_get_node_detail(state: State<'_, AppState>, node_id: String
 #[tauri::command]
 pub async fn cluster_clear_cache(state: State<'_, AppState>) -> AppResult<()> {
     let mut c = state.cache.lock().await;
-    let (attempt, n) = (c.last_attempt_ms, c.inventory_requests);
-    *c = SnapshotCache { last_attempt_ms: attempt, inventory_requests: n, ..Default::default() }; // keep the rate limit
+    let (attempt, n) = (c.last_attempt_ms, c.requests);
+    *c = SnapshotCache { last_attempt_ms: attempt, requests: n, ..Default::default() }; // keep the rate limit
     Ok(())
 }
 

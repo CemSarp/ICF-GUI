@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "job-mutations",
+  "description": "The only commands that change cluster state: one sbatch per reviewed preview, one scancel per confirmation token. Both re-validate ownership on ICF and are never retried automatically.",
+  "windows": ["main"],
+  "permissions": ["allow-jobs-submit", "allow-jobs-cancel"]
+}

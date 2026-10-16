@@ -1,5 +1,5 @@
 import { Badge, EmptyState, Notice } from '../../components/ui';
-import { formatDuration } from '../../lib/format';
+import { formatDuration, nominalVram } from '../../lib/format';
 import type { ClusterSnapshot } from '../../types';
 import { GpuBar, granularityLabel, Legend } from './GpuBar';
 
@@ -70,6 +70,9 @@ export function Overview({
                 <th scope="col">Model</th>
                 <th scope="col">Kind</th>
                 <th scope="col" className="num">
+                  VRAM*
+                </th>
+                <th scope="col" className="num">
                   Nodes
                 </th>
                 <th scope="col">Allocation</th>
@@ -83,6 +86,7 @@ export function Overview({
                     <div className="muted small mono">{t.gresName}</div>
                   </th>
                   <td>{granularityLabel(t.granularity)}</td>
+                  <td className="num">{nominalVram(t.gresName) ?? '—'}</td>
                   <td className="num">{t.nodes}</td>
                   <td>
                     <GpuBar t={t} />
@@ -92,6 +96,9 @@ export function Overview({
             </tbody>
           </table>
         )}
+        <p className="muted small">
+          * Nominal memory per GPU or MIG slice, from the model name. It is not a measurement of free GPU memory.
+        </p>
       </section>
 
       <section className="card">

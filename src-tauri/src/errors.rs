@@ -19,6 +19,8 @@ pub enum ErrorCode {
     AuthLocked,
     Keychain,
     OutputTooLarge,
+    NoResource,
+    JobSubmitUncertain,
     Internal,
 }
 
@@ -54,7 +56,18 @@ pub type AppResult<T> = Result<T, AppError>;
 
 /// Make remote/stderr text safe to display: drop ANSI/control sequences, collapse whitespace, bound length.
 pub fn sanitize_text(input: &str, max_chars: usize) -> String {
+    sanitize(input, max_chars, false)
+}
+
+/// Multi-line variant for logs: keeps `\n`/`\t` and spacing; a bare `\r` overwrites the current
+/// line (progress bars), so only the final redraw is kept.
+pub fn sanitize_log(input: &str, max_chars: usize) -> String {
+    sanitize(input, max_chars, true)
+}
+
+fn sanitize(input: &str, max_chars: usize, multiline: bool) -> String {
     let mut out = String::with_capacity(input.len().min(max_chars));
+    let mut count = 0usize;
     let mut chars = input.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\u{1b}' {
@@ -82,20 +95,33 @@ pub fn sanitize_text(input: &str, max_chars: usize) -> String {
             }
             continue;
         }
-        let c = if c == '\n' || c == '\t' || c == '\r' { ' ' } else { c };
-        if c.is_control() || ('\u{202a}'..='\u{202e}').contains(&c) || ('\u{2066}'..='\u{2069}').contains(&c) {
+        if multiline && c == '\r' {
+            if chars.peek() != Some(&'\n') {
+                let keep = out.rfind('\n').map_or(0, |i| i + 1);
+                count -= out[keep..].chars().count();
+                out.truncate(keep);
+            }
+            continue;
+        }
+        let c = if !multiline && (c == '\n' || c == '\t' || c == '\r') { ' ' } else { c };
+        if (c.is_control() && !(multiline && (c == '\n' || c == '\t'))) || ('\u{202a}'..='\u{202e}').contains(&c) || ('\u{2066}'..='\u{2069}').contains(&c) {
             continue; // includes bidi overrides
         }
-        if c == ' ' && out.ends_with(' ') {
+        if !multiline && c == ' ' && out.ends_with(' ') {
             continue;
         }
         out.push(c);
-        if out.chars().count() >= max_chars {
+        count += 1;
+        if count >= max_chars {
             out.push('…');
             break;
         }
     }
-    out.trim().to_string()
+    if multiline {
+        out
+    } else {
+        out.trim().to_string()
+    }
 }
 
 #[cfg(test)]
@@ -106,6 +132,12 @@ mod tests {
     fn strips_escapes_and_controls() {
         let s = "\u{1b}[31mred\u{1b}[0m \u{1b}]0;title\u{7}ok\u{0}\u{202e}x\nline";
         assert_eq!(sanitize_text(s, 100), "red okx line");
+    }
+
+    #[test]
+    fn log_mode_keeps_lines_and_collapses_progress_redraws() {
+        let s = "epoch 1\n\u{1b}[32m 10%\r 50%\r100%\nloss\t0.1\r\n\u{1b}]8;;http://evil\u{7}link\u{1b}]8;;\u{7}";
+        assert_eq!(sanitize_log(s, 1000), "epoch 1\n100%\nloss\t0.1\nlink");
     }
 
     #[test]

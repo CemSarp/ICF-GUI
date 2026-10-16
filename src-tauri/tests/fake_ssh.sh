@@ -6,14 +6,15 @@ set -f # scenario prompts contain glob characters
 here="$(cd "$(dirname "$0")" && pwd)"
 { printf 'ARGV:'; printf ' %q' "$@"; printf '\n'; env; } >>"$here/seen"
 
-ctl="" master=no op="" gmode=no alias=""
+ctl="" master=no op="" gmode=no alias="" jump=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -G) gmode=yes ;;
     -V) echo "OpenSSH_fake" >&2; exit 0 ;;
     -O) op="$2"; shift ;;
     -o) case "$2" in ControlPath=*) ctl="${2#ControlPath=}" ;; ControlMaster=yes) master=yes ;; esac; shift ;;
-    -F|-l|-J) shift ;;
+    -J) jump="$2"; shift ;;
+    -F|-l) shift ;;
     --) alias="$2"; break ;;
   esac
   shift
@@ -21,8 +22,12 @@ done
 
 if [ "$gmode" = yes ]; then
   case "$alias" in
-    edinburgh-jump) printf 'user s1\nhostname student.ssh.inf.ed.ac.uk\nport 22\n' ;;
-    *) printf 'user s1\nhostname icf\nport 22\nproxyjump edinburgh-jump\n' ;;
+    edinburgh-jump | student.ssh.inf.ed.ac.uk) printf 'user s1\nhostname student.ssh.inf.ed.ac.uk\nport 22\n' ;;
+    *) if [ -e "$here/noconfig" ]; then # no Host icf block: only an explicit -J gives a jump
+         printf 'user s1\nhostname icf\nport 22\n'; [ -n "$jump" ] && printf 'proxyjump %s\n' "$jump"
+         exit 0
+       fi
+       printf 'user s1\nhostname icf\nport 22\nproxyjump edinburgh-jump\n' ;;
   esac
   exit 0
 fi
@@ -61,6 +66,11 @@ fi
 # Multiplexed command.
 [ -e "$ctl" ] || { echo "Control socket connect: No such file" >&2; exit 255; }
 script="$(cat)"
+kind=$(printf '%s\n' "$script" | sed -n 's/^# icfcc:\([a-z-]*\)$/\1/p' | head -n 1)
+if [ -n "$kind" ] && [ -x "$here/mux-$kind" ]; then
+  printf '%s' "$script" > "$here/last-$kind.sh"
+  exec "$here/mux-$kind"
+fi
 case "$script" in
   *@@id*) printf '@@id\n%s\n@@groups\ns1 students\n@@host\nhastings\n@@home\n/home/s1\n@@cmds\nsinfo\nsqueue\nscontrol\nsbatch\nscancel\n@@version\nslurm 23.11.4\n@@json\nyes\n@@end\n' "$(cat "$here/user")" ;;
   *scontrol*) cat "$here/inventory" ;;

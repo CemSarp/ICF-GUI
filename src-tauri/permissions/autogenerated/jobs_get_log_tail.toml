@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jobs-get-log-tail"
+description = "Enables the jobs_get_log_tail command without any pre-configured scope."
+commands.allow = ["jobs_get_log_tail"]
+
+[[permission]]
+identifier = "deny-jobs-get-log-tail"
+description = "Denies the jobs_get_log_tail command without any pre-configured scope."
+commands.deny = ["jobs_get_log_tail"]

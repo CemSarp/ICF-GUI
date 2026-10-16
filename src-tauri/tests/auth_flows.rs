@@ -57,6 +57,12 @@ struct Fixture {
     env: ConnectEnv,
 }
 
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 fn fixture(scenario: &[&str]) -> Fixture {
     let dir = std::env::temp_dir().join(format!("icfcc-it-{}", icf_control_center_lib::util::random_hex(6)));
     std::fs::create_dir_all(&dir).unwrap();
@@ -345,4 +351,30 @@ async fn invalid_profile_is_rejected_before_any_process_starts() {
     let e = connect(&f.env, req(p, FormSecrets::default(), false, false), &Mem::default(), Arc::new(ScriptUi::default()), rx).await.err().unwrap();
     assert_eq!(e.error.code, ErrorCode::InvalidInput);
     assert!(seen(&f).is_empty(), "ssh was never executed");
+}
+
+#[tokio::test]
+async fn without_ssh_config_icf_goes_through_the_gateway_as_the_typed_user() {
+    let f = fixture(&[GW, DEST]);
+    std::fs::write(f.dir.join("noconfig"), "").unwrap();
+    let (store, ui) = (Mem::default(), Arc::new(ScriptUi::default()));
+    let (_tx, rx) = watch::channel(false);
+    let c = connect(&f.env, req(profile(AuthMode::Password), secrets(Some("destpass"), Some("gwpass"), false), true, false), &store, ui.clone(), rx)
+        .await
+        .unwrap_or_else(|e| panic!("{:?}", e.error));
+    assert!(ui.seen.lock().unwrap().is_empty(), "both hops bound and answered automatically");
+    assert!(seen(&f).contains("-J s1@student.ssh.inf.ed.ac.uk"));
+    assert_eq!(c.session.resolved.hops.len(), 2);
+    c.session.close().await;
+}
+
+#[tokio::test]
+async fn existing_ssh_config_is_used_as_is() {
+    let f = fixture(&[]);
+    let (store, ui) = (Mem::default(), Arc::new(ScriptUi::default()));
+    let (_tx, rx) = watch::channel(false);
+    let c =
+        connect(&f.env, req(profile(AuthMode::Agent), FormSecrets::default(), false, false), &store, ui, rx).await.unwrap_or_else(|e| panic!("{:?}", e.error));
+    assert!(!seen(&f).contains(" -J "), "no jump host added when ~/.ssh/config already routes icf");
+    c.session.close().await;
 }

@@ -7,9 +7,11 @@ import { GpuBar, granularityLabel, Legend } from './GpuBar';
 export function Partitions({
   snapshot,
   onOpenNodes,
+  onRequest,
 }: {
   snapshot: ClusterSnapshot;
   onOpenNodes: (partition: string) => void;
+  onRequest: (partition: string) => void;
 }) {
   const [query, setQuery] = usePersistentState('partitions.query', '');
   const [eligibleOnly, setEligibleOnly] = usePersistentState('partitions.eligibleOnly', false);
@@ -113,9 +115,18 @@ export function Partitions({
                   </ul>
                 </details>
               )}
-              <button className="btn ghost" onClick={() => onOpenNodes(p.name)} disabled={p.nodeIds.length === 0}>
-                View nodes
-              </button>
+              <div className="actions start card-foot">
+                <button className="btn ghost" onClick={() => onOpenNodes(p.name)} disabled={p.nodeIds.length === 0}>
+                  View nodes
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => onRequest(p.name)}
+                  disabled={p.gpuTotals.length === 0 || p.eligibility === 'not_permitted'}
+                >
+                  Request GPU
+                </button>
+              </div>
             </article>
           ))}
         </div>

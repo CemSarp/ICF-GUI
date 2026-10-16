@@ -309,7 +309,8 @@ mod tests {
             tokio::task::spawn_blocking(move || {
                 let mut s = std::os::unix::net::UnixStream::connect(sock).unwrap();
                 s.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
-                writeln!(s, "{}", serde_json::to_string(&Request { nonce: n, prompt: "(s1@icf) Password: ".into() }).unwrap()).unwrap();
+                // A rejected peer may see the socket closed before or during the write.
+                let _ = writeln!(s, "{}", serde_json::to_string(&Request { nonce: n, prompt: "(s1@icf) Password: ".into() }).unwrap());
                 let mut r = String::new();
                 let _ = BufReader::new(&s).read_line(&mut r);
                 r

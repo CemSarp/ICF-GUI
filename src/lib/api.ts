@@ -3,7 +3,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AppError,
+  CancelOutcome,
   Challenge,
+  JobDetailResponse,
+  JobReceipt,
+  JobRequest,
+  JobsResponse,
+  LogChunk,
+  PreviewResponse,
+  SubmitResponse,
   ConnectionProfile,
   ConnectionStatus,
   ComputeNode,
@@ -41,6 +49,19 @@ export const api = {
   clearCache: () => invoke<null>('cluster_clear_cache'),
   settings: () => invoke<Settings>('settings_get'),
   setPollInterval: (seconds: number) => invoke<Settings>('settings_set_poll_interval', { seconds }),
+  // V2 jobs. Only jobsSubmit and jobsCancel change cluster state (separate Tauri capability).
+  jobsPreview: (request: JobRequest) => invoke<PreviewResponse>('jobs_preview', { request }),
+  jobsSubmit: (previewId: string, acknowledged: boolean, clientRequestId: string) =>
+    invoke<SubmitResponse>('jobs_submit', { previewId, acknowledged, clientRequestId }),
+  jobsList: (forceRefresh: boolean, includeHistory: boolean) =>
+    invoke<JobsResponse>('jobs_list_mine', { forceRefresh, includeHistory }),
+  jobDetail: (jobId: string) => invoke<JobDetailResponse>('jobs_get_detail', { jobId }),
+  jobLog: (jobId: string, stream: 'stdout' | 'stderr', offset: number | null) =>
+    invoke<LogChunk>('jobs_get_log_tail', { jobId, stream, offset }),
+  jobsCancel: (jobId: string, cancelToken: string) => invoke<CancelOutcome>('jobs_cancel', { jobId, cancelToken }),
+  jobsReceipts: () => invoke<JobReceipt[]>('jobs_receipts'),
+  jobsReconcile: (tag: string) => invoke<JobReceipt>('jobs_reconcile', { tag }),
+  jobsDismissReceipt: (tag: string) => invoke<null>('jobs_dismiss_receipt', { tag }),
   openExternal: (target: 'icf_status' | 'icf_tutorial' | 'vscode_remote_ssh') =>
     invoke<null>('open_external', { target }),
 };

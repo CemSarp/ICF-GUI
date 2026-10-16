@@ -208,3 +208,50 @@ fn export_demo_snapshot_json_for_ui_tests() {
         std::fs::write(path, json).unwrap();
     }
 }
+
+#[test]
+fn gres_used_gives_exact_per_type_allocation_when_reported() {
+    let out = "@@partitions\n@@rc 0\n@@nodes\nNodeName=saxa State=MIXED Gres=gpu:h200:1,gpu:h200_1g.18gb:35,gpu:h200_3g.71gb:4 \
+GresUsed=gpu:h200:0(IDX:N/A),gpu:h200_1g.18gb:3(IDX:1-3),gpu:h200_3g.71gb:4(IDX:36-39) CfgTRES=cpu=96,gres/gpu=40 AllocTRES=gres/gpu=7 Partitions=Teaching\n@@rc 0\n";
+    let s = parse_inventory(out, "icf", SnapshotSource::Live, 0, None).snapshot;
+    assert_eq!(res(&s, "saxa", "gpu:h200_1g.18gb").allocated, Some(3));
+    assert_eq!(res(&s, "saxa", "gpu:h200_1g.18gb").potentially_free, Some(32));
+    assert_eq!(res(&s, "saxa", "gpu:h200").allocated, Some(0));
+    assert_eq!(res(&s, "saxa", "gpu:h200_3g.71gb").potentially_free, Some(0));
+    // `GresUsed` is only printed with `-d` (seen on ICF 25.05: the H200/MIG node stayed Unknown without it).
+    assert!(crate::slurm::INVENTORY_SCRIPT.contains("scontrol -d show node -o"));
+    // Without GresUsed the same node stays Unknown (several types, untyped total only).
+    let no_used = out.replace("GresUsed=gpu:h200:0(IDX:N/A),gpu:h200_1g.18gb:3(IDX:1-3),gpu:h200_3g.71gb:4(IDX:36-39) ", "");
+    let s = parse_inventory(&no_used, "icf", SnapshotSource::Live, 0, None).snapshot;
+    assert_eq!(res(&s, "saxa", "gpu:h200_1g.18gb").allocated, None);
+}
+
+#[test]
+fn partition_limits_and_labels() {
+    let out = "@@partitions\nPartitionName=p State=UP MaxTime=1:00:00 MaxCPUsPerNode=16 MaxMemPerNode=UNLIMITED Nodes=(null)\n@@rc 0\n@@nodes\n@@rc 0\n";
+    let s = parse_inventory(out, "icf", SnapshotSource::Live, 0, None).snapshot;
+    assert_eq!((s.partitions[0].max_cpus_per_node, s.partitions[0].max_mem_per_node_mb), (Some(16), None));
+    assert_eq!(model_label(Some("nvidia_rtx_pro_6000_blackwell_server_edition")), "RTX PRO 6000 Blackwell Server Edition");
+    assert_eq!(model_label(Some("nvidia_l40s")), "L40S");
+}
+
+/// Verbatim `scontrol -d show node -o` lines from ICF (SLURM 25.05.3, 2026-10-16; saxa trimmed to
+/// the relevant fields). Every state seen live maps to a known state; GresUsed resolves the H200.
+#[test]
+fn real_icf_nodes() {
+    let out = "@@partitions\n@@rc 0\n@@nodes\n\
+NodeName=crannog03 CoresPerSocket=16  CPUAlloc=0 CPUEfctv=64 CPUTot=64 CPULoad=0.00 AvailableFeatures=teaching ActiveFeatures=teaching Gres=gpu:a40:4(S:0-1) GresDrain=N/A GresUsed=gpu:a40:0(IDX:N/A) NodeAddr=crannog03 NodeHostName=crannog03  RealMemory=515000 AllocMem=0 FreeMem=N/A Sockets=2 Boards=1 State=DOWN+NOT_RESPONDING ThreadsPerCore=2 TmpDisk=0 Weight=1000 Owner=N/A MCS_label=N/A Partitions=ICF-Free,Open-Research  BootTime=None SlurmdStartTime=None LastBusyTime=2026-09-07T03:39:42 ResumeAfterTime=None CfgTRES=cpu=64,mem=515000M,billing=2,gres/gpu=4,gres/gpu:a40=4 AllocTRES= CurrentWatts=0 AveWatts=0 Reason=Not responding [slurm@2026-09-07T06:37:45]\n\
+NodeName=damnii08 Arch=x86_64 CoresPerSocket=10  CPUAlloc=32 CPUEfctv=40 CPUTot=40 CPULoad=16.73 AvailableFeatures=teaching ActiveFeatures=teaching Gres=gpu:nvidia_geforce_rtx_2080_ti:8(S:0-1) GresDrain=N/A GresUsed=gpu:nvidia_geforce_rtx_2080_ti:2(IDX:0,4) NodeAddr=damnii08 NodeHostName=damnii08 Version=25.05.3 OS=Linux 6.8.0-139-generic #139-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 03:52:05 UTC 2026  RealMemory=380000 AllocMem=49152 FreeMem=341837 Sockets=2 Boards=1 State=MIXED+PLANNED ThreadsPerCore=2 TmpDisk=0 Weight=201 Owner=N/A MCS_label=N/A Partitions=ICF-Free,Teaching  BootTime=2026-10-09T06:33:24 SlurmdStartTime=2026-10-09T06:36:53 LastBusyTime=2026-10-15T20:58:50 ResumeAfterTime=None CfgTRES=cpu=40,mem=380000M,billing=40,gres/gpu=8 AllocTRES=cpu=32,mem=48G,gres/gpu=2 CurrentWatts=520 AveWatts=240\n\
+NodeName=landonia03 CoresPerSocket=6  CPUAlloc=0 CPUEfctv=12 CPUTot=12 CPULoad=0.00 AvailableFeatures=teaching ActiveFeatures=teaching Gres=gpu:nvidia_geforce_rtx_2080_ti:8(S:0-1) GresDrain=N/A GresUsed=gpu:nvidia_geforce_rtx_2080_ti:0(IDX:N/A) NodeAddr=landonia03 NodeHostName=landonia03  RealMemory=193000 AllocMem=0 FreeMem=N/A Sockets=2 Boards=1 State=DOWN+NOT_RESPONDING ThreadsPerCore=1 TmpDisk=0 Weight=1000 Owner=N/A MCS_label=N/A Partitions=ICF-Free,Teaching  BootTime=None SlurmdStartTime=None LastBusyTime=2026-10-07T19:04:00 ResumeAfterTime=None CfgTRES=cpu=12,mem=193000M,billing=12,gres/gpu=8 AllocTRES= CurrentWatts=0 AveWatts=0 Reason=reboot requested : reboot issued : reboot timed out [slurm@2026-10-14T06:59:14]\n\
+NodeName=saxa Gres=gpu:h200:1(S:0),gpu:h200_3g.71gb:4(S:0),gpu:h200_1g.18gb:35(S:0-1) GresUsed=gpu:h200:1(IDX:0),gpu:h200_3g.71gb:4(IDX:1-4),gpu:h200_1g.18gb:0(IDX:N/A) State=MIXED CfgTRES=cpu=96,mem=2060000M,billing=96,gres/gpu=40 AllocTRES=cpu=50,mem=335680M,gres/gpu=5 Partitions=Teaching\n@@rc 0\n";
+    let s = parse_inventory(out, "icf", SnapshotSource::Live, 0, None).snapshot;
+    let st = |n: &str| s.nodes_by_id[n].state;
+    assert_eq!((st("crannog03"), st("damnii08"), st("landonia03"), st("saxa")), (NodeState::Down, NodeState::Mixed, NodeState::Down, NodeState::Mixed));
+    let d = res(&s, "damnii08", "gpu:nvidia_geforce_rtx_2080_ti");
+    assert_eq!((d.allocated, d.potentially_free), (Some(2), Some(6)));
+    assert_eq!(res(&s, "landonia03", "gpu:nvidia_geforce_rtx_2080_ti").unavailable, 8);
+    for (g, alloc, free) in [("gpu:h200", 1, 0), ("gpu:h200_3g.71gb", 4, 0), ("gpu:h200_1g.18gb", 0, 35)] {
+        let r = res(&s, "saxa", g);
+        assert_eq!((r.allocated, r.potentially_free), (Some(alloc), Some(free)), "{g}");
+    }
+}

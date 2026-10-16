@@ -9,16 +9,24 @@ pub const MANUAL_DEBOUNCE_MS: u64 = 10_000;
 pub const BACKOFF_MIN_MS: u64 = 15_000;
 pub const BACKOFF_MAX_MS: u64 = 300_000;
 
-#[derive(Default)]
-pub struct SnapshotCache {
-    pub last: Option<ClusterSnapshot>,
+/// Last good value + rate-limit bookkeeping for one kind of read-only scheduler query.
+pub struct Cache<T> {
+    pub last: Option<T>,
     pub last_attempt_ms: Option<u64>,
     pub last_error: Option<AppError>,
     pub consecutive_failures: u32,
     pub next_allowed_ms: u64,
-    /// Inventory commands actually sent this app session (diagnostics / budget tests).
-    pub inventory_requests: u64,
+    /// Scheduler commands actually sent this app session (diagnostics / budget tests).
+    pub requests: u64,
 }
+
+impl<T> Default for Cache<T> {
+    fn default() -> Self {
+        Self { last: None, last_attempt_ms: None, last_error: None, consecutive_failures: 0, next_allowed_ms: 0, requests: 0 }
+    }
+}
+
+pub type SnapshotCache = Cache<ClusterSnapshot>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Decision {
@@ -27,7 +35,7 @@ pub enum Decision {
 }
 
 /// `interval_ms` is the user's poll interval (already clamped to >= 45 s).
-pub fn decide(c: &SnapshotCache, now: u64, force: bool, interval_ms: u64) -> Decision {
+pub fn decide<T>(c: &Cache<T>, now: u64, force: bool, interval_ms: u64) -> Decision {
     let Some(last) = c.last_attempt_ms else { return Decision::Fetch };
     let age = now.saturating_sub(last);
     if force {
@@ -55,10 +63,9 @@ pub fn jitter_unit() -> f64 {
     u16::from_str_radix(&h, 16).unwrap_or(0) as f64 / 65535.0
 }
 
-impl SnapshotCache {
-    pub fn record_success(&mut self, mut snap: ClusterSnapshot) {
-        snap.stale = false;
-        self.last = Some(snap);
+impl<T> Cache<T> {
+    pub fn record_success(&mut self, value: T) {
+        self.last = Some(value);
         self.last_error = None;
         self.consecutive_failures = 0;
         self.next_allowed_ms = 0;
@@ -68,11 +75,16 @@ impl SnapshotCache {
         self.consecutive_failures += 1;
         self.next_allowed_ms = now + backoff_ms(self.consecutive_failures, jitter_unit());
         self.last_error = Some(e);
-        if let Some(s) = self.last.as_mut() {
-            s.stale = true;
-        }
     }
 
+    /// Force the next read to hit the scheduler (after a mutation such as submit/cancel).
+    pub fn invalidate(&mut self) {
+        self.last_attempt_ms = None;
+        self.next_allowed_ms = 0;
+    }
+}
+
+impl SnapshotCache {
     /// Last good snapshot, marked stale if a refresh failed since or it is older than 2.5 intervals.
     pub fn view(&self, now: u64, interval_ms: u64) -> Option<ClusterSnapshot> {
         self.last.clone().map(|mut s| {

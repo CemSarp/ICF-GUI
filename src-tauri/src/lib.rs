@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod commands;
 pub mod errors;
+pub mod jobs;
 pub mod profiles;
 pub mod slurm;
 pub mod ssh;
@@ -43,6 +44,15 @@ pub fn run() {
             commands::settings_get,
             commands::settings_set_poll_interval,
             commands::open_external,
+            jobs::commands::jobs_preview,
+            jobs::commands::jobs_submit,
+            jobs::commands::jobs_list_mine,
+            jobs::commands::jobs_get_detail,
+            jobs::commands::jobs_get_log_tail,
+            jobs::commands::jobs_cancel,
+            jobs::commands::jobs_receipts,
+            jobs::commands::jobs_reconcile,
+            jobs::commands::jobs_dismiss_receipt,
         ])
         .build(tauri::generate_context!())
         .expect("error while building ICF Control Center");

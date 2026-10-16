@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jobs-dismiss-receipt"
+description = "Enables the jobs_dismiss_receipt command without any pre-configured scope."
+commands.allow = ["jobs_dismiss_receipt"]
+
+[[permission]]
+identifier = "deny-jobs-dismiss-receipt"
+description = "Denies the jobs_dismiss_receipt command without any pre-configured scope."
+commands.deny = ["jobs_dismiss_receipt"]

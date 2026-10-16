@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "V1 is read-only: connection management and cluster views. No job mutation commands exist yet; V2 must add them in a separate capability.",
+  "description": "Read-only and local commands: connection management, cluster views, job preview/list/detail/logs. Mutations live in job-mutations.json.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
@@ -21,6 +21,13 @@
     "allow-cluster-clear-cache",
     "allow-settings-get",
     "allow-settings-set-poll-interval",
-    "allow-open-external"
+    "allow-open-external",
+    "allow-jobs-preview",
+    "allow-jobs-list-mine",
+    "allow-jobs-get-detail",
+    "allow-jobs-get-log-tail",
+    "allow-jobs-receipts",
+    "allow-jobs-reconcile",
+    "allow-jobs-dismiss-receipt"
   ]
 }

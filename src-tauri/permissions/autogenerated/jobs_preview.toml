@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jobs-preview"
+description = "Enables the jobs_preview command without any pre-configured scope."
+commands.allow = ["jobs_preview"]
+
+[[permission]]
+identifier = "deny-jobs-preview"
+description = "Denies the jobs_preview command without any pre-configured scope."
+commands.deny = ["jobs_preview"]

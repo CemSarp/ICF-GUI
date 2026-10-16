@@ -14,7 +14,8 @@ pub fn parse_kv_line(line: &str) -> Vec<(String, String)> {
     for tok in line.split_whitespace() {
         match tok.split_once('=') {
             Some((k, v))
-                if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && k.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) =>
+                // SLURM keys include `AllocNode:Sid`, `ReqB:S:C:T`, `CPUs/Task`, `Socks/Node`.
+                if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || "_:/".contains(c)) && k.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) =>
             {
                 out.push((k.to_string(), v.to_string()))
             }

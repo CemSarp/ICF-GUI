@@ -9,17 +9,22 @@ import { useSnapshot } from '../features/cluster/useSnapshot';
 import { ChallengeDialog } from '../features/connection/ChallengeDialog';
 import { LoginView } from '../features/connection/LoginView';
 import { isLive, useConnection } from '../features/connection/useConnection';
+import { JobDetailView } from '../features/jobs/JobDetailView';
+import { MyJobsView } from '../features/jobs/MyJobsView';
+import { RequestGpuView } from '../features/jobs/RequestGpuView';
 import { SettingsView, type Theme } from '../features/settings/SettingsView';
 import { api, errorMessage } from '../lib/api';
 import { CONN_STATE, formatTime } from '../lib/format';
 import { usePersistentState } from '../lib/persist';
 import type { Settings } from '../types';
 
-type View = 'overview' | 'partitions' | 'nodes' | 'settings';
+type View = 'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'settings';
 const NAV: { id: View; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'partitions', label: 'Partitions' },
   { id: 'nodes', label: 'GPU Nodes' },
+  { id: 'request', label: 'Request GPU' },
+  { id: 'jobs', label: 'My Jobs' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -30,6 +35,8 @@ export function App() {
   const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
   const [partitionFilter, setPartitionFilter] = usePersistentState('nodes.partition', '');
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<string | null>(null);
+  const [requestPartition, setRequestPartition] = useState<string | null>(null);
   const qc = useQueryClient();
   const live = isLive(status);
   const snap = useSnapshot(status, settings.pollIntervalSecs);
@@ -47,10 +54,12 @@ export function App() {
   }, [theme]);
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
-  }, [view, selectedNode]);
+  }, [view, selectedNode, selectedJob]);
 
   const go = (v: View) => {
     setSelectedNode(null);
+    setSelectedJob(null);
+    setRequestPartition(null);
     setView(v);
   };
   const snapshot = snap.data?.snapshot ?? null;
@@ -88,7 +97,7 @@ export function App() {
             </li>
           ))}
         </ul>
-        <div className="sidebar-foot muted small">V1 · read-only</div>
+        <div className="sidebar-foot muted small">v0.2 · jobs need explicit confirmation</div>
       </nav>
 
       <div className="content">
@@ -110,39 +119,44 @@ export function App() {
                   : ''}
             </span>
             <span className="spacer" />
-            <span aria-live="polite">
-              {snap.refreshing ? (
-                'Refreshing…'
-              ) : snapshot ? (
-                <>
-                  Last updated {formatTime(snapshot.fetchedAt)}
-                  {snapshot.stale && (
+            {/* Jobs screens have their own refresh; one Refresh per screen avoids "which one?". */}
+            {view !== 'jobs' && (
+              <>
+                <span aria-live="polite">
+                  {snap.refreshing ? (
+                    'Refreshing…'
+                  ) : snapshot ? (
                     <>
-                      {' '}
-                      <Badge tone="warn" glyph="⚠">
-                        Data stale
-                      </Badge>
+                      Last updated {formatTime(snapshot.fetchedAt)}
+                      {snapshot.stale && (
+                        <>
+                          {' '}
+                          <Badge tone="warn" glyph="⚠">
+                            Data stale
+                          </Badge>
+                        </>
+                      )}
+                      {snapshot.partial && (
+                        <>
+                          {' '}
+                          <Badge tone="warn">Partial</Badge>
+                        </>
+                      )}
                     </>
+                  ) : (
+                    'No data yet'
                   )}
-                  {snapshot.partial && (
-                    <>
-                      {' '}
-                      <Badge tone="warn">Partial</Badge>
-                    </>
-                  )}
-                </>
-              ) : (
-                'No data yet'
-              )}
-            </span>
-            <button
-              className="btn"
-              onClick={snap.refreshNow}
-              disabled={snap.refreshDisabled}
-              title="Manual refresh (at most every 10 s)"
-            >
-              Refresh
-            </button>
+                </span>
+                <button
+                  className="btn"
+                  onClick={snap.refreshNow}
+                  disabled={snap.refreshDisabled}
+                  title="Manual refresh (at most every 10 s)"
+                >
+                  Refresh
+                </button>
+              </>
+            )}
             <button className="btn ghost" onClick={() => void api.disconnect().then(() => qc.clear())}>
               Disconnect
             </button>
@@ -156,8 +170,22 @@ export function App() {
         </header>
 
         <main id="main" tabIndex={-1} ref={mainRef} className="main">
-          <h1 className="page-title">{selectedNode ? 'Node detail' : NAV.find((n) => n.id === view)?.label}</h1>
-          {view === 'settings' ? (
+          <h1 className="page-title">
+            {selectedNode
+              ? 'Node detail'
+              : selectedJob
+                ? 'Job detail'
+                : view === 'request'
+                  ? 'Request GPU / Submit Job'
+                  : NAV.find((n) => n.id === view)?.label}
+          </h1>
+          {view === 'jobs' ? (
+            selectedJob ? (
+              <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
+            ) : (
+              <MyJobsView status={status} onOpen={setSelectedJob} />
+            )
+          ) : view === 'settings' ? (
             <SettingsView
               settings={settings}
               onSettings={setSettings}
@@ -175,6 +203,17 @@ export function App() {
             <EmptyState title="Data unavailable">
               {err ? 'The scheduler could not be queried. Try Refresh in a moment.' : 'No snapshot yet.'}
             </EmptyState>
+          ) : view === 'request' ? (
+            <RequestGpuView
+              key={requestPartition ?? 'draft'}
+              snapshot={snapshot}
+              status={status}
+              initialPartition={requestPartition}
+              onOpenJobs={(jobId) => {
+                go('jobs');
+                if (jobId) setSelectedJob(jobId);
+              }}
+            />
           ) : selectedNode ? (
             <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
           ) : view === 'overview' ? (
@@ -192,6 +231,10 @@ export function App() {
                 setPartitionFilter(p);
                 go('nodes');
               }}
+              onRequest={(p) => {
+                go('request');
+                setRequestPartition(p);
+              }}
             />
           ) : (
             <Nodes
@@ -201,7 +244,7 @@ export function App() {
               onSelect={setSelectedNode}
             />
           )}
-          {snapshot && snapshot.warnings.length > 0 && view !== 'settings' && (
+          {snapshot && snapshot.warnings.length > 0 && ['overview', 'partitions', 'nodes'].includes(view) && (
             <details className="card small">
               <summary>{snapshot.warnings.length} data warning(s)</summary>
               <ul>

@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Marker lines emitted by the fixed inventory script (see `INVENTORY_SCRIPT`).
 pub const INVENTORY_SCRIPT: &str = "printf '@@partitions\\n'; scontrol show partition -o 2>&1; printf '@@rc %s\\n' \"$?\"; \
-printf '@@nodes\\n'; scontrol show node -o 2>&1; printf '@@rc %s\\n' \"$?\"\n";
+printf '@@nodes\\n'; scontrol -d show node -o 2>&1; printf '@@rc %s\\n' \"$?\"\n";
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -113,6 +113,9 @@ pub struct Partition {
     pub state_raw: String,
     pub max_time_seconds: Option<u64>,
     pub max_time_raw: String,
+    /// Partition caps (None = unlimited or not reported).
+    pub max_cpus_per_node: Option<u32>,
+    pub max_mem_per_node_mb: Option<u64>,
     pub node_ids: Vec<String>,
     pub eligibility: Eligibility,
     pub gpu_totals: Vec<GpuTotals>,
@@ -180,6 +183,8 @@ pub fn model_label(gres_type: Option<&str>) -> String {
             "ti" => "Ti".to_string(),
             "geforce" => "GeForce".to_string(),
             w if is_mig_profile(w) => w.to_string(),
+            // Long plain words read better title-cased ("Blackwell Server Edition"); codes stay upper ("RTX", "L40S").
+            w if w.len() >= 5 && w.chars().all(|c| c.is_ascii_alphabetic()) => w[..1].to_ascii_uppercase() + &w[1..],
             w => w.to_ascii_uppercase(),
         })
         .collect::<Vec<_>>()
@@ -215,6 +220,8 @@ pub fn normalize_node(kv: Vec<(String, String)>, ts: &str) -> Option<ComputeNode
     let cfg_tres = kv_get(&kv, "CfgTRES").map(parse_tres);
     let alloc_tres = kv_get(&kv, "AllocTRES").map(parse_tres);
     let n_types = gpus.len();
+    // `GresUsed` (when the scheduler reports it) gives exact per-type usage, e.g. `gpu:a40:2(IDX:0-1)`.
+    let gres_used: Option<Vec<_>> = kv_get(&kv, "GresUsed").map(|u| parse_gres(u).into_iter().filter(|g| g.name == "gpu").collect());
     let unavailable_node = matches!(state, NodeState::Down | NodeState::Drain);
 
     let resources = gpus
@@ -222,7 +229,16 @@ pub fn normalize_node(kv: Vec<(String, String)>, ts: &str) -> Option<ComputeNode
         .map(|g| {
             let typed_key = g.gres_type.as_ref().map(|t| format!("gres/gpu:{t}"));
             let num = |m: &BTreeMap<String, String>, k: &str| m.get(k).and_then(|v| v.parse::<u32>().ok());
+            let from_gres_used = gres_used.as_ref().and_then(|used| {
+                let same: Vec<_> = used.iter().filter(|u| u.gres_type == g.gres_type).collect();
+                match same.as_slice() {
+                    [u] => u.count,
+                    [] if !used.is_empty() || n_types == 1 => Some(0), // listed others (or nothing) for this type: none used
+                    _ => None,
+                }
+            });
             let allocated = match (&cfg_tres, &alloc_tres) {
+                _ if from_gres_used.is_some() => from_gres_used,
                 (Some(cfg), Some(alloc)) => {
                     if let Some(k) = typed_key.as_deref().filter(|k| cfg.contains_key(*k)) {
                         Some(num(alloc, k).unwrap_or(0))
@@ -434,6 +450,8 @@ pub fn parse_inventory(
             state_raw,
             max_time_raw,
             max_time_seconds,
+            max_cpus_per_node: kv_get(&kv, "MaxCPUsPerNode").and_then(|v| v.parse().ok()),
+            max_mem_per_node_mb: kv_get(&kv, "MaxMemPerNode").and_then(|v| v.parse().ok()),
             name,
         });
     }

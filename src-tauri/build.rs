@@ -16,6 +16,17 @@ const COMMANDS: &[&str] = &[
     "settings_get",
     "settings_set_poll_interval",
     "open_external",
+    // V2 jobs (read/local)
+    "jobs_preview",
+    "jobs_list_mine",
+    "jobs_get_detail",
+    "jobs_get_log_tail",
+    "jobs_receipts",
+    "jobs_reconcile",
+    "jobs_dismiss_receipt",
+    // V2 mutations — granted only via capabilities/job-mutations.json
+    "jobs_submit",
+    "jobs_cancel",
 ];
 
 fn main() {

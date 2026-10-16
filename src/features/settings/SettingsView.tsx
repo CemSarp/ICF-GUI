@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
-import { formatDateTime } from '../../lib/format';
+import { formatTime } from '../../lib/format';
 import type { ConnectionStatus, Settings, SnapshotResponse, SshConfigReport } from '../../types';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -110,7 +110,7 @@ export function SettingsView({
             </>
           )}
           <dt>Last refresh attempt</dt>
-          <dd>{formatDateTime(snapshot?.lastAttemptAt)}</dd>
+          <dd>{formatTime(snapshot?.lastAttemptAt)}</dd>
           <dt>Last error</dt>
           <dd>
             {snapshot?.lastError
