@@ -1,39 +1,144 @@
-# ICF Control Center
+<div align="center">
 
-Local-first macOS app for the University of Edinburgh Informatics Compute Facility (ICF): connect over
-your existing SSH setup and see partitions, nodes and GPU allocation with timestamps.
+# 🖥️ ICF Control Center
 
-**Version 0.1.0 (V1): read-only.** It never submits, cancels or changes anything on the cluster.
-Job submission (V2) and the VS Code/dataset workflows (V3) are not implemented yet.
+**A friendly macOS app for the University of Edinburgh Informatics Compute Facility (ICF) GPU cluster.**
 
-![Overview (demo data)](docs/screenshots/overview-demo.jpg)
+See which GPUs are free, submit training jobs, follow their logs and cancel them,
+all without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-## Prerequisites (Apple Silicon, macOS 13+; tested on macOS 26.6)
+![version](https://img.shields.io/badge/version-0.2.0-blue)
+![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
+![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
+
+[**⬇️ Download**](https://github.com/CemSarp/ICF-GUI/releases/latest) ·
+[User guide](docs/USER_GUIDE.md) ·
+[Security](docs/SECURITY.md) ·
+[Changelog](CHANGELOG.md)
+
+![Overview of GPUs by type (demo data)](docs/screenshots/overview-demo.jpg)
+
+</div>
+
+---
+
+## ✨ What is it for?
+
+Training a model on ICF usually means: SSH through the gateway, run `sinfo`/`scontrol` to guess which
+GPUs are free, hand-write an `sbatch` script, then keep running `squeue` and `tail` to see if it
+worked. **ICF Control Center puts all of that in one window.**
+
+| | |
+|---|---|
+| 📊 **See the cluster** | Every partition and GPU node, with **free / used / down** GPUs per type (RTX 2080 Ti, A6000, H200, MIG slices…), refreshed once a minute. |
+| 🚀 **Request a GPU** | A short form: pick a partition and GPU type, CPUs, RAM, time and your script. The app writes the `sbatch` script for you and shows it **before** anything is sent. |
+| 📋 **My Jobs** | Your queued, running and finished jobs, with why a job is waiting, exit codes and hints (timeout, out of memory…). |
+| 📜 **Live logs** | Read your job's output and errors in the app, and follow them while it runs. |
+| 🛑 **Cancel safely** | Cancel your own jobs, with a confirmation. Other people's jobs can't be touched. |
+| 🔐 **Safe by design** | Uses your Mac's own `ssh`. Passwords never touch disk unless you opt in to the macOS Keychain. Nothing is ever submitted without your explicit click. |
+
+## 🖼️ A quick tour
+
+| Request a GPU | Review the exact script |
+|---|---|
+| ![Request GPU wizard](docs/screenshots/request-gpu-demo.jpg) | ![Script review](docs/screenshots/review-script-demo.jpg) |
+| **My Jobs** | **Job detail and logs** |
+| ![My Jobs](docs/screenshots/my-jobs-demo.jpg) | ![Job detail with logs](docs/screenshots/job-detail-demo.jpg) |
+
+*Screenshots use the built-in demo data, not a real account.*
+
+## ⬇️ Install
+
+1. Download **`ICF-Control-Center-0.2.0-macOS-arm64.zip`** from the
+   [latest release](https://github.com/CemSarp/ICF-GUI/releases/latest) and unzip it.
+2. Drag **ICF Control Center.app** into your **Applications** folder.
+3. The first time, macOS will warn you because the app isn't notarized by Apple. Open it once anyway:
+   - **System Settings → Privacy & Security → "Open Anyway"**, or
+   - in Terminal: `xattr -dr com.apple.quarantine "/Applications/ICF Control Center.app"`
+
+Requires an Apple Silicon Mac (M1 or newer) with macOS 13 or later, and an Informatics (DICE) account
+with ICF access.
+
+## 🚀 Quick start
+
+```mermaid
+flowchart LR
+    A[Open the app] --> B[Enter UUN + password]
+    B --> C[Verify host keys<br/>first time only]
+    C --> D[📊 Overview]
+    D --> E[🚀 Request GPU]
+    E --> F[Review script<br/>and Submit]
+    F --> G[📋 My Jobs<br/>logs · cancel]
+```
+
+1. **Sign in.** Choose **Username and password**, type your UUN (e.g. `s1234567`) and your DICE
+   password. Tick *Use the same password for the gateway and ICF* if they're the same.
+   **No SSH setup is needed:** if your Mac has no `icf` entry in `~/.ssh/config`, the app goes through
+   `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
+2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
+   the one Informatics publishes before accepting.
+3. **Look around.** *Overview* shows GPUs by type, *Partitions* and *GPU Nodes* show the details.
+4. **Request a GPU.** Pick a partition (normally **Teaching**) and a GPU type, then set CPUs, RAM and
+   wall time. Give the working directory (relative paths start in your home, e.g. `projects/myrun`) and
+   your script (`train.py`, or a bash script).
+5. **Review and submit.** The app shows the exact batch script. Tick the notices, click
+   **Submit job…**, then confirm. The job is submitted **exactly once**.
+6. **Follow it** in **My Jobs**: open the job, load its log, and cancel it if you need to.
+
+👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md).
+Want to look around first? Click **Explore demo data** on the login screen.
+
+## 🔐 How it connects (and why it's safe)
+
+```mermaid
+flowchart LR
+    subgraph Mac["Your Mac"]
+        App["ICF Control Center"] --> SSH["/usr/bin/ssh<br/>(your config and keys)"]
+        KC[("macOS Keychain<br/>optional")] -.-> App
+    end
+    SSH --> GW["student.ssh.inf.ed.ac.uk<br/>gateway"] --> ICF["icf login node"] --> SLURM[["SLURM scheduler"]]
+```
+
+- Uses **your Mac's OpenSSH** with normal host-key checking, never `sshpass` or "accept any key".
+- Passwords travel only through a private, in-memory channel to `ssh`. They're never put in command
+  lines, environment variables, logs or files, and go into the Keychain only if you tick *Remember*.
+- The interface can't run arbitrary commands, only a fixed set of read-only SLURM queries plus
+  `sbatch`/`scancel` after your confirmation.
+- It's gentle on the cluster: one small query a minute while the window is visible, nothing while
+  it's minimised, and the connection closes after 30 minutes of inactivity.
+
+Details: [docs/SECURITY.md](docs/SECURITY.md).
+
+## ⚠️ Good to know
+
+- **"Free" means potentially free.** Counts come from SLURM's allocation, not from GPU utilisation.
+  The scheduler decides when a job actually starts.
+- **Times** are shown as SLURM reports them (cluster-local, UK time).
+- **VRAM** figures are nominal per GPU model, not live free memory.
+- The app never uses `srun`/`salloc` or keeps an interactive GPU shell open.
+
+## 👋 About
+
+ICF Control Center is a personal project by **Cem Sarp Takim**, a student at the University of
+Edinburgh. It started from wanting a calmer way to work with the ICF GPU cluster. It is **not an
+official Informatics tool** and isn't endorsed by the School of Informatics. Please follow the ICF
+usage rules, and contact Informatics computing support for account or cluster issues.
+
+Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemSarp/ICF-GUI/issues).
+
+<details>
+<summary><b>🛠️ For developers: build, run and test</b></summary>
+
+### Prerequisites (Apple Silicon, macOS 13+)
 
 | Tool | Why | Check |
 |---|---|---|
 | Xcode Command Line Tools | Rust linker, macOS SDK | `xcode-select -p` |
-| Rust ≥ 1.80 (`brew install rust` or rustup) | Tauri backend | `cargo --version` |
+| Rust ≥ 1.82 (`brew install rust` or rustup) | Tauri backend | `cargo --version` |
 | Node 20+ and pnpm 10 | frontend build | `node -v && pnpm -v` |
 | macOS OpenSSH (`/usr/bin/ssh`) | all cluster access | `ssh -V` |
-| VS Code (optional, V3) | external editor | `code --version` |
 
-An `~/.ssh/config` entry for ICF is recommended (the app reads it and never modifies it):
-
-```sshconfig
-Host edinburgh-jump
-    HostName student.ssh.inf.ed.ac.uk
-    User <UUN>
-
-Host icf
-    HostName icf
-    User <UUN>
-    ProxyJump edinburgh-jump
-    ServerAliveInterval 60
-    ServerAliveCountMax 3
-```
-
-## Run
+### Run and build
 
 ```bash
 pnpm install
@@ -43,19 +148,14 @@ pnpm install
 pnpm tauri dev
 ```
 
-Build the `.app` (output: `src-tauri/target/release/bundle/macos/ICF Control Center.app`):
-
 ```bash
 pnpm tauri build
 ```
 
-The build is ad-hoc signed for local use only (not notarized). On the login screen, **Explore demo
-data** opens a synthetic dataset with a yellow *DEMO MODE* banner. Demo data is never shown as live ICF.
+The `.app` lands in `src-tauri/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
+For UI work without SSH, run `pnpm dev` and open <http://localhost:1420/dev/preview.html?state=demo>.
 
-A browser-only UI preview with demo data (no SSH) is available for UI work: `pnpm dev`, then open
-<http://localhost:1420/dev/preview.html>.
-
-## Tests
+### Tests
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
@@ -75,18 +175,13 @@ cd src-tauri && cargo test --test real_openssh -- --ignored
 cd src-tauri && cargo test --lib keychain_roundtrip -- --ignored
 ```
 
-`real_openssh` starts a throwaway unprivileged `sshd` on 127.0.0.1; `keychain_roundtrip` writes and
-deletes one item under a random test service name in your login Keychain.
+Automated tests never contact ICF or submit real jobs; scheduler commands run against a scripted ssh and
+stub `sbatch`/`squeue`/`scancel`.
 
-## Limitations (V1)
+### Project docs
 
-- In-app password login is verified against real OpenSSH for host-key prompts and against a scripted
-  ssh for password/OTP prompts. It has **not** yet been verified against the real Informatics prompts;
-  see [docs/SECURITY.md](docs/SECURITY.md#verification-status).
-- Allocation counts come from SLURM (`scontrol show node`), not from GPU utilisation. "Potentially
-  free" is an estimate; the scheduler decides at submission time.
-- Eligibility is only ever *denied* from visible group restrictions; it is never confirmed.
+[Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
+[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) ·
+[Agent rules](AGENTS.md)
 
-Docs: [User guide](docs/USER_GUIDE.md) · [Architecture](docs/ARCHITECTURE.md) ·
-[Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
-[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Release checklist](docs/RELEASE_CHECKLIST.md)
+</details>
