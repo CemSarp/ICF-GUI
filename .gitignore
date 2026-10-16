@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+*.log
+.DS_Store
+
+# Local reference material and editor launch settings
+/.claude/launch.json
+/A tutorial on using the mlp cluster.webarchive

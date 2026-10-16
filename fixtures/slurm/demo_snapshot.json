@@ -1,0 +1,3402 @@
+{
+  "clusterName": "demo (synthetic)",
+  "source": "demo",
+  "fetchedAt": "2026-10-16T14:32:05Z",
+  "fetchedAtMs": 1792161125000,
+  "stale": false,
+  "partial": false,
+  "permissionScope": "Visible to the authenticated account; visibility does not imply eligibility",
+  "partitions": [
+    {
+      "name": "Interactive",
+      "isDefault": false,
+      "state": "up",
+      "stateRaw": "UP",
+      "maxTimeSeconds": 14400,
+      "maxTimeRaw": "4:00:00",
+      "nodeIds": [
+        "landonia01",
+        "landonia02"
+      ],
+      "eligibility": "unknown",
+      "gpuTotals": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "nodes": 2,
+          "configured": 8,
+          "allocated": 1,
+          "potentiallyFree": 7,
+          "unavailable": 0,
+          "unknown": 0
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Teaching",
+      "isDefault": true,
+      "state": "up",
+      "stateRaw": "UP",
+      "maxTimeSeconds": 172800,
+      "maxTimeRaw": "2-00:00:00",
+      "nodeIds": [
+        "crannog01",
+        "crannog02",
+        "damnii07",
+        "damnii08",
+        "damnii09",
+        "landonia03",
+        "landonia05",
+        "landonia08",
+        "landonia11",
+        "landonia23",
+        "landonia25",
+        "saxa"
+      ],
+      "eligibility": "unknown",
+      "gpuTotals": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "nodes": 7,
+          "configured": 24,
+          "allocated": 8,
+          "potentiallyFree": 8,
+          "unavailable": 8,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_h200",
+          "modelLabel": "H200",
+          "granularity": "physical",
+          "nodes": 1,
+          "configured": 2,
+          "allocated": 1,
+          "potentiallyFree": 1,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_h200_3g.71gb",
+          "modelLabel": "H200 3g.71gb",
+          "granularity": "mig",
+          "nodes": 1,
+          "configured": 4,
+          "allocated": 2,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "nodes": 3,
+          "configured": 16,
+          "allocated": 8,
+          "potentiallyFree": 8,
+          "unavailable": 0,
+          "unknown": 0
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "ICF-Free",
+      "isDefault": false,
+      "state": "up",
+      "stateRaw": "UP",
+      "maxTimeSeconds": 172800,
+      "maxTimeRaw": "2-00:00:00",
+      "nodeIds": [
+        "crannog01",
+        "crannog02",
+        "damnii07",
+        "damnii08",
+        "damnii09",
+        "herman",
+        "landonia03",
+        "landonia05",
+        "landonia08",
+        "landonia11",
+        "landonia21",
+        "landonia23",
+        "landonia25",
+        "saxa",
+        "scotia01",
+        "scotia02"
+      ],
+      "eligibility": "unknown",
+      "gpuTotals": [
+        {
+          "gresName": "gpu",
+          "modelLabel": "GPU (untyped)",
+          "granularity": "unknown",
+          "nodes": 1,
+          "configured": 2,
+          "allocated": 0,
+          "potentiallyFree": 0,
+          "unavailable": 0,
+          "unknown": 2
+        },
+        {
+          "gresName": "gpu:nvidia_a40",
+          "modelLabel": "A40",
+          "granularity": "physical",
+          "nodes": 2,
+          "configured": 8,
+          "allocated": 2,
+          "potentiallyFree": 6,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "nodes": 8,
+          "configured": 26,
+          "allocated": 8,
+          "potentiallyFree": 8,
+          "unavailable": 8,
+          "unknown": 2
+        },
+        {
+          "gresName": "gpu:nvidia_h200",
+          "modelLabel": "H200",
+          "granularity": "physical",
+          "nodes": 1,
+          "configured": 2,
+          "allocated": 1,
+          "potentiallyFree": 1,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_h200_3g.71gb",
+          "modelLabel": "H200 3g.71gb",
+          "granularity": "mig",
+          "nodes": 1,
+          "configured": 4,
+          "allocated": 2,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "nodes": 4,
+          "configured": 18,
+          "allocated": 8,
+          "potentiallyFree": 8,
+          "unavailable": 0,
+          "unknown": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "ICF-Research",
+      "isDefault": false,
+      "state": "up",
+      "stateRaw": "UP",
+      "maxTimeSeconds": 172800,
+      "maxTimeRaw": "2-00:00:00",
+      "nodeIds": [
+        "herman",
+        "scotia01",
+        "scotia02"
+      ],
+      "eligibility": "unknown",
+      "gpuTotals": [
+        {
+          "gresName": "gpu:nvidia_a40",
+          "modelLabel": "A40",
+          "granularity": "physical",
+          "nodes": 2,
+          "configured": 8,
+          "allocated": 2,
+          "potentiallyFree": 6,
+          "unavailable": 0,
+          "unknown": 0
+        },
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "nodes": 1,
+          "configured": 2,
+          "allocated": 0,
+          "potentiallyFree": 0,
+          "unavailable": 0,
+          "unknown": 2
+        },
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "nodes": 1,
+          "configured": 2,
+          "allocated": 0,
+          "potentiallyFree": 0,
+          "unavailable": 0,
+          "unknown": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Open-Research",
+      "isDefault": false,
+      "state": "up",
+      "stateRaw": "UP",
+      "maxTimeSeconds": 604800,
+      "maxTimeRaw": "7-00:00:00",
+      "nodeIds": [
+        "openr01"
+      ],
+      "eligibility": "not_permitted",
+      "gpuTotals": [
+        {
+          "gresName": "gpu:nvidia_a100",
+          "modelLabel": "A100",
+          "granularity": "physical",
+          "nodes": 1,
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "unknown": 0
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "nodesById": {
+    "crannog01": {
+      "id": "crannog01",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 3,
+          "potentiallyFree": 1,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_rtx_a6000:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 8,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 16000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "crannog01"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "8"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_rtx_a6000:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "crannog01"
+        ],
+        [
+          "NodeHostName",
+          "crannog01"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "16000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=8,mem=16000M,gres/gpu=3"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "crannog02": {
+      "id": "crannog02",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_rtx_a6000:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "crannog02"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_rtx_a6000:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "crannog02"
+        ],
+        [
+          "NodeHostName",
+          "crannog02"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "damnii07": {
+      "id": "damnii07",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 2,
+          "allocated": 0,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:2(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "damnii07"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:2(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "damnii07"
+        ],
+        [
+          "NodeHostName",
+          "damnii07"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=2"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "damnii08": {
+      "id": "damnii08",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 2,
+          "allocated": 2,
+          "potentiallyFree": 0,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:2(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 2,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 4000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "damnii08"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "2"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:2(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "damnii08"
+        ],
+        [
+          "NodeHostName",
+          "damnii08"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "4000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=2"
+        ],
+        [
+          "AllocTRES",
+          "cpu=2,mem=4000M,gres/gpu=2"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "damnii09": {
+      "id": "damnii09",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [],
+      "cpuTotal": 16,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "damnii09"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "(null)"
+        ],
+        [
+          "NodeAddr",
+          "damnii09"
+        ],
+        [
+          "NodeHostName",
+          "damnii09"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "herman": {
+      "id": "herman",
+      "partitions": [
+        "ICF-Free",
+        "ICF-Research"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "configured": 2,
+          "allocated": null,
+          "potentiallyFree": null,
+          "unavailable": 0,
+          "confidence": "unknown",
+          "raw": "gpu:nvidia_rtx_a6000:2(S:0)"
+        },
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 2,
+          "allocated": null,
+          "potentiallyFree": null,
+          "unavailable": 0,
+          "confidence": "unknown",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:2(S:1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 8,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 16000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [
+        "allocation unknown for gpu:nvidia_rtx_a6000:2(S:0)",
+        "allocation unknown for gpu:nvidia_geforce_rtx_2080_ti:2(S:1)"
+      ],
+      "raw": [
+        [
+          "NodeName",
+          "herman"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "8"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_rtx_a6000:2(S:0),gpu:nvidia_geforce_rtx_2080_ti:2(S:1)"
+        ],
+        [
+          "NodeAddr",
+          "herman"
+        ],
+        [
+          "NodeHostName",
+          "herman"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "16000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "ICF-Free,ICF-Research"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=8,mem=16000M,gres/gpu=1"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia01": {
+      "id": "landonia01",
+      "partitions": [
+        "Interactive"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia01"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia01"
+        ],
+        [
+          "NodeHostName",
+          "landonia01"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Interactive"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia02": {
+      "id": "landonia02",
+      "partitions": [
+        "Interactive"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 1,
+          "potentiallyFree": 3,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 4,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 8000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia02"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "4"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia02"
+        ],
+        [
+          "NodeHostName",
+          "landonia02"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "8000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Interactive"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=4,mem=8000M,gres/gpu=1"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia03": {
+      "id": "landonia03",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 2,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 8,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 16000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia03"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "8"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia03"
+        ],
+        [
+          "NodeHostName",
+          "landonia03"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "16000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=8,mem=16000M,gres/gpu=2"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia05": {
+      "id": "landonia05",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia05"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia05"
+        ],
+        [
+          "NodeHostName",
+          "landonia05"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia08": {
+      "id": "landonia08",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "drain",
+      "stateRaw": "MIXED+DRAIN",
+      "reason": "scheduled maintenance [admin@2026-10-15T09:00:00]",
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 1,
+          "potentiallyFree": 0,
+          "unavailable": 4,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 2,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 4000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia08"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "2"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia08"
+        ],
+        [
+          "NodeHostName",
+          "landonia08"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "4000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED+DRAIN"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=2,mem=4000M,gres/gpu=1"
+        ],
+        [
+          "Reason",
+          "scheduled maintenance [admin@2026-10-15T09:00:00]"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia11": {
+      "id": "landonia11",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_rtx_a6000",
+          "modelLabel": "RTX A6000",
+          "granularity": "physical",
+          "configured": 8,
+          "allocated": 5,
+          "potentiallyFree": 3,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_rtx_a6000:8(S:0-1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 20,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 40000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia11"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "20"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_rtx_a6000:8(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia11"
+        ],
+        [
+          "NodeHostName",
+          "landonia11"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "40000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=8"
+        ],
+        [
+          "AllocTRES",
+          "cpu=20,mem=80000M,gres/gpu=5"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia21": {
+      "id": "landonia21",
+      "partitions": [
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu",
+          "modelLabel": "GPU (untyped)",
+          "granularity": "unknown",
+          "configured": 2,
+          "allocated": null,
+          "potentiallyFree": null,
+          "unavailable": 0,
+          "confidence": "unknown",
+          "raw": "gpu:2"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 4,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 8000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [
+        "allocation unknown for gpu:2"
+      ],
+      "raw": [
+        [
+          "NodeName",
+          "landonia21"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "4"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:2"
+        ],
+        [
+          "NodeAddr",
+          "landonia21"
+        ],
+        [
+          "NodeHostName",
+          "landonia21"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "8000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16"
+        ],
+        [
+          "AllocTRES",
+          "cpu=4,mem=8000M"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia23": {
+      "id": "landonia23",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "down",
+      "stateRaw": "DOWN*+NOT_RESPONDING",
+      "reason": "Not responding [slurm@2026-10-16T08:12:00]",
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 0,
+          "unavailable": 4,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia23"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia23"
+        ],
+        [
+          "NodeHostName",
+          "landonia23"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "DOWN*+NOT_RESPONDING"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "Reason",
+          "Not responding [slurm@2026-10-16T08:12:00]"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "landonia25": {
+      "id": "landonia25",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "allocated",
+      "stateRaw": "ALLOCATED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+          "modelLabel": "GeForce RTX 2080 Ti",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 4,
+          "potentiallyFree": 0,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 16,
+      "cpuAllocated": 16,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 32000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "landonia25"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "16"
+        ],
+        [
+          "CPUEfctv",
+          "16"
+        ],
+        [
+          "CPUTot",
+          "16"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_geforce_rtx_2080_ti:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "landonia25"
+        ],
+        [
+          "NodeHostName",
+          "landonia25"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "32000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "ALLOCATED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=16,mem=64000M,billing=16,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=16,mem=32000M,gres/gpu=4"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "openr01": {
+      "id": "openr01",
+      "partitions": [
+        "Open-Research"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_a100",
+          "modelLabel": "A100",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_a100:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 64,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "openr01"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "64"
+        ],
+        [
+          "CPUTot",
+          "64"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_a100:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "openr01"
+        ],
+        [
+          "NodeHostName",
+          "openr01"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Open-Research"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=64,mem=64000M,billing=64,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "saxa": {
+      "id": "saxa",
+      "partitions": [
+        "Teaching",
+        "ICF-Free"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_h200",
+          "modelLabel": "H200",
+          "granularity": "physical",
+          "configured": 2,
+          "allocated": 1,
+          "potentiallyFree": 1,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_h200:2(S:0)"
+        },
+        {
+          "gresName": "gpu:nvidia_h200_3g.71gb",
+          "modelLabel": "H200 3g.71gb",
+          "granularity": "mig",
+          "configured": 4,
+          "allocated": 2,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_h200_3g.71gb:4(S:1)"
+        }
+      ],
+      "cpuTotal": 64,
+      "cpuAllocated": 24,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 48000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "saxa"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "24"
+        ],
+        [
+          "CPUEfctv",
+          "64"
+        ],
+        [
+          "CPUTot",
+          "64"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_h200:2(S:0),gpu:nvidia_h200_3g.71gb:4(S:1)"
+        ],
+        [
+          "NodeAddr",
+          "saxa"
+        ],
+        [
+          "NodeHostName",
+          "saxa"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "48000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "Teaching,ICF-Free"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=64,mem=64000M,billing=64,gres/gpu=6,gres/gpu:nvidia_h200=2,gres/gpu:nvidia_h200_3g.71gb=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=24,mem=200000M,gres/gpu=3,gres/gpu:nvidia_h200=1,gres/gpu:nvidia_h200_3g.71gb=2"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "scotia01": {
+      "id": "scotia01",
+      "partitions": [
+        "ICF-Free",
+        "ICF-Research"
+      ],
+      "state": "mixed",
+      "stateRaw": "MIXED",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_a40",
+          "modelLabel": "A40",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 2,
+          "potentiallyFree": 2,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_a40:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 16,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 32000,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "scotia01"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "16"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_a40:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "scotia01"
+        ],
+        [
+          "NodeHostName",
+          "scotia01"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "32000"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "MIXED"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "ICF-Free,ICF-Research"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          "cpu=16,mem=32000M,gres/gpu=2"
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    },
+    "scotia02": {
+      "id": "scotia02",
+      "partitions": [
+        "ICF-Free",
+        "ICF-Research"
+      ],
+      "state": "idle",
+      "stateRaw": "IDLE",
+      "reason": null,
+      "resources": [
+        {
+          "gresName": "gpu:nvidia_a40",
+          "modelLabel": "A40",
+          "granularity": "physical",
+          "configured": 4,
+          "allocated": 0,
+          "potentiallyFree": 4,
+          "unavailable": 0,
+          "confidence": "exact",
+          "raw": "gpu:nvidia_a40:4(S:0-1)"
+        }
+      ],
+      "cpuTotal": 32,
+      "cpuAllocated": 0,
+      "memoryMb": 64000,
+      "memoryAllocatedMb": 0,
+      "sourceTimestamp": "2026-10-16T14:32:05Z",
+      "warnings": [],
+      "raw": [
+        [
+          "NodeName",
+          "scotia02"
+        ],
+        [
+          "Arch",
+          "x86_64"
+        ],
+        [
+          "CoresPerSocket",
+          "8"
+        ],
+        [
+          "CPUAlloc",
+          "0"
+        ],
+        [
+          "CPUEfctv",
+          "32"
+        ],
+        [
+          "CPUTot",
+          "32"
+        ],
+        [
+          "CPULoad",
+          "0.10"
+        ],
+        [
+          "AvailableFeatures",
+          "(null)"
+        ],
+        [
+          "ActiveFeatures",
+          "(null)"
+        ],
+        [
+          "Gres",
+          "gpu:nvidia_a40:4(S:0-1)"
+        ],
+        [
+          "NodeAddr",
+          "scotia02"
+        ],
+        [
+          "NodeHostName",
+          "scotia02"
+        ],
+        [
+          "Version",
+          "23.11.4"
+        ],
+        [
+          "OS",
+          "Linux 5.14.0-427.el9.x86_64 #1 SMP PREEMPT_DYNAMIC"
+        ],
+        [
+          "RealMemory",
+          "64000"
+        ],
+        [
+          "AllocMem",
+          "0"
+        ],
+        [
+          "FreeMem",
+          "50000"
+        ],
+        [
+          "Sockets",
+          "2"
+        ],
+        [
+          "Boards",
+          "1"
+        ],
+        [
+          "State",
+          "IDLE"
+        ],
+        [
+          "ThreadsPerCore",
+          "1"
+        ],
+        [
+          "TmpDisk",
+          "0"
+        ],
+        [
+          "Weight",
+          "1"
+        ],
+        [
+          "Owner",
+          "N/A"
+        ],
+        [
+          "MCS_label",
+          "N/A"
+        ],
+        [
+          "Partitions",
+          "ICF-Free,ICF-Research"
+        ],
+        [
+          "BootTime",
+          "2026-09-01T10:00:00"
+        ],
+        [
+          "SlurmdStartTime",
+          "2026-09-01T10:01:00"
+        ],
+        [
+          "CfgTRES",
+          "cpu=32,mem=64000M,billing=32,gres/gpu=4"
+        ],
+        [
+          "AllocTRES",
+          ""
+        ],
+        [
+          "CapWatts",
+          "n/a"
+        ],
+        [
+          "CurrentWatts",
+          "0"
+        ]
+      ]
+    }
+  },
+  "gpuTotals": [
+    {
+      "gresName": "gpu",
+      "modelLabel": "GPU (untyped)",
+      "granularity": "unknown",
+      "nodes": 1,
+      "configured": 2,
+      "allocated": 0,
+      "potentiallyFree": 0,
+      "unavailable": 0,
+      "unknown": 2
+    },
+    {
+      "gresName": "gpu:nvidia_a100",
+      "modelLabel": "A100",
+      "granularity": "physical",
+      "nodes": 1,
+      "configured": 4,
+      "allocated": 0,
+      "potentiallyFree": 4,
+      "unavailable": 0,
+      "unknown": 0
+    },
+    {
+      "gresName": "gpu:nvidia_a40",
+      "modelLabel": "A40",
+      "granularity": "physical",
+      "nodes": 2,
+      "configured": 8,
+      "allocated": 2,
+      "potentiallyFree": 6,
+      "unavailable": 0,
+      "unknown": 0
+    },
+    {
+      "gresName": "gpu:nvidia_geforce_rtx_2080_ti",
+      "modelLabel": "GeForce RTX 2080 Ti",
+      "granularity": "physical",
+      "nodes": 10,
+      "configured": 34,
+      "allocated": 9,
+      "potentiallyFree": 15,
+      "unavailable": 8,
+      "unknown": 2
+    },
+    {
+      "gresName": "gpu:nvidia_h200",
+      "modelLabel": "H200",
+      "granularity": "physical",
+      "nodes": 1,
+      "configured": 2,
+      "allocated": 1,
+      "potentiallyFree": 1,
+      "unavailable": 0,
+      "unknown": 0
+    },
+    {
+      "gresName": "gpu:nvidia_h200_3g.71gb",
+      "modelLabel": "H200 3g.71gb",
+      "granularity": "mig",
+      "nodes": 1,
+      "configured": 4,
+      "allocated": 2,
+      "potentiallyFree": 2,
+      "unavailable": 0,
+      "unknown": 0
+    },
+    {
+      "gresName": "gpu:nvidia_rtx_a6000",
+      "modelLabel": "RTX A6000",
+      "granularity": "physical",
+      "nodes": 4,
+      "configured": 18,
+      "allocated": 8,
+      "potentiallyFree": 8,
+      "unavailable": 0,
+      "unknown": 2
+    }
+  ],
+  "warnings": []
+}

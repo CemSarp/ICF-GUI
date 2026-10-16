@@ -1,0 +1,17 @@
+name: ci
+# Offline by default: no secrets, no network access to ICF, mock/fixture data only.
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: 'rustfmt, clippy' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
+      - working-directory: src-tauri
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

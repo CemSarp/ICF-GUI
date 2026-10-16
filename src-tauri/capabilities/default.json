@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "V1 is read-only: connection management and cluster views. No job mutation commands exist yet; V2 must add them in a separate capability.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-connection-profiles-list",
+    "allow-connection-profile-save",
+    "allow-connection-inspect-ssh-config",
+    "allow-connection-status",
+    "allow-connection-test-and-login",
+    "allow-connection-cancel",
+    "allow-connection-answer-challenge",
+    "allow-connection-disconnect",
+    "allow-connection-forget-credentials",
+    "allow-connection-open-demo",
+    "allow-cluster-get-snapshot",
+    "allow-cluster-get-node-detail",
+    "allow-cluster-clear-cache",
+    "allow-settings-get",
+    "allow-settings-set-poll-interval",
+    "allow-open-external"
+  ]
+}

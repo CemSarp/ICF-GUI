@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-connection-profile-save"
+description = "Enables the connection_profile_save command without any pre-configured scope."
+commands.allow = ["connection_profile_save"]
+
+[[permission]]
+identifier = "deny-connection-profile-save"
+description = "Denies the connection_profile_save command without any pre-configured scope."
+commands.deny = ["connection_profile_save"]
