@@ -41,6 +41,40 @@ min with jitter) under a single-flight lock, so the budget holds even if the UI 
 mock backend that serves the Rust-generated demo snapshot JSON. A webview E2E harness can be added
 in V2 if job flows need it.
 
+## ADR-008 — One reviewed preview = at most one sbatch
+*Status: accepted (V2).* Submission takes a server-side preview id, not a request: the exact script the
+user reviewed is stored in Rust and consumed before sending. Duplicate client ids and concurrent
+mutations are refused. Unknown outcomes are reported as *uncertain* and reconciled only on request via
+the `icfcc-<tag>` job comment. There is no automatic retry path anywhere.
+
+## ADR-009 — Program location and logs
+*Status: accepted (V2).* Jobs run an existing script on ICF inside the user's home (a remote path, not a
+local file). The wizard writes `#SBATCH --chdir=<workdir>` and logs to `<workdir>/slurm-%j.out|.err`.
+Paths are validated locally and re-resolved on ICF (`readlink -f`, must stay under `$HOME`). Sourcing a
+setup file outside home (e.g. a shared CUDA toolchain rc) is allowed only with explicit
+acknowledgement.
+
+## ADR-010 — Job polling and history
+*Status: accepted (V2).* My Jobs polls `squeue` every 45 s only while visible (backend floor 30 s);
+`sacct` history (7 days) at most every 5 min unless refreshed manually; if `sacct` is missing or
+accounting is disabled the UI says history is unavailable instead of inventing it.
+
+## ADR-011 — Nominal VRAM only
+*Status: accepted (V2).* SLURM does not report GPU memory. The UI shows nominal per-GPU/MIG-slice memory
+from the model name (a small table; MIG profiles carry their size) and labels it nominal. No free-memory
+or utilisation claims.
+
+## ADR-012 — `GresUsed` when available
+*Status: accepted (V2).* If `scontrol show node` reports `GresUsed`, per-type allocation is taken from it
+(exact). Otherwise the V1 TRES rules apply and multi-type nodes with only an untyped total stay Unknown
+(as seen for the H200/MIG node on ICF).
+
+## ADR-013 — Default gateway when `icf` is not configured
+*Status: accepted (V2).* If the profile alias is `icf`, no jump host is entered, and `ssh -G icf` shows
+no ProxyJump/ProxyCommand with hostname still `icf`, the connection adds `-J <UUN>@student.ssh.inf.ed.ac.uk`
+(typed UUN, else the user `ssh -G` reports). The user's ssh config and any explicit jump host always win;
+other aliases are never changed. Host keys of both hops are still verified interactively.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

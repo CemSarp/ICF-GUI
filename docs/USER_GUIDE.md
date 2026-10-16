@@ -2,6 +2,12 @@
 
 ## Connecting
 
+**No SSH config needed.** If `icf` is not set up in your `~/.ssh/config`, the app connects through the
+Informatics gateway (`student.ssh.inf.ed.ac.uk`) automatically, as the UUN you type. Just choose
+*Username and password*, enter your UUN and password, tick *Use the same password for the gateway and
+ICF* if they are the same, and verify both host keys on first connect. An existing `Host icf` entry or
+a jump host typed under *Advanced* always takes precedence.
+
 1. Open **ICF Control Center**.
 2. Choose a sign-in method:
    - **Use existing SSH config / agent** (recommended if `ssh icf` already works in Terminal with keys).
@@ -33,6 +39,41 @@
 - MIG slices (e.g. *H200 3g.71gb*) are listed separately from full GPUs.
 - *Visibility does not imply eligibility*: the scheduler decides which partitions accept your jobs.
 - *Data stale* means the last refresh failed or the data is old; the last good data stays visible.
+
+## Requesting a GPU (batch jobs)
+
+1. **Request GPU** (sidebar, or the button on a partition card).
+2. Choose a partition and GPU type. The numbers show *potential* availability at the last snapshot;
+   they are not a reservation. Set GPUs (default 1), CPUs, RAM and wall time (within the partition limit).
+3. Enter the **working directory** (relative paths start in your home, e.g. `projects/semeval`) and **script** on ICF (inside your home), an optional virtualenv
+   (`source <env>/bin/activate` is added) and optional arguments (one per line, passed literally).
+4. **Review script** shows the exact batch script and checksum. Acknowledge any notices, click
+   **Submit job…**, then confirm. The job is submitted once.
+5. Outcomes: **Accepted** (you get a job ID; it may wait in the queue), **Not submitted** (the reason
+   and a suggested edit), or **Submission uncertain** (the connection dropped mid-way). For uncertain,
+   use *Check my jobs for this submission* before submitting again; the app never retries by itself.
+
+The app remembers what SLURM said about each partition you submitted to from this Mac: a partition
+that accepted your last job shows *✓ accepted your last job* and needs no eligibility acknowledgement;
+one that rejected your account shows *rejected you before* and warns before review. In My Jobs, **✕**
+hides a finished submission from the list (it is still remembered for this purpose).
+
+Use **Teaching** for normal training. **Interactive** is for short debugging; the app only ever uses
+`sbatch` and never holds an interactive GPU shell open.
+
+### Allocated vs utilised
+A job that is *Pending* holds no GPU. When *Running*, SLURM has allocated the GPU to you, whether or
+not your code is using it. The app shows scheduler allocation, not GPU utilisation or free memory.
+
+## My Jobs
+
+Lists your queued/running jobs (`squeue`, every 45 s while visible) and the last 7 days of finished
+jobs (`sacct`, when the site provides it). Open a job for scheduler details, failure hints
+(timeout, out of memory, exit code) and logs:
+- **Load log** fetches the last 64 KB; **Load new output** fetches only what was added since.
+  *Follow* reloads every 10 s for running jobs while the window is visible.
+- **Cancel job…** appears only for your own pending/running jobs and asks for confirmation. The state
+  changes to *Cancelled* once SLURM reports it.
 
 ## Refresh and load on ICF
 

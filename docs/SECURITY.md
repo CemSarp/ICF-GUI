@@ -85,6 +85,44 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   30 minutes without commands. Jobs and external VS Code sessions are never touched.
 - No telemetry. Diagnostics in Settings redact usernames by default.
 
+## V2: job submission, logs, cancellation
+
+- **Separate capability.** `jobs_submit` and `jobs_cancel` are the only commands that change cluster
+  state; they are granted in `capabilities/job-mutations.json`, apart from the read-only set.
+- **Identity** for all job operations comes from the authenticated probe (`id -un`, `$HOME`), never
+  from the UI. `squeue -u <user>`; rows for other users are dropped (and counted).
+- **Request validation** (`jobs/request.rs`, `deny_unknown_fields`): partition visible and not
+  denied; GRES type present on a node in that partition; GPU/CPU/RAM within the largest such node and
+  partition caps; wall time within `MaxTime`; job name `[A-Za-z0-9._-]`; paths absolute, inside
+  `$HOME`, conservative charset (no whitespace, quotes, `$`, backticks, globs, `%`, `.`/`..`).
+  Program arguments may contain anything printable and are single-quoted. Notices that need consent
+  (unknown eligibility, multi-GPU, Interactive partition, sourcing a file outside home) must be
+  acknowledged.
+- **Exactly one submission per review.** `jobs_preview` stores the rendered script under a random id;
+  `jobs_submit` removes it *before* sending, rejects duplicate client request ids, and runs under a
+  mutation lock. The script is re-validated against the newest snapshot, then sent in a quoted
+  heredoc to a single `sbatch --parsable`. On ICF the same command first resolves the working
+  directory, program, venv and setup file with `readlink -f` and refuses anything outside `$HOME`
+  (symlinks included) — nothing is submitted if a check fails.
+- **Uncertain outcomes.** If the connection drops or times out after the submission step started, the
+  receipt is marked *uncertain* and nothing is retried. Each job carries `--comment=icfcc-<tag>` so
+  the user can reconcile (search own jobs) explicitly. A receipt is written *before* sending, so a
+  crash mid-submit also reads as uncertain.
+- **Cancellation.** Requires a token issued by `jobs_get_detail` (only for own, cancellable jobs; 10
+  min TTL; constant-time compare; single use) plus a confirmation dialog. On ICF the same command
+  re-checks `squeue -j <id> -o %u|%T` and runs `scancel <one validated id>` — never `-u`, ranges,
+  wildcards or `scontrol update`. The UI says *Cancellation requested* until SLURM shows it.
+- **Logs.** Paths come from `scontrol show job` (or this app's receipts), placeholders are expanded
+  conservatively (`%j %A %a %x %u %%` only). On ICF the file must resolve inside `$HOME` and be owned by
+  you. Reads are bounded (64 KiB per request, incremental by byte offset, rotation detected) and
+  rate-limited per stream (5 s); text is stripped of ANSI/OSC (including terminal hyperlinks) and
+  control characters and rendered as plain text.
+- **Evidence.** Generated remote scripts are executed in a real `sh` with stub
+  `sbatch`/`squeue`/`scancel`/`python3` (`jobs/tests.rs`): payloads such as `$(touch PWNED)`,
+  backticks and `'; rm -rf /` arrive as literal argv, `sbatch` receives byte-identical script text,
+  symlinks out of home are refused, and `scancel` receives exactly one id.
+- Closing the app or disconnecting never cancels jobs.
+
 ## Verification status
 
 | Matrix row (V1 plan M2) | Evidence | Status |
@@ -98,7 +136,9 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 | OTP/MFA not stored | scripted ssh | ✅ simulated |
 | Reconnect with remembered password | scripted ssh + in-memory store; real Keychain round-trip test | ✅ |
 | Forget credential | UI test (confirmation) + Keychain delete test | ✅ |
-| **Real ICF gateway + ICF password prompts** | not run (needs your consent; read-only) | ⏳ pending |
+| Real ICF connection, read-only inventory | performed by the user on 2026-10-16 (screenshots) | ✅ |
+| Real ICF job submission | user-approved smoke test on 2026-10-16: job 3680123 (Teaching, 1× RTX 2080 Ti, 2 CPUs, 4 GB, 5 min) Accepted → COMPLETED 0:0 on `opencast`; stdout read in-app. An earlier ICF-Free attempt was cleanly rejected by sbatch (account/partition), no job created | ✅ |
+| Real ICF job cancel | not run; needs a separately approved job | ⏳ pending |
 
 A non-root `sshd` cannot produce password prompts, so the password rows rely on OpenSSH's documented
 prompt formats (unit-tested strings) until the manual ICF check is done. If the real Informatics

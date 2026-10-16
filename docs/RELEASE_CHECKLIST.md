@@ -15,12 +15,27 @@
 - [ ] Confirm policy on storing university passwords in the Keychain
 - Not done: signing with a Developer ID / notarization (not needed for local use)
 
-## V2 backlog (prioritised; types exist in `src/types`, no commands or permissions yet)
+## v0.2.0 (V2, jobs)
 
-1. `jobs_list_mine` (read): `squeue -u <verified remote user>` fixed format, own jobs only, ≤ 1/30–45 s while visible.
-2. `jobs_get_detail` (read): `scontrol show job <validated id>`; `sacct` if permitted.
-3. `jobs_preview` (local): typed form → exact sbatch script + warnings; script hash.
-4. `jobs_submit` (mutation, separate capability): single `sbatch --parsable` with script on stdin; uncertain network result → search own recent jobs + explicit user choice, never auto-retry.
-5. `jobs_get_log_tail` (read): bounded, sanitized tail of user-owned paths, ≤ 1/5–10 s.
-6. `jobs_cancel` (mutation): own jobs only, confirmation token.
-7. Local job reference store (no secrets), job states incl. `requeued`/`unknown`.
+- [x] Frontend gates: lint, typecheck, 31 UI tests (19 V1 regression + 12 V2), production build
+- [x] Rust gates: fmt, clippy `-D warnings`, 63 unit + 13 auth-flow + 5 job-flow tests
+- [x] Real-shell execution of generated submit/cancel/list/log scripts with stub scheduler binaries
+- [x] Opt-in real OpenSSH test re-run (V1 regression)
+- [x] `.app` builds
+- [x] **One approved on-cluster smoke test** — job 3680123 on 2026-10-16, COMPLETED, log read in-app (Teaching, 1 GPU of the smallest type, 2 CPUs, 4 GB, 5 min,
+      a script that prints `hostname` and `nvidia-smi -L` and exits): submit → see Pending/Running →
+      read stdout → Completed. Optionally a second approved job to test Cancel.
+- [x] UI polish after the smoke test: learned partition eligibility, dismissible receipts, one time
+      format, compact GPU type list, relative working directory, one Refresh per screen
+- [ ] Approved cancel test (second job, e.g. `sleep 240`)
+- [ ] Capture scrubbed real `squeue`/`sacct`/`scontrol show job` output as fixtures
+- [x] Smoke-test findings fixed (tests added; awaiting live re-check): job detail shows `Partition` as `Teaching AllocNode:Sid=…` (kv parser rejects
+      `:` in keys); RAM shown as `—`; H200/MIG allocation still Unknown (`GresUsed` likely needs `scontrol -d`)
+
+## V3 backlog (not started)
+
+1. `projects_open_in_vscode`: discover `code` CLI, `code --remote ssh-remote+icf <validated path>`.
+2. `projects_list_interpreters`: list `bin/python` under allowed project paths; optional `.vscode/settings.json` with consent.
+3. Dataset staging plan: single archive → per-job `/disk/scratch/<UUN>/<jobid>` inside the job, `trap` copy-back, safe cleanup.
+4. "Run selected script as batch job" reusing the V2 wizard and preview.
+5. Optional local SQLite job history with bounded retention.
