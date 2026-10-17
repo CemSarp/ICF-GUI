@@ -18,6 +18,30 @@ need_dir() { r=$(readlink -f -- "$1" 2>/dev/null) && [ -d "$r" ] || { printf '@@
 need_file() { r=$(readlink -f -- "$1" 2>/dev/null) && [ -f "$r" ] && [ -r "$r" ] || { printf '@@err missing %s\n' "$2"; exit 0; }; [ "$3" = any ] || inside "$r" || { printf '@@err outside %s\n' "$2"; exit 0; }; }
 "#;
 
+/// Extra on-ICF checks a V3 workflow adds before its single `sbatch`. Labels are fixed words
+/// (see `precheck_message`), never user text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Precheck {
+    /// Readable regular file inside home.
+    File(String, &'static str),
+    /// Readable regular file anywhere (e.g. a shared toolchain rc the user acknowledged).
+    Readable(String, &'static str),
+    /// Executable file anywhere (e.g. a system interpreter), symlinks resolved.
+    Exec(String, &'static str),
+    /// Existing directory inside home.
+    Dir(String, &'static str),
+    /// Existing file or directory inside home.
+    Path(String, &'static str),
+    /// Create (mkdir -p) a directory inside home if missing; its existing ancestor must resolve
+    /// inside home first, so a symlinked component can never make us create directories elsewhere.
+    MakeDir(String, &'static str),
+}
+
+/// The reviewed script travels in a quoted heredoc; a line equal to the delimiter would end it early.
+pub fn heredoc_safe(body: &str, delimiter: &str) -> bool {
+    !body.lines().any(|l| l == delimiter)
+}
+
 /// Pre-checks paths on ICF (exist, resolve under $HOME), then runs `sbatch --parsable` exactly once.
 pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     let mut s = String::from("# icfcc:submit\numask 077\n");
@@ -32,6 +56,30 @@ pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     if let Some(src) = r.setup_source.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("need_file {} setupSource any\n", q(src));
     }
+    finish_submit(s, job_script, tag)
+}
+
+/// V3 workflow submission: only the listed checks (the wrapper script carries its own program).
+pub fn submit_script_with(checks: &[Precheck], job_script: &str, tag: &str) -> String {
+    let mut s = String::from("# icfcc:submit\numask 077\n");
+    s += PATH_HELPERS;
+    s += "need_exec() { r=$(readlink -f -- \"$1\" 2>/dev/null) && [ -f \"$r\" ] && [ -x \"$r\" ] || { printf '@@err missing %s\\n' \"$2\"; exit 0; }; }\n";
+    s += "make_dir() { a=$1; while [ ! -e \"$a\" ] && [ ! -L \"$a\" ]; do a=$(dirname -- \"$a\"); done; r=$(readlink -f -- \"$a\" 2>/dev/null) && inside \"$r\" || { printf '@@err outside %s\\n' \"$2\"; exit 0; }; mkdir -p -- \"$1\" 2>/dev/null || { printf '@@err unwritable %s\\n' \"$2\"; exit 0; }; need_dir \"$1\" \"$2\"; [ -w \"$1\" ] || { printf '@@err unwritable %s\\n' \"$2\"; exit 0; }; }\n";
+    s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
+    for c in checks {
+        s += &match c {
+            Precheck::File(p, l) => format!("need_file {} {l} home\n", q(p)),
+            Precheck::Readable(p, l) => format!("need_file {} {l} any\n", q(p)),
+            Precheck::Exec(p, l) => format!("need_exec {} {l}\n", q(p)),
+            Precheck::Dir(p, l) => format!("need_dir {} {l}\n", q(p)),
+            Precheck::Path(p, l) => format!("r=$(readlink -f -- {} 2>/dev/null) && [ -e \"$r\" ] || {{ printf '@@err missing {l}\\n'; exit 0; }}; inside \"$r\" || {{ printf '@@err outside {l}\\n'; exit 0; }}\n", q(p)),
+            Precheck::MakeDir(p, l) => format!("make_dir {} {l}\n", q(p)),
+        };
+    }
+    finish_submit(s, job_script, tag)
+}
+
+fn finish_submit(mut s: String, job_script: &str, tag: &str) -> String {
     s += "printf '@@submitting\\n'\n";
     s += &format!("sbatch --parsable 2>&1 <<'ICFCC_JOB_{tag}'\n{job_script}ICFCC_JOB_{tag}\n");
     s += "printf '\\n@@rc %s\\n' \"$?\"\n";
@@ -56,12 +104,24 @@ fn precheck_message(what: &str) -> (ErrorCode, String) {
         "program" => "program",
         "pythonEnv" => "Python environment (bin/activate)",
         "setupSource" => "setup file",
+        "project" => "project directory",
+        "entry" => "training script or notebook",
+        "interpreter" => "Python interpreter",
+        "toolchain" => "toolchain setup file",
+        "dataset" => "dataset archive",
+        "hfArchive" => "Hugging Face cache archive",
+        "hfHome" => "Hugging Face cache directory",
+        "resume" => "checkpoint to resume from",
+        "resultsRoot" => "results directory",
         _ => "path",
     };
     match kind {
         "missing" => (ErrorCode::InvalidPath, format!("The {field} does not exist on ICF or is not readable.")),
         "outside" => (ErrorCode::InvalidPath, format!("The {field} resolves (via a symlink) outside your home directory.")),
-        "unwritable" => (ErrorCode::InvalidPath, "The working directory is not writable, so SLURM could not create the log files.".into()),
+        "unwritable" if field == "working directory" => {
+            (ErrorCode::InvalidPath, "The working directory is not writable, so SLURM could not create the log files.".into())
+        }
+        "unwritable" => (ErrorCode::InvalidPath, format!("The {field} could not be created or is not writable.")),
         "nosbatch" => (ErrorCode::SlurmUnavailable, "sbatch is not available on the login host.".into()),
         _ => (ErrorCode::InvalidPath, "Your home directory could not be resolved.".into()),
     }

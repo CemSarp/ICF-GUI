@@ -1,4 +1,4 @@
-# Security design (V1)
+# Security design (V1–V3)
 
 ## Threat model in one paragraph
 
@@ -123,6 +123,46 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   symlinks out of home are refused, and `scancel` receives exactly one id.
 - Closing the app or disconnecting never cancels jobs.
 
+## V3: projects, VS Code, transfers, training workflows
+
+- **Capabilities.** New reads/launches are in `default.json`; every V3 command that writes a file is in
+  `capabilities/file-mutations.json` (`projects_mkdir`, `vscode_settings_apply`, `transfers_upload`,
+  `transfers_download`, `transfers_retry`, `transfers_discard`). Workflow submission has no new mutation
+  command: it goes through `jobs_submit` (job-mutations). `tauri-plugin-dialog` is registered for Rust
+  only; the webview has no dialog permission.
+- **No new remote code path.** Every V3 remote operation is a fixed script on stdin to `sh -s` over the
+  V1 master (BatchMode, no askpass). User values are validated and single-quoted; file contents (VS
+  Code settings) and the job script travel in quoted heredocs whose random delimiter is checked against
+  the content. `sftp` runs over the same master (`-S <same ssh> -F <generated config>`, BatchMode).
+- **Paths.** Browsing: absolute, printable, no `.`/`..`/empty segments, re-resolved on ICF (`cd -P`,
+  `readlink -f`) and refused outside the canonical home — symlinks included. Anything used in a job,
+  sftp batch or `#SBATCH` line: the V2 conservative charset. Remote file names the app creates:
+  `[A-Za-z0-9._+-@=,]`, no leading `.`/`-`. Writes never overwrite: `mkdir` (no `-p`) fails on existing
+  names, uploads publish with `ln`, run folders are per job id, outputs are renamed into a fresh folder.
+- **Archive extraction** happens only on the compute node, inside the job's private scratch, after a
+  full validation pass (ADR-015). Tested with traversal (`../`, absolute, Windows drive), symlinks and
+  hard links out, devices, FIFOs, duplicates, zip symlinks, encrypted zip members, gzip/zip bombs,
+  truncated archives, too little space and a pre-existing destination.
+- **Deletion.** The app deletes only: its own job scratch directory (re-verified pattern, real dir, not
+  a symlink, owned by you), its own `.icfcc-part` files (never through symlinks), and archives it packed
+  in its cache. It never deletes shared caches (`HF_HOME` in `/home` is left alone), other jobs' scratch,
+  or anything a user path points to.
+- **Login node.** Interpreter discovery runs `python -I -c` that prints the version and *package
+  metadata* (no `import torch`), with a timeout. GPU compatibility is checked only by a short SLURM job
+  (GPU smoke test). Upload verification runs `nice sha256sum` on the uploaded file once.
+- **VS Code** is started with argv only and a cleared environment (no askpass variables, no passwords);
+  it authenticates on its own. `~/.ssh/config` is never modified; a suggested block is shown instead.
+  `.vscode/settings.json` changes need a preview, a matching SHA-256 at write time, and make a backup.
+- **Local files** come only from native dialogs owned by the backend (opaque tokens to the UI). Folder
+  packing refuses links that leave the folder and special files. Downloaded data goes to a partial file
+  opened with `O_NOFOLLOW` and is renamed only after its SHA-256 matches the remote file.
+- **Concurrency.** One transfer at a time (semaphore); retry refuses running transfers; settings writes
+  compare hashes; the wizard and `jobs_submit` keep the V2 single-submission guarantees.
+- **Jupyter.** Interactive sessions are disabled (ADR-022); no notebook server, tunnel or idle GPU
+  allocation is ever created. Batch notebooks run inside the normal workflow wrapper.
+- **Storage limits are stated, not hidden.** `/home` is NFS and not backed up; scratch is node-local and
+  deleted at job end; nothing survives a node failure unless it was synced to `/home` first.
+
 ## Verification status
 
 | Matrix row (V1 plan M2) | Evidence | Status |
@@ -139,6 +179,10 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 | Real ICF connection, read-only inventory | performed by the user on 2026-10-16 (screenshots) | ✅ |
 | Real ICF job submission | user-approved smoke test on 2026-10-16: job 3680123 (Teaching, 1× RTX 2080 Ti, 2 CPUs, 4 GB, 5 min) Accepted → COMPLETED 0:0 on `opencast`; stdout read in-app. An earlier ICF-Free attempt was cleanly rejected by sbatch (account/partition), no job created | ✅ |
 | Real ICF job cancel | not run; needs a separately approved job | ⏳ pending |
+| V3 wrapper on a real shell (bash 3.2) | executed in a sandbox node: happy path, failure, sync failure, 13 malicious archives, scratch collision/full, env failure, outside-SLURM refusal, USR1 time-limit signal | ✅ |
+| V3 sftp transfers | **real OpenSSH 10.3 + local sshd**, through the app's master: upload, verify, no overwrite, `reput` resume, corrupted partial rejected, download, dead master | ✅ (opt-in test) |
+| V3 VS Code launch | fake VS Code bundle: argv exact, environment clean; detection on this Mac's real install read-only | ✅ |
+| V3 on ICF (scratch, staging, GPU, copy-back) | prepared GPU smoke test; needs explicit approval | ⏳ pending |
 
 A non-root `sshd` cannot produce password prompts, so the password rows rely on OpenSSH's documented
 prompt formats (unit-tested strings) until the manual ICF check is done. If the real Informatics

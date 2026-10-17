@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.0] — 2026-10-17 · Developer workflow (unreleased; awaiting live ICF verification)
+
+Remote projects, VS Code, Python environments, file transfers and reliable GPU training workflows.
+
+### Added
+- **Projects**: browse your ICF home one folder at a time (bounded, never recursive), create folders,
+  recent projects per account, project detail page.
+- **Open in VS Code**: finds VS Code without relying on your shell PATH, checks the Remote - SSH
+  extension and whether `~/.ssh/config` lets VS Code reach `icf` (suggests a block, never edits it), and
+  launches `code --remote ssh-remote+icf <folder>`. VS Code signs in on its own.
+- **Python environments**: on-request discovery (`.venv`, `venv`, `env`, used before, system, typed
+  path) with version and PyTorch/NumPy versions read from package metadata — nothing imported on the
+  login node. CUDA toolchain profiles (university CUDA 12.8 preconfigured, checked for existence).
+  Optional `.vscode/settings.json` update with preview, backup and change detection.
+- **Transfers**: upload/download over SFTP through the existing SSH connection, one at a time, with
+  SHA-256 verification, resume, cancel, no overwriting, folder → `.tar.gz` packing, optional bandwidth cap.
+- **Training workflows**: reviewed wrapper job that stages archives to compute-node scratch after
+  validating them, runs your script/notebook/GPU smoke test, syncs checkpoints, copies results back with
+  verification, cleans up only its own scratch, and handles the time-limit warning and cancellation.
+  Presets, Hugging Face cache policies, resume from checkpoint, placeholders for scratch folders.
+- **Runs dashboard**: workflow state vs scheduler state, stage timeline, node/GPU, runtime, checkpoint
+  and result status, failure classification, truthful recovery notes, logs, optional metrics, outputs
+  and checkpoints with download/resume; survives app restarts without resubmitting.
+- **GPU smoke test** as a 10-minute SLURM job (never on the login node).
+- Settings: VS Code status, toolchain profiles, transfer cap, Jupyter status.
+
+### Not included (by design)
+- Interactive Jupyter servers (disabled until node SSH access is confirmed; batch notebooks work).
+
+### Fixed
+- Screen-reader-only labels could extend the page height and let the whole window scroll off.
+
 ## [0.2.0] — 2026-10-17 · GPU jobs
 
 Submit, follow and cancel GPU batch jobs from the app.

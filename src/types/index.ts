@@ -360,3 +360,336 @@ export interface LogChunk {
   rotated: boolean;
   text: string;
 }
+
+// ---- V3 projects, VS Code, environments, transfers, workflows (mirrors src-tauri/src) ----
+
+export type EntryKind = 'dir' | 'file' | 'symlink' | 'other' | 'missing';
+
+export interface Entry {
+  name: string;
+  kind: EntryKind;
+  targetKind: EntryKind | null;
+  size: number;
+  modified: number | null;
+  mode: string;
+  mine: boolean;
+  unsupported: boolean;
+}
+
+export interface Listing {
+  path: string;
+  home: string;
+  writable: boolean;
+  entries: Entry[];
+  truncated: boolean;
+  fetchedAt: string;
+}
+
+export interface InterpreterSummary {
+  version: string | null;
+  envType: string;
+  torch: string | null;
+  torchCuda: string | null;
+  ok: boolean;
+  checkedAt: string;
+}
+
+export interface ProjectRecord {
+  profileId: string;
+  user: string;
+  path: string;
+  lastOpenedAt: string;
+  interpreter: string | null;
+  interpreterInfo: InterpreterSummary | null;
+  toolchainId: string | null;
+  partition: string | null;
+  gresType: string | null;
+}
+
+export interface ProjectPrefs {
+  interpreter: string | null;
+  toolchainId: string | null;
+  partition: string | null;
+  gresType: string | null;
+}
+
+export type InterpreterStatus = 'ok' | 'missing' | 'not_executable' | 'failed';
+
+export interface Interpreter {
+  path: string;
+  status: InterpreterStatus;
+  version: string | null;
+  envType: string;
+  hasActivate: boolean;
+  torch: string | null;
+  torchCuda: string | null;
+  numpy: string | null;
+  nbconvert: boolean;
+  ipykernel: boolean;
+}
+
+export interface EnvReport {
+  interpreters: Interpreter[];
+  toolchains: { path: string; status: string }[];
+  modulesAvailable: boolean;
+  checkedAt: string;
+}
+
+export type Toolchain = { kind: 'none' } | { kind: 'rc'; path: string } | { kind: 'modules'; names: string[] };
+
+export interface ToolchainProfile {
+  id: string;
+  label: string;
+  spec: Toolchain;
+  cuda: string | null;
+  note: string | null;
+}
+
+export interface Prefs {
+  transferLimitMbps: number;
+}
+
+export interface VsCodeInstall {
+  appPath: string;
+  cliPath: string;
+  version: string | null;
+  remoteSsh: string | null;
+}
+
+export interface VsCodeStatus {
+  install: VsCodeInstall | null;
+  alias: {
+    alias: string;
+    hostname: string;
+    user: string;
+    proxyJump: string | null;
+    usesProxyCommand: boolean;
+  };
+  problems: string[];
+  sshConfigSnippet: string | null;
+  checkedAt: string;
+}
+
+export interface LaunchResult {
+  remotePath: string;
+  alias: string;
+  message: string;
+}
+
+export interface SettingsPreview {
+  previewId: string | null;
+  project: string;
+  file: string;
+  exists: boolean;
+  before: string | null;
+  after: string | null;
+  problem: string | null;
+  manualSnippet: string;
+}
+
+export type TransferPhase =
+  | 'queued'
+  | 'checking'
+  | 'hashing'
+  | 'transferring'
+  | 'verifying'
+  | 'publishing'
+  | 'done'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted';
+
+export interface Transfer {
+  id: string;
+  profileId: string;
+  user: string;
+  direction: 'upload' | 'download';
+  localPath: string;
+  remotePath: string;
+  name: string;
+  size: number;
+  doneBytes: number;
+  phase: TransferPhase;
+  message: string | null;
+  sha256: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deleteLocalAfter: boolean;
+}
+
+export interface LocalPick {
+  token: string;
+  name: string;
+  path: string;
+  size: number;
+  isArchive: boolean;
+}
+
+export interface FolderPick {
+  token: string;
+  name: string;
+  path: string;
+  files: number;
+  bytes: number;
+}
+
+export type WorkflowKind = 'train' | 'notebook' | 'gpu_smoke_test';
+export type HfCache =
+  | { mode: 'off' }
+  | { mode: 'scratch' }
+  | { mode: 'home'; path: string }
+  | { mode: 'staged'; archive: string; offline: boolean };
+export type CheckpointMode = 'scratch_sync' | 'direct' | 'none';
+
+export interface WorkflowConfig {
+  kind: WorkflowKind;
+  jobName: string;
+  projectDir: string;
+  entry: string;
+  args: string[];
+  interpreter: string;
+  toolchain: Toolchain;
+  datasets: { archive: string; into: string }[];
+  scratchRoot: 'disk_scratch' | 'slurm_tmpdir';
+  hfCache: HfCache;
+  resultsRoot: string;
+  checkpointMode: CheckpointMode;
+  checkpointSyncMinutes: number;
+  resumeFrom: string | null;
+  env: { name: string; value: string }[];
+  expectedOutputGib: number;
+  signalGraceSeconds: number;
+  resources: {
+    partition: string;
+    gresType: string | null;
+    gpuCount: number;
+    cpus: number;
+    memoryMib: number;
+    timeLimitSeconds: number;
+  };
+}
+
+export interface WorkflowPreview {
+  previewId: string | null;
+  script: string;
+  checksum: string;
+  errors: Issue[];
+  warnings: Issue[];
+  acknowledgements: string[];
+  snapshotAt: string | null;
+  timeLimit: string;
+  runDirPattern: string;
+  logPattern: string;
+  scratchPattern: string;
+  prechecks: string[];
+}
+
+export interface Preset {
+  id: string;
+  label: string;
+  profileId: string;
+  user: string;
+  config: WorkflowConfig;
+  savedAt: string;
+}
+
+export type WorkflowState =
+  | 'DRAFT'
+  | 'VALIDATING'
+  | 'UPLOADING'
+  | 'READY'
+  | 'SUBMITTING'
+  | 'PENDING'
+  | 'ALLOCATED'
+  | 'STAGING'
+  | 'TRAINING'
+  | 'SAVING_CHECKPOINTS'
+  | 'COPYING_RESULTS'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TIMEOUT'
+  | 'NODE_FAILURE'
+  | 'RECOVERY_REQUIRED';
+
+export type FailureKind =
+  | 'authentication'
+  | 'network'
+  | 'scheduler_rejected'
+  | 'invalid_resource'
+  | 'missing_remote_file'
+  | 'python_environment'
+  | 'cuda_incompatible'
+  | 'gpu_out_of_memory'
+  | 'host_out_of_memory'
+  | 'scratch_unavailable'
+  | 'scratch_exhausted'
+  | 'unsafe_archive'
+  | 'corrupt_archive'
+  | 'nfs_failure'
+  | 'training_script'
+  | 'timeout'
+  | 'node_failure'
+  | 'result_sync'
+  | 'cancelled'
+  | 'unknown';
+
+export interface WorkflowEvent {
+  at: string;
+  name: string;
+  args: string[];
+}
+
+export interface Observed {
+  state: WorkflowState | null;
+  failure: FailureKind | null;
+  message: string | null;
+  results: 'pending' | 'synced' | 'failed' | 'no_outputs' | 'unknown';
+  lastCheckpointAt: string | null;
+  checkpointSyncFailures: number;
+  node: string | null;
+  gpu: string | null;
+  python: string | null;
+  git: string | null;
+  trainingExit: number | null;
+  recoveryNote: string | null;
+}
+
+export interface WorkflowRun {
+  tag: string;
+  profileId: string;
+  user: string;
+  jobId: string | null;
+  name: string;
+  kind: WorkflowKind;
+  config: WorkflowConfig;
+  checksum: string;
+  submittedAt: string;
+  submission: ReceiptStatus;
+  submissionMessage: string | null;
+  schedulerState: JobState | null;
+  observed: Observed;
+  events: WorkflowEvent[];
+  lastCheckedAt: string | null;
+  finalized: boolean;
+  dismissed: boolean;
+}
+
+export interface RunsResponse {
+  runs: WorkflowRun[];
+  fetched: boolean;
+  lastError: AppError | null;
+  fetchedAt: string | null;
+}
+
+export interface MetricPoint {
+  step: number | null;
+  epoch: number | null;
+  values: [string, number][];
+}
+
+export interface MetricsResponse {
+  points: MetricPoint[];
+  path: string;
+  note: string | null;
+}

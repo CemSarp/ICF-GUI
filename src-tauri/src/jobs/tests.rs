@@ -521,6 +521,7 @@ fn a_preview_can_be_submitted_at_most_once() {
         created_ms: 1000,
         profile_id: "p".into(),
         user: "s1".into(),
+        workflow: None,
     };
     map.insert("id".to_string(), sp(true));
     assert!(take_preview(&mut map, "id", false, "s1", "p", 2000).is_err(), "acknowledgement required");

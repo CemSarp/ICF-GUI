@@ -75,8 +75,93 @@ no ProxyJump/ProxyCommand with hostname still `icf`, the connection adds `-J <UU
 (typed UUN, else the user `ssh -G` reports). The user's ssh config and any explicit jump host always win;
 other aliases are never changed. Host keys of both hops are still verified interactively.
 
+## ADR-014 — Workflows reuse the V2 submission path
+*Status: accepted (V3).* `workflow_preview` validates a typed `WorkflowConfig` (V2 resource rules plus
+workflow rules), renders one wrapper script and stores it in the same preview map as V2. The only way to
+submit it is `jobs_submit`, so ADR-008 holds unchanged: one reviewed preview = at most one `sbatch`, no
+retries, uncertain outcomes reconciled via `icfcc-<tag>`. Workflow previews carry their own on-ICF
+prechecks (`submit_script_with`) and a local run record (`runs.json`) written before and after `sbatch`.
+
+## ADR-015 — Compute-node staging in a reviewed wrapper; stager in stdlib Python
+*Status: accepted (V3).* Scratch is created **inside the job** (`/disk/scratch/<user>/icfcc-<jobid>-<tag>`,
+or `$SLURM_TMPDIR/…`), never from the login node. The random tag makes the path unique across job-id reuse
+and clusters; an existing directory is a hard failure, never reused or deleted. Archives are copied
+from NFS once, then a fixed Python (stdlib only, ≥ 3.6) stager runs in the job's own interpreter:
+pass 1 validates every member (no absolute/`..` paths, links must stay inside, hard links only to earlier
+regular members, no devices/FIFOs, no duplicates, ≤ 1 000 000 entries, declared size ≤ 250 × archive
+size and ≤ free scratch minus the reserve); pass 2 extracts with `O_EXCL|O_NOFOLLOW`, byte limits,
+owner-only modes, and creates links last. `.tar.zst` uses `zstd -dc` when the node has it. Cleanup
+deletes only the directory the job created, re-verified (`case`, `-d`, `! -L`, `-O`) right before
+`rm -rf`.
+
+## ADR-016 — Progress = stage markers in a small status file
+*Status: accepted (V3).* The wrapper appends `<UTC> <EVENT> k=v…` lines to `<run dir>/icfcc-status.log`
+(and stdout). The app reads it with one bounded `tail -c 16 KiB` per active run, batched with the
+shared `squeue`/`sacct` query, at most every 45 s and only while the Runs screen is visible. SLURM stays
+the source of truth for job state; the markers add stages (ALLOCATED, STAGING, TRAINING,
+SAVING_CHECKPOINTS, COPYING_RESULTS), the training exit code and whether results were synced. A job
+SLURM calls COMPLETED whose copy-back failed exits 3 and is shown as *Failed: result sync*.
+
+## ADR-017 — Results and checkpoints
+*Status: accepted (V3).* Outputs written to `$ICFCC_OUTPUT_DIR` (scratch) are copied to
+`<run dir>/.outputs.partial`, verified with `sha256sum -c` against a manifest taken on scratch, and
+published by renaming to `<run dir>/outputs` (a fresh per-job directory, so nothing is overwritten).
+Copy-back runs from an EXIT trap after normal end, failure, `scancel` (TERM) and the
+`--signal=B:USR1@<grace>` warning; programs that ignore SIGTERM are killed at half the grace so the copy
+can finish. Checkpoint policies: *scratch + periodic sync* (default 30 min, min 5), *direct to NFS*, or
+*scratch only*. The UI states what is recoverable and never promises recovery without a synced
+checkpoint (node failure, `kill -9`, power loss).
+
+## ADR-018 — Transfers: system `sftp` over the existing master
+*Status: accepted (V3).* `sftp -S <ssh> -F <generated config> -o ControlPath=… -o ControlMaster=no
+-o BatchMode=yes -b -` reuses the authenticated master, so it can never prompt or log in again. Batch
+lines only carry paths in the conservative charset (no quoting/globbing issues); the local side is a
+symlink with a fixed name in a private 0700 temp dir, so the user's local path never enters sftp batch
+syntax. Data lands in `.<name>.icfcc-part`, is verified with SHA-256 (CommonCrypto locally,
+`sha256sum` on ICF), then published with `ln` (no clobber). `reput`/`reget` resume partial files; a
+checksum mismatch deletes the partial. One transfer at a time; optional `sftp -l` cap. Upload progress
+is one `wc -c` over the master every 5 s; download progress reads the local file size.
+
+## ADR-019 — Local files only through backend-owned native dialogs
+*Status: accepted (V3).* `tauri-plugin-dialog` is used from Rust only; no dialog permission is granted
+to the webview. The UI receives opaque tokens, so a compromised frontend cannot name an arbitrary local
+file to upload. Folders are scanned (links leaving the folder, devices/FIFOs refused) and packed with
+`/usr/bin/tar -czf` (`COPYFILE_DISABLE=1`, `--no-mac-metadata`) into the app cache.
+
+## ADR-020 — Two path policies
+*Status: accepted (V3).* Browsing accepts any printable absolute path inside home (spaces and Unicode
+allowed; always single-quoted; re-resolved with `cd -P`/`readlink -f` on ICF). Anything that reaches a
+job script, `#SBATCH` line, sftp batch or `--chdir` keeps the V2 conservative charset. Folders with
+such names can be browsed but not used as projects/destinations; the UI says why.
+
+## ADR-021 — VS Code settings: JSON only, preview + hash + backup
+*Status: accepted (V3).* Only `python.defaultInterpreterPath` is set, key order preserved
+(`serde_json/preserve_order`). JSON with comments or trailing commas (JSONC) is not rewritten (that
+would drop comments); the user gets a snippet instead. The write is refused if the file's SHA-256
+changed since the preview, writes through symlinks are refused, and the old file is copied to
+`settings.json.icfcc-backup-<stamp>` first.
+
+## ADR-022 — Interactive Jupyter disabled
+*Status: accepted (V3).* A safe session needs Jupyter bound to 127.0.0.1 on the compute node and an SSH
+tunnel to that node (pam_slurm_adopt or equivalent, plus verified compute-node host keys). Neither is
+confirmed for ICF, and binding to a cluster-visible address would expose the server to other users.
+Batch notebook execution (`python -m nbconvert --execute` inside the workflow wrapper) is supported
+instead. Revisit after Informatics confirms node SSH access and host-key distribution.
+
+## ADR-023 — VS Code is launched, never driven
+*Status: accepted (V3).* The app finds VS Code in `/Applications` or `~/Applications` (a Finder-launched
+app has no shell `PATH`), checks `--version` and `--list-extensions` for Remote - SSH, and runs
+`code --remote ssh-remote+<alias> <canonical dir>` with argv only and a cleared environment
+(HOME/USER/LOGNAME/TMPDIR/LANG/SSH_AUTH_SOCK, fixed PATH). VS Code authenticates on its own; the app
+reports "launch requested", never "connected". `ssh -G <alias>` without the app's forced block shows
+whether VS Code can reach the host; the app suggests (never writes) a `~/.ssh/config` block.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.
 3. Whether ICF publishes host-key fingerprints for out-of-band verification.
 4. Any rule on `scontrol` frequency stricter than once a minute.
+5. Is `/disk/scratch` present and writable on every GPU node, and does ICF set `SLURM_TMPDIR`?
+6. Is the SFTP subsystem enabled for students on the ICF login host?
+7. Can users SSH into the compute node running their job (needed for interactive Jupyter)?
+8. Does `/home` have per-user quotas lower than the filesystem free space reported by `df`?

@@ -1,8 +1,27 @@
-// The only bridge to the Rust backend. No command here accepts shell text, remote paths or URLs.
+// The only bridge to the Rust backend. No command here accepts shell text or URLs; V3 remote paths
+// are typed values that Rust validates and ICF re-resolves inside the home directory.
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AppError,
+  EnvReport,
+  FolderPick,
+  LaunchResult,
+  Listing,
+  LocalPick,
+  MetricsResponse,
+  Prefs,
+  Preset,
+  ProjectPrefs,
+  ProjectRecord,
+  RunsResponse,
+  SettingsPreview,
+  ToolchainProfile,
+  Transfer,
+  VsCodeStatus,
+  WorkflowConfig,
+  WorkflowPreview,
+  WorkflowRun,
   CancelOutcome,
   Challenge,
   JobDetailResponse,
@@ -64,6 +83,48 @@ export const api = {
   jobsDismissReceipt: (tag: string) => invoke<null>('jobs_dismiss_receipt', { tag }),
   openExternal: (target: 'icf_status' | 'icf_tutorial' | 'vscode_remote_ssh') =>
     invoke<null>('open_external', { target }),
+  // V3. Remote paths are validated and re-resolved in Rust/on ICF; local paths come only from
+  // backend-owned native dialogs (the UI holds opaque tokens).
+  projectsRecent: () => invoke<ProjectRecord[]>('projects_recent'),
+  browse: (path: string | null) => invoke<Listing>('projects_browse', { path }),
+  mkdir: (parent: string, name: string) => invoke<string>('projects_mkdir', { parent, name }),
+  openProject: (path: string) => invoke<ProjectRecord>('projects_open', { path }),
+  setProjectPrefs: (path: string, prefs: ProjectPrefs) => invoke<ProjectRecord>('projects_set_prefs', { path, prefs }),
+  forgetProject: (path: string | null) => invoke<null>('projects_forget', { path }),
+  pythonDiscover: (project: string, extra: string | null) => invoke<EnvReport>('python_discover', { project, extra }),
+  toolchains: () => invoke<ToolchainProfile[]>('toolchains_list'),
+  saveToolchain: (profile: ToolchainProfile) => invoke<ToolchainProfile[]>('toolchains_save', { profile }),
+  deleteToolchain: (id: string) => invoke<ToolchainProfile[]>('toolchains_delete', { id }),
+  presets: () => invoke<Preset[]>('presets_list'),
+  savePreset: (id: string | null, label: string, config: WorkflowConfig) =>
+    invoke<Preset[]>('presets_save', { id, label, config }),
+  deletePreset: (id: string) => invoke<Preset[]>('presets_delete', { id }),
+  prefs: () => invoke<Prefs>('prefs_get'),
+  setPrefs: (prefs: Prefs) => invoke<Prefs>('prefs_set', { prefs }),
+  vscodeStatus: (refresh: boolean) => invoke<VsCodeStatus>('vscode_status', { refresh }),
+  vscodeOpen: (path: string) => invoke<LaunchResult>('vscode_open', { path }),
+  vscodeSettingsPreview: (project: string, interpreter: string) =>
+    invoke<SettingsPreview>('vscode_settings_preview', { project, interpreter }),
+  vscodeSettingsApply: (previewId: string) =>
+    invoke<{ file: string; backup: string | null }>('vscode_settings_apply', { previewId }),
+  transfers: () => invoke<Transfer[]>('transfers_list'),
+  pickFile: () => invoke<LocalPick | null>('transfers_pick_file'),
+  pickFolder: () => invoke<FolderPick | null>('transfers_pick_folder'),
+  packFolder: (token: string) => invoke<LocalPick>('transfers_pack_folder', { token }),
+  upload: (token: string, remoteDir: string, name: string) =>
+    invoke<Transfer>('transfers_upload', { token, remoteDir, name }),
+  download: (remotePath: string) => invoke<Transfer | null>('transfers_download', { remotePath }),
+  cancelTransfer: (id: string) => invoke<null>('transfers_cancel', { id }),
+  retryTransfer: (id: string) => invoke<Transfer>('transfers_retry', { id }),
+  discardTransfer: (id: string) => invoke<null>('transfers_discard', { id }),
+  workflowPreview: (config: WorkflowConfig) => invoke<WorkflowPreview>('workflow_preview', { config }),
+  workflowRuns: () => invoke<WorkflowRun[]>('workflow_runs'),
+  workflowRefresh: (force: boolean) => invoke<RunsResponse>('workflow_refresh', { force }),
+  workflowDismiss: (tag: string) => invoke<null>('workflow_dismiss', { tag }),
+  workflowReconcile: (tag: string) => invoke<WorkflowRun>('workflow_reconcile', { tag }),
+  workflowFiles: (tag: string, which: '' | 'outputs' | '.outputs.partial' | 'checkpoints') =>
+    invoke<Listing>('workflow_list_files', { tag, which }),
+  workflowMetrics: (tag: string) => invoke<MetricsResponse>('workflow_metrics', { tag }),
 };
 
 export const events = {

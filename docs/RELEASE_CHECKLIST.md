@@ -32,10 +32,16 @@
 - [x] Smoke-test findings fixed (tests added; awaiting live re-check): job detail shows `Partition` as `Teaching AllocNode:Sid=…` (kv parser rejects
       `:` in keys); RAM shown as `—`; H200/MIG allocation still Unknown (`GresUsed` likely needs `scontrol -d`)
 
-## V3 backlog (not started)
+## v0.3.0 (V3, developer workflow)
 
-1. `projects_open_in_vscode`: discover `code` CLI, `code --remote ssh-remote+icf <validated path>`.
-2. `projects_list_interpreters`: list `bin/python` under allowed project paths; optional `.vscode/settings.json` with consent.
-3. Dataset staging plan: single archive → per-job `/disk/scratch/<UUN>/<jobid>` inside the job, `trap` copy-back, safe cleanup.
-4. "Run selected script as batch job" reusing the V2 wizard and preview.
-5. Optional local SQLite job history with bounded retention.
+- [x] Frontend gates: lint, typecheck, 53 UI tests (37 V1/V2 regression + 16 V3), production build
+- [x] Rust gates: fmt, clippy `-D warnings`, 110 unit (67 V1/V2 + 43 V3) + 15 auth-flow + 5 job-flow tests
+- [x] Generated workflow wrapper and archive stager executed for real in a sandbox (bash 3.2, python3)
+- [x] Opt-in real OpenSSH tests incl. real sftp transfers through the app's master
+- [x] `.app` builds (0.3.0); capabilities: default / job-mutations / file-mutations, no dialog permission for the webview
+- [x] VS Code detection checked read-only against the real local install (Finder-like environment)
+- [ ] **Approved ICF smoke test** (GPU smoke-test workflow with a tiny dataset; see the V3 report)
+- [ ] Approved upload/download of a small file on ICF (SFTP subsystem enabled?)
+- [ ] Open a real project in VS Code from the app
+- [ ] Approved cancel test (still open from V2)
+- [ ] Built `.app` clicked through by a person

@@ -22,6 +22,32 @@
 The app never uses `srun`, `salloc`, `scontrol update`, `scancel -u` or interactive GPU shells. Tools
 assumed on the login host: GNU coreutils (`readlink -f`, `stat -c`, `tail -c`, `head -c`).
 
+### V3 commands (login node, each after a user action unless noted)
+
+| When | Remote command(s) |
+|---|---|
+| Browse a folder | `cd -P`/`pwd -P` (must stay in `$HOME`), `find <dir> -mindepth 1 -maxdepth 1 -printf …` piped to `head -c 512KiB` (never recursive) |
+| New folder (confirmed) | `mkdir <dir>/<name>` (no `-p`; refused if the name exists) |
+| Open project / VS Code | `readlink -f` + type/size checks |
+| Discover interpreters | per candidate: `readlink -f`, `[ -x ]`, `timeout 15 <python> -I -c <metadata probe>`; `[ -r <toolchain rc> ]`; presence of `module` / `lmod.sh` |
+| VS Code settings (preview / confirmed write) | `sha256sum` + `cat` of `.vscode/settings.json` (≤ 256 KiB); write: hash re-check, `cp -p` backup, heredoc to a temp file, `mv` |
+| Transfers | `sftp` subsystem over the existing master (`put`/`reput`/`get`/`reget`); `df -Pk`; `wc -c` of the partial file every 5 s while uploading; `nice sha256sum` once per file; `ln` to publish; `rm` of the app's own `.icfcc-part` file |
+| Workflow submit (confirmed) | prechecks (`readlink -f`, `[ -f/-d/-x ]`), `mkdir -p` of the results folder (ancestor must resolve in home), then one `sbatch --parsable` |
+| Runs screen visible, a run active (≤ 1/45 s) | the V2 `squeue`/`sacct` query (shared) plus `tail -c 16KiB` of each active run's status file (or marker lines from the stdout log), `tail -c 8KiB` of stderr once when a run failed |
+| Metrics (button, ≤ 1/5 s) | the V2 bounded log read on `<run>/metrics.jsonl` |
+
+### V3 commands inside a workflow job (compute node)
+
+`id`, `hostname`, `date`, `df -Pk`, `mkdir`, `cp`, `cd -P`, `rm -rf` (own scratch only), `chmod -R u+w`,
+`find -print0 | xargs -0 sha256sum`, `sha256sum -c`, `mv`, `wc`, optional `rsync -a --partial-dir`
+(falls back to `cp -a`), optional `nvidia-smi --query-gpu=name,memory.total` (once), optional
+`git rev-parse --short HEAD` (once), optional `zstd -dc` for `.tar.zst`, `module load` if a modules
+toolchain is chosen, and the job's own Python for the archive stager (stdlib only, Python ≥ 3.6).
+
+Assumptions to confirm on ICF: GNU `find -printf`, `head -c`, `sha256sum`, `timeout` on the login
+host; the SFTP subsystem enabled; `/disk/scratch` present and writable on GPU nodes (or `SLURM_TMPDIR`
+set, selectable per workflow); `--signal=B:USR1@<s>` honoured by the site's SLURM.
+
 ## Fields used
 
 - Partition: `PartitionName`, `Default`, `State`, `MaxTime`, `Nodes`, `AllowGroups`.

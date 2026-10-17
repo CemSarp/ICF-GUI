@@ -7,7 +7,7 @@ use serde::Serialize;
 /// Field separator used in `squeue -o` / `sacct --delimiter` (ASCII unit separator).
 pub const SEP: char = '\u{1f}';
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JobState {
     Pending,

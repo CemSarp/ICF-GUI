@@ -75,6 +75,14 @@ pub struct AppState {
     pub log_paths: Mutex<HashMap<String, LogPaths>>,
     pub log_rate: Mutex<HashMap<String, u64>>,
     pub receipts: Mutex<crate::jobs::store::ReceiptStore>,
+    // ---- V3 workflows ----
+    pub projects: Mutex<crate::projects::ProjectStore>,
+    pub runs: Mutex<crate::workflow::store::RunStore>,
+    pub transfers: Arc<crate::transfers::Manager>,
+    /// VS Code detection result and when it was taken (local, refreshed on request or after 5 min).
+    pub vscode: tokio::sync::Mutex<Option<(u64, Option<crate::integrations::vscode::Install>)>>,
+    pub settings_previews: Mutex<HashMap<String, crate::integrations::vscode::StoredSettings>>,
+    pub wf_cache: tokio::sync::Mutex<crate::state::Cache<()>>,
 }
 
 impl AppState {
@@ -97,6 +105,12 @@ impl AppState {
             log_paths: Default::default(),
             log_rate: Default::default(),
             receipts: Mutex::new(crate::jobs::store::ReceiptStore::load(config_dir)),
+            projects: Mutex::new(crate::projects::ProjectStore::load(config_dir)),
+            runs: Mutex::new(crate::workflow::store::RunStore::load(config_dir)),
+            transfers: Arc::new(crate::transfers::Manager::new(config_dir)),
+            vscode: Default::default(),
+            settings_previews: Default::default(),
+            wf_cache: Default::default(),
         }
     }
 
@@ -253,6 +267,9 @@ async fn close_session(state: &AppState) {
     state.previews.lock().unwrap().clear();
     state.cancel_tokens.lock().unwrap().clear();
     state.log_paths.lock().unwrap().clear();
+    state.settings_previews.lock().unwrap().clear();
+    state.transfers.clear_picks();
+    *state.wf_cache.lock().await = Default::default();
 }
 
 /// User-initiated login. Exactly one SSH authentication attempt per call; never retried automatically.

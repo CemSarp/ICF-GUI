@@ -345,6 +345,8 @@ input[type='radio'] {
   overflow: auto;
   flex: 1;
   outline: none;
+  /* Contain absolutely positioned descendants (.sr-only) so they never extend the page. */
+  position: relative;
 }
 .page-title {
   margin-bottom: 16px;
@@ -849,4 +851,148 @@ pre.log {
 }
 .warn-text {
   color: var(--warn);
+}
+
+/* V3: projects, browser, transfers, training */
+.small-btn {
+  padding: 2px 10px;
+  font-size: 13px;
+}
+.browser-bar .btn.ghost {
+  min-width: 36px;
+}
+.path-form {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+}
+.path-form input {
+  flex: 1;
+}
+.crumbs {
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.browser-table .row-button {
+  display: inline;
+  width: auto;
+  min-height: 0;
+  padding: 4px 0;
+  font-weight: 600;
+}
+.browser-table th[scope='row'] {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.project-list,
+.run-list,
+.transfer-list,
+.file-rows,
+.events {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.project-list li,
+.file-rows li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+.project-list .row-button,
+.run-card .row-button {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+.run-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.state-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.card.inset {
+  background: var(--surface-2);
+  margin: 12px 0 0;
+}
+.transfer {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.transfer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width var(--dur) linear;
+}
+.dataset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dataset-list input.short {
+  flex: 0 0 140px;
+}
+.steps {
+  flex-wrap: wrap;
+}
+.steps li.done {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.steps li.failed {
+  color: var(--bad);
+  border-color: var(--bad);
+  font-weight: 600;
+}
+.page-tabs {
+  margin-bottom: 16px;
+}
+.diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.diff h4 {
+  margin: 0 0 4px;
+}
+.dialog:has(.picker),
+.dialog:has(.diff) {
+  width: min(920px, 100%);
+}
+.picker .card {
+  margin: 0;
+}
+.events li {
+  padding: 2px 0;
+}
+.wizard h3 {
+  margin-top: 24px;
+}
+@media (max-width: 900px) {
+  .diff {
+    grid-template-columns: 1fr;
+  }
 }

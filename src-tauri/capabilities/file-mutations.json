@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "file-mutations",
+  "description": "V3 commands that write files: create one folder in the remote home, replace .vscode/settings.json after a reviewed preview (with backup), upload/download/resume a file through sftp (verified, never overwriting), and discard the app's own partial transfer files.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-projects-mkdir",
+    "allow-vscode-settings-apply",
+    "allow-transfers-upload",
+    "allow-transfers-download",
+    "allow-transfers-retry",
+    "allow-transfers-discard"
+  ]
+}

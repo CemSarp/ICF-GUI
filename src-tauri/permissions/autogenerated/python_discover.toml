@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-python-discover"
+description = "Enables the python_discover command without any pre-configured scope."
+commands.allow = ["python_discover"]
+
+[[permission]]
+identifier = "deny-python-discover"
+description = "Denies the python_discover command without any pre-configured scope."
+commands.deny = ["python_discover"]

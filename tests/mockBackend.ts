@@ -1,6 +1,14 @@
 // In-memory stand-in for the Tauri backend used by UI tests. Never talks to SSH.
 import demoSnapshot from '../fixtures/slurm/demo_snapshot.json';
-import type { ClusterSnapshot, ConnectionProfile, ConnectionStatus, JobRow, SnapshotResponse } from '../src/types';
+import type {
+  ClusterSnapshot,
+  ConnectionProfile,
+  ConnectionStatus,
+  JobRow,
+  SnapshotResponse,
+  WorkflowConfig,
+} from '../src/types';
+import * as v3 from './v3Fixtures';
 
 export const snapshot = demoSnapshot as unknown as ClusterSnapshot;
 
@@ -137,6 +145,33 @@ export const backend = {
         stale: false,
         fetched: true,
         requests: 1,
+      }),
+      // V3 defaults (synthetic). Tests override what they exercise.
+      projects_recent: () => [v3.project()],
+      projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+      projects_open: (a) => v3.project({ path: a.path as string }),
+      projects_mkdir: (a) => `${a.parent}/${a.name}`,
+      projects_set_prefs: (a) => ({ ...v3.project(), ...(a.prefs as object) }),
+      projects_forget: () => null,
+      python_discover: () => v3.envReport,
+      toolchains_list: () => v3.toolchains,
+      presets_list: () => [],
+      prefs_get: () => ({ transferLimitMbps: 0 }),
+      vscode_status: () => v3.vscodeStatus(true),
+      transfers_list: () => [v3.transfer()],
+      workflow_preview: (a) => v3.workflowPreview(a.config as WorkflowConfig),
+      workflow_refresh: () => v3.runs(),
+      workflow_list_files: () => v3.listing(`${v3.PROJECT}/runs/train-4242/outputs`),
+      jobs_get_detail: (a) => ({
+        job: jobRow({ jobId: a.jobId as string }),
+        fields: [],
+        stdoutPath: `${v3.PROJECT}/runs/slurm-4242.out`,
+        stderrPath: `${v3.PROJECT}/runs/slurm-4242.err`,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: null,
+        fetchedAt: '2026-10-17T10:00:00Z',
       }),
       ...overrides,
     };

@@ -1,12 +1,16 @@
 pub mod auth;
 pub mod commands;
 pub mod errors;
+pub mod integrations;
 pub mod jobs;
 pub mod profiles;
+pub mod projects;
 pub mod slurm;
 pub mod ssh;
 pub mod state;
+pub mod transfers;
 pub mod util;
+pub mod workflow;
 
 use commands::AppState;
 use std::sync::Arc;
@@ -14,6 +18,8 @@ use tauri::Manager;
 
 pub fn run() {
     let app = tauri::Builder::default()
+        // Used from Rust only (file pickers owned by the backend); no dialog permission is granted to the UI.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             ssh::sweep_stale_sessions(std::path::Path::new(ssh::SYSTEM_SSH));
@@ -53,6 +59,41 @@ pub fn run() {
             jobs::commands::jobs_receipts,
             jobs::commands::jobs_reconcile,
             jobs::commands::jobs_dismiss_receipt,
+            projects::commands::projects_recent,
+            projects::commands::projects_browse,
+            projects::commands::projects_mkdir,
+            projects::commands::projects_open,
+            projects::commands::projects_set_prefs,
+            projects::commands::projects_forget,
+            projects::commands::python_discover,
+            projects::commands::toolchains_list,
+            projects::commands::toolchains_save,
+            projects::commands::toolchains_delete,
+            projects::commands::presets_list,
+            projects::commands::presets_save,
+            projects::commands::presets_delete,
+            projects::commands::prefs_get,
+            projects::commands::prefs_set,
+            integrations::vscode::vscode_status,
+            integrations::vscode::vscode_open,
+            integrations::vscode::vscode_settings_preview,
+            integrations::vscode::vscode_settings_apply,
+            transfers::transfers_list,
+            transfers::transfers_pick_file,
+            transfers::transfers_pick_folder,
+            transfers::transfers_pack_folder,
+            transfers::transfers_upload,
+            transfers::transfers_download,
+            transfers::transfers_cancel,
+            transfers::transfers_retry,
+            transfers::transfers_discard,
+            workflow::commands::workflow_preview,
+            workflow::commands::workflow_runs,
+            workflow::commands::workflow_refresh,
+            workflow::commands::workflow_dismiss,
+            workflow::commands::workflow_reconcile,
+            workflow::commands::workflow_list_files,
+            workflow::commands::workflow_metrics,
         ])
         .build(tauri::generate_context!())
         .expect("error while building ICF Control Center");
