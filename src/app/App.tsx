@@ -10,6 +10,10 @@ import { ChallengeDialog } from '../features/connection/ChallengeDialog';
 import { LoginView } from '../features/connection/LoginView';
 import { isLive, useConnection } from '../features/connection/useConnection';
 import { JobDetailView } from '../features/jobs/JobDetailView';
+import { ProjectsView } from '../features/projects/ProjectsView';
+import { TrainingView, type TrainingTab } from '../features/training/TrainingView';
+import type { WizardInit } from '../features/training/TrainingWizard';
+import { TransfersView } from '../features/transfers/TransfersView';
 import { MyJobsView } from '../features/jobs/MyJobsView';
 import { RequestGpuView } from '../features/jobs/RequestGpuView';
 import { SettingsView, type Theme } from '../features/settings/SettingsView';
@@ -18,15 +22,21 @@ import { CONN_STATE, formatTime } from '../lib/format';
 import { usePersistentState } from '../lib/persist';
 import type { Settings } from '../types';
 
-type View = 'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'settings';
+type View =
+  'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'projects' | 'training' | 'transfers' | 'settings';
 const NAV: { id: View; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'partitions', label: 'Partitions' },
   { id: 'nodes', label: 'GPU Nodes' },
   { id: 'request', label: 'Request GPU' },
   { id: 'jobs', label: 'My Jobs' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'training', label: 'Training' },
+  { id: 'transfers', label: 'Transfers' },
   { id: 'settings', label: 'Settings' },
 ];
+/** Screens that do not depend on the cluster snapshot (and have their own refresh, if any). */
+const OWN_REFRESH: View[] = ['jobs', 'projects', 'training', 'transfers'];
 
 export function App() {
   const { status, challenges, setChallenges } = useConnection();
@@ -37,6 +47,11 @@ export function App() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const [requestPartition, setRequestPartition] = useState<string | null>(null);
+  const [project, setProject] = usePersistentState<string | null>('project.selected', null);
+  const [trainingTab, setTrainingTab] = usePersistentState<TrainingTab>('training.tab', 'new');
+  const [wizardInit, setWizardInit] = useState<{ init: WizardInit | null; key: number }>({ init: null, key: 0 });
+  const [selectedRun, setSelectedRun] = useState<string | null>(null);
+  const [uploadDir, setUploadDir] = useState<string | null>(null);
   const qc = useQueryClient();
   const live = isLive(status);
   const snap = useSnapshot(status, settings.pollIntervalSecs);
@@ -54,13 +69,19 @@ export function App() {
   }, [theme]);
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
-  }, [view, selectedNode, selectedJob]);
+  }, [view, selectedNode, selectedJob, project, selectedRun, trainingTab]);
 
   const go = (v: View) => {
     setSelectedNode(null);
     setSelectedJob(null);
     setRequestPartition(null);
+    if (v !== 'training') setSelectedRun(null);
     setView(v);
+  };
+  const startTraining = (init: WizardInit) => {
+    setWizardInit((w) => ({ init, key: w.key + 1 }));
+    setTrainingTab('new');
+    go('training');
   };
   const snapshot = snap.data?.snapshot ?? null;
   const challenge = challenges[0];
@@ -97,7 +118,7 @@ export function App() {
             </li>
           ))}
         </ul>
-        <div className="sidebar-foot muted small">v0.2 · jobs need explicit confirmation</div>
+        <div className="sidebar-foot muted small">v0.3 · jobs need explicit confirmation</div>
       </nav>
 
       <div className="content">
@@ -120,7 +141,7 @@ export function App() {
             </span>
             <span className="spacer" />
             {/* Jobs screens have their own refresh; one Refresh per screen avoids "which one?". */}
-            {view !== 'jobs' && (
+            {!OWN_REFRESH.includes(view) && (
               <>
                 <span aria-live="polite">
                   {snap.refreshing ? (
@@ -179,7 +200,39 @@ export function App() {
                   ? 'Request GPU / Submit Job'
                   : NAV.find((n) => n.id === view)?.label}
           </h1>
-          {view === 'jobs' ? (
+          {view === 'projects' ? (
+            <ProjectsView
+              status={status}
+              selected={project}
+              onSelect={setProject}
+              nav={{
+                onStartTraining: (init) => startTraining(init),
+                onUpload: (dir) => {
+                  setUploadDir(dir);
+                  go('transfers');
+                },
+              }}
+            />
+          ) : view === 'training' ? (
+            <TrainingView
+              status={status}
+              snapshot={snapshot}
+              tab={trainingTab}
+              setTab={setTrainingTab}
+              init={wizardInit.init}
+              wizardKey={wizardInit.key}
+              selectedRun={selectedRun}
+              onSelectRun={setSelectedRun}
+              onResume={(config) => startTraining({ config })}
+              onOpenJob={(jobId) => {
+                go('jobs');
+                setSelectedJob(jobId);
+              }}
+              onRefreshCluster={snap.refreshNow}
+            />
+          ) : view === 'transfers' ? (
+            <TransfersView status={status} uploadDir={uploadDir ?? project} />
+          ) : view === 'jobs' ? (
             selectedJob ? (
               <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
             ) : (

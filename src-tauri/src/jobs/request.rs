@@ -71,7 +71,7 @@ pub struct Issue {
     pub message: String,
 }
 
-fn issue(field: &str, message: impl Into<String>) -> Issue {
+pub(crate) fn issue(field: &str, message: impl Into<String>) -> Issue {
     Issue { field: (!field.is_empty()).then(|| field.to_string()), message: message.into() }
 }
 
@@ -107,7 +107,7 @@ pub fn under(path: &str, dir: &str) -> bool {
     path == dir || path.starts_with(&format!("{}/", dir.trim_end_matches('/')))
 }
 
-fn check_rel_path(p: &str) -> Result<(), String> {
+pub(crate) fn check_rel_path(p: &str) -> Result<(), String> {
     if p.is_empty() {
         return Err("is required".into());
     }
@@ -143,6 +143,14 @@ pub struct Context<'a> {
 
 pub fn validate(r: &JobRequest, cx: &Context) -> Validation {
     let mut v = Validation::default();
+    validate_resources(r, cx, &mut v);
+    validate_program(r, cx, &mut v);
+    v
+}
+
+/// Partition, time, GPU/CPU/RAM and job name against the snapshot. Shared with V3 workflows,
+/// which bring their own program/path checks.
+pub fn validate_resources(r: &JobRequest, cx: &Context, v: &mut Validation) {
     let (e, w) = (&mut v.errors, &mut v.warnings);
 
     // Partition and policy.
@@ -241,10 +249,13 @@ pub fn validate(r: &JobRequest, cx: &Context) -> Validation {
         }
     }
 
-    // Names and paths.
     if !valid_job_name(&r.job_name) {
         e.push(issue("jobName", "Job name: 1–64 characters, letters, digits, '.', '_' or '-', starting with a letter or digit."));
     }
+}
+
+fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
+    let (e, w) = (&mut v.errors, &mut v.warnings);
     match check_abs_path(&r.working_dir) {
         Err(m) => e.push(issue("workingDir", format!("Working directory {m}."))),
         Ok(()) if !under(&r.working_dir, cx.home) => e.push(issue("workingDir", format!("Working directory must be inside your home ({}).", cx.home))),
@@ -288,7 +299,6 @@ pub fn validate(r: &JobRequest, cx: &Context) -> Validation {
             Ok(()) => {}
         }
     }
-    v
 }
 
 /// The exact batch script sent to `sbatch` on stdin. `tag` lets an uncertain submission be found again.

@@ -34,17 +34,19 @@ pub struct StoredPreview {
     pub created_ms: u64,
     pub profile_id: String,
     pub user: String,
+    /// Set for V3 workflow previews: different prechecks and run tracking, same single sbatch.
+    pub workflow: Option<Box<crate::workflow::commands::Pending>>,
 }
 
-struct Ctx {
-    session: Option<Arc<Session>>,
-    user: String,
-    home: String,
-    profile_id: String,
+pub(crate) struct Ctx {
+    pub session: Option<Arc<Session>>,
+    pub user: String,
+    pub home: String,
+    pub profile_id: String,
 }
 
 /// Identity for job operations comes only from the authenticated probe, never from the UI.
-async fn ctx(state: &AppState) -> AppResult<Ctx> {
+pub(crate) async fn ctx(state: &AppState) -> AppResult<Ctx> {
     let st = state.status.lock().unwrap().clone();
     if !matches!(st.state, ConnState::Connected | ConnState::Degraded) {
         return Err(AppError::new(ErrorCode::NotConnected, "Not connected."));
@@ -61,7 +63,7 @@ async fn ctx(state: &AppState) -> AppResult<Ctx> {
     Ok(Ctx { session: Some(session), user: caps.remote_user, home: caps.home, profile_id: st.profile_id.unwrap_or_default() })
 }
 
-fn live(c: &Ctx, what: &str) -> AppResult<Arc<Session>> {
+pub(crate) fn live(c: &Ctx, what: &str) -> AppResult<Arc<Session>> {
     c.session.clone().ok_or_else(|| AppError::invalid(format!("Demo mode uses synthetic data: {what} is disabled. Connect to ICF to use it.")))
 }
 
@@ -119,6 +121,7 @@ pub async fn jobs_preview(state: State<'_, AppState>, request: JobRequest) -> Ap
                 created_ms: now,
                 profile_id: c.profile_id.clone(),
                 user: c.user.clone(),
+                workflow: None,
             },
         );
         id
@@ -186,7 +189,15 @@ pub async fn jobs_submit(
     // Re-validate against the newest snapshot immediately before submitting.
     let snap = state.cache.lock().await.last.clone().ok_or_else(|| AppError::invalid("Cluster data is no longer available. Refresh and review again."))?;
     let learned = state.receipts.lock().unwrap().partition_record(&c.profile_id, &c.user, &p.request.partition);
-    let v = validate(&p.request, &Context { home: &c.home, snapshot: &snap, learned });
+    let cx = Context { home: &c.home, snapshot: &snap, learned };
+    let v = match &p.workflow {
+        Some(w) => crate::workflow::plan(&w.config, &cx).0,
+        None => validate(&p.request, &cx),
+    };
+    let (stdout_pattern, stderr_pattern) = match &p.workflow {
+        Some(w) => (format!("{}/slurm-%j.out", w.config.results_root), format!("{}/slurm-%j.err", w.config.results_root)),
+        None => (format!("{}/slurm-%j.out", p.request.working_dir), format!("{}/slurm-%j.err", p.request.working_dir)),
+    };
     let mut receipt = JobReceipt {
         tag: p.tag.clone(),
         profile_id: c.profile_id.clone(),
@@ -200,24 +211,38 @@ pub async fn jobs_submit(
         gpu_count: p.request.gpu_count,
         submitted_at: now_iso(),
         checksum: p.checksum.clone(),
-        stdout_pattern: format!("{}/slurm-%j.out", p.request.working_dir),
-        stderr_pattern: format!("{}/slurm-%j.err", p.request.working_dir),
+        stdout_pattern,
+        stderr_pattern,
         message: None,
         access_denied: false,
         dismissed: false,
     };
-    if let Some(first) = v.errors.first() {
+    if !super::remote::heredoc_safe(&p.script, &format!("ICFCC_JOB_{}", p.tag)) {
+        receipt.status = ReceiptStatus::Rejected;
+        receipt.message = Some("Not submitted: the script contains a line that would end its own here-document.".into());
+    } else if let Some(first) = v.errors.first() {
         receipt.status = ReceiptStatus::Rejected;
         receipt.message = Some(format!("Not submitted: {}", first.message));
+    }
+    if receipt.status == ReceiptStatus::Rejected {
         state.receipts.lock().unwrap().upsert(receipt.clone())?;
+        if let Some(w) = &p.workflow {
+            crate::workflow::commands::record_submission(&state, &p, w, &receipt);
+        }
         return Ok(SubmitResponse {
             outcome: SubmitOutcome::Rejected { code: ErrorCode::InvalidInput, message: receipt.message.clone().unwrap_or_default() },
             receipt,
         });
     }
     state.receipts.lock().unwrap().upsert(receipt.clone())?;
+    if let Some(w) = &p.workflow {
+        crate::workflow::commands::record_submission(&state, &p, w, &receipt);
+    }
 
-    let script = remote::submit_script(&p.request, &p.script, &p.tag);
+    let script = match &p.workflow {
+        Some(w) => remote::submit_script_with(&w.checks, &p.script, &p.tag),
+        None => remote::submit_script(&p.request, &p.script, &p.tag),
+    };
     let raw = session.run_raw(&script, SUBMIT_TIMEOUT, 64 * 1024).await;
     let outcome = remote::classify_submit(raw);
     match &outcome {
@@ -238,6 +263,9 @@ pub async fn jobs_submit(
         }
     }
     state.receipts.lock().unwrap().upsert(receipt.clone())?;
+    if let Some(w) = &p.workflow {
+        crate::workflow::commands::record_submission(&state, &p, w, &receipt);
+    }
     state.jobs_cache.lock().await.invalidate();
     Ok(SubmitResponse { outcome, receipt })
 }

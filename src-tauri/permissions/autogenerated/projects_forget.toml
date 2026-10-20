@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-projects-forget"
+description = "Enables the projects_forget command without any pre-configured scope."
+commands.allow = ["projects_forget"]
+
+[[permission]]
+identifier = "deny-projects-forget"
+description = "Denies the projects_forget command without any pre-configured scope."
+commands.deny = ["projects_forget"]

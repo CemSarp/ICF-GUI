@@ -1,8 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Read-only and local commands: connection management, cluster views, job preview/list/detail/logs. Mutations live in job-mutations.json.",
-  "windows": ["main"],
+  "description": "Read-only and local commands: connection management, cluster views, job preview/list/detail/logs, V3 project browsing, environment discovery, VS Code launch, workflow preview/monitoring. Mutations live in job-mutations.json and file-mutations.json.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -28,6 +30,35 @@
     "allow-jobs-get-log-tail",
     "allow-jobs-receipts",
     "allow-jobs-reconcile",
-    "allow-jobs-dismiss-receipt"
+    "allow-jobs-dismiss-receipt",
+    "allow-projects-recent",
+    "allow-projects-browse",
+    "allow-projects-open",
+    "allow-projects-set-prefs",
+    "allow-projects-forget",
+    "allow-python-discover",
+    "allow-toolchains-list",
+    "allow-toolchains-save",
+    "allow-toolchains-delete",
+    "allow-presets-list",
+    "allow-presets-save",
+    "allow-presets-delete",
+    "allow-prefs-get",
+    "allow-prefs-set",
+    "allow-vscode-status",
+    "allow-vscode-open",
+    "allow-vscode-settings-preview",
+    "allow-transfers-list",
+    "allow-transfers-pick-file",
+    "allow-transfers-pick-folder",
+    "allow-transfers-pack-folder",
+    "allow-transfers-cancel",
+    "allow-workflow-preview",
+    "allow-workflow-runs",
+    "allow-workflow-refresh",
+    "allow-workflow-dismiss",
+    "allow-workflow-reconcile",
+    "allow-workflow-list-files",
+    "allow-workflow-metrics"
   ]
 }

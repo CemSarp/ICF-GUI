@@ -65,6 +65,10 @@ fn fingerprint(pubkey: &Path) -> String {
 }
 
 fn start_sshd() -> (Server, u16) {
+    start_sshd_with("")
+}
+
+fn start_sshd_with(extra: &str) -> (Server, u16) {
     // Short path: macOS limits UNIX socket paths to 104 bytes.
     let dir = PathBuf::from(format!("/tmp/icfcc-sshd-{}", icf_control_center_lib::util::random_hex(4)));
     std::fs::create_dir_all(dir.join("home/.ssh")).unwrap();
@@ -75,7 +79,7 @@ fn start_sshd() -> (Server, u16) {
     let d = dir.display();
     std::fs::write(
         dir.join("sshd_config"),
-        format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {d}/hostkey\nAuthorizedKeysFile {d}/authorized_keys\nStrictModes no\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPidFile {d}/sshd.pid\n"),
+        format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {d}/hostkey\nAuthorizedKeysFile {d}/authorized_keys\nStrictModes no\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPidFile {d}/sshd.pid\n{extra}"),
     )
     .unwrap();
     let child = Command::new("/usr/sbin/sshd")
@@ -170,4 +174,71 @@ async fn real_openssh_proxyjump_hostkeys_mux_and_teardown() {
     assert_eq!(e.error.code, ErrorCode::SshHostKey);
     assert!(e.error.message.contains("CHANGED"));
     assert!(ui.seen.lock().unwrap().iter().all(|c| c.kind != ChallengeKind::HostKey), "no way to click through a changed key");
+}
+
+#[tokio::test]
+#[ignore = "starts a local sshd; run explicitly"]
+async fn real_sftp_transfers_over_the_master_verify_resume_and_never_overwrite() {
+    use icf_control_center_lib::transfers::{download, upload, Direction, Manager, Phase, Transfer};
+    // The remote side's $HOME is a sandbox folder, so the home-containment checks apply to it.
+    let probe = PathBuf::from(format!("/tmp/icfcc-rh-{}", icf_control_center_lib::util::random_hex(4)));
+    std::fs::create_dir_all(probe.join("data")).unwrap();
+    let rhome = std::fs::canonicalize(&probe).unwrap();
+    let (srv, _port) = start_sshd_with(&format!("SetEnv HOME={}\nSubsystem sftp /usr/libexec/sftp-server\n", rhome.display()));
+    let ui = Arc::new(Accept { accept: true, seen: Mutex::new(vec![]) });
+    let (_tx, rx) = watch::channel(false);
+    let c = connect(&env(&srv), request(), &NoStore, ui, rx).await.unwrap_or_else(|e| panic!("{:?}", e.error));
+    let m = Manager::new(&srv.dir.join("cfg"));
+    let local = srv.dir.join("local");
+    std::fs::create_dir_all(&local).unwrap();
+    let bytes: Vec<u8> = (0..5_000_000u32).map(|i| (i.wrapping_mul(2654435761) >> 13) as u8).collect();
+    std::fs::write(local.join("big.bin"), &bytes).unwrap();
+    let data = rhome.join("data");
+    let t = |id: &str, dir: Direction, local_path: &std::path::Path, remote: &std::path::Path| Transfer {
+        id: id.into(),
+        profile_id: "default".into(),
+        user: profile().username,
+        direction: dir,
+        local_path: local_path.display().to_string(),
+        remote_path: remote.display().to_string(),
+        name: remote.file_name().unwrap().to_string_lossy().into_owned(),
+        size: 0,
+        done_bytes: 0,
+        phase: Phase::Queued,
+        message: None,
+        sha256: None,
+        created_at: String::new(),
+        updated_at: String::new(),
+        delete_local_after: false,
+    };
+    let (_ctx, mut crx) = watch::channel(false);
+
+    // 1. Upload: verified, published, no partial left behind.
+    let r = upload(&m, &c.session, 0, &t("u1", Direction::Upload, &local.join("big.bin"), &data.join("big.bin")), &mut crx).await;
+    println!("upload -> {r:?}");
+    assert!(r.unwrap().unwrap().contains("verified"));
+    assert_eq!(std::fs::read(data.join("big.bin")).unwrap(), bytes);
+    assert!(!data.join(".big.bin.icfcc-part").exists());
+    // 2. Same destination again: refused, nothing overwritten.
+    let e = upload(&m, &c.session, 0, &t("u2", Direction::Upload, &local.join("big.bin"), &data.join("big.bin")), &mut crx).await.unwrap_err();
+    assert!(e.message.contains("already exists"), "{e:?}");
+    // 3. Resume from a correct partial (reput) and detect a corrupted one by checksum.
+    std::fs::write(data.join(".big2.bin.icfcc-part"), &bytes[..1_000_000]).unwrap();
+    assert!(upload(&m, &c.session, 0, &t("u3", Direction::Upload, &local.join("big.bin"), &data.join("big2.bin")), &mut crx).await.unwrap().is_some());
+    assert_eq!(std::fs::read(data.join("big2.bin")).unwrap(), bytes);
+    std::fs::write(data.join(".big3.bin.icfcc-part"), vec![0u8; 1_000_000]).unwrap();
+    let e = upload(&m, &c.session, 0, &t("u4", Direction::Upload, &local.join("big.bin"), &data.join("big3.bin")), &mut crx).await.unwrap_err();
+    assert!(e.message.contains("checksum mismatch"), "{e:?}");
+    assert!(!data.join("big3.bin").exists() && !data.join(".big3.bin.icfcc-part").exists(), "corrupt partial removed, nothing published");
+    // 4. Download: verified and moved into place.
+    let r = download(&m, &c.session, 0, &t("d1", Direction::Download, &local.join("back.bin"), &data.join("big.bin")), &mut crx).await;
+    assert!(r.unwrap().unwrap().contains("verified"));
+    assert_eq!(std::fs::read(local.join("back.bin")).unwrap(), bytes);
+    assert!(!local.join(".back.bin.icfcc-part").exists());
+    // 5. A dead master never starts a new login: the transfer fails cleanly.
+    c.session.close().await;
+    let e = upload(&m, &c.session, 0, &t("u5", Direction::Upload, &local.join("big.bin"), &data.join("big5.bin")), &mut crx).await.unwrap_err();
+    println!("after disconnect -> {e:?}");
+    assert!(!data.join("big5.bin").exists());
+    let _ = std::fs::remove_dir_all(&rhome);
 }

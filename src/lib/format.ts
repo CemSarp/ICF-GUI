@@ -1,4 +1,4 @@
-import type { ConnState, JobState, NodeState } from '../types';
+import type { ConnState, FailureKind, JobState, NodeState, TransferPhase, WorkflowState } from '../types';
 
 /** The one display format for every time: `10:16 PM` today, `Oct 16, 10:16 PM` otherwise. */
 export function displayTime(d: Date, now = new Date()): string {
@@ -98,3 +98,77 @@ export function clusterTime(s: string | null, now = new Date()): string {
   const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number];
   return displayTime(new Date(y, mo - 1, d, h, mi), now);
 }
+
+export function bytes(n: number | null | undefined): string {
+  if (n === null || n === undefined) return 'Unknown';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${i === 0 ? v : v.toFixed(v < 10 ? 1 : 0)} ${u[i]}`;
+}
+
+/** Unix seconds (remote file times) in the shared display format. */
+export function formatUnix(secs: number | null): string {
+  return secs === null ? '—' : displayTime(new Date(secs * 1000));
+}
+
+/** Workflow states (the app's view of a run), distinct from the scheduler's JOB_STATE. */
+export const WORKFLOW_STATE: Record<WorkflowState, { label: string; glyph: string; tone: string }> = {
+  DRAFT: { label: 'Draft', glyph: '✎', tone: 'muted' },
+  VALIDATING: { label: 'Validating', glyph: '◌', tone: 'info' },
+  UPLOADING: { label: 'Uploading', glyph: '↑', tone: 'info' },
+  READY: { label: 'Ready', glyph: '○', tone: 'info' },
+  SUBMITTING: { label: 'Submitting', glyph: '◌', tone: 'info' },
+  PENDING: { label: 'Queued', glyph: '◌', tone: 'info' },
+  ALLOCATED: { label: 'Node allocated', glyph: '◐', tone: 'info' },
+  STAGING: { label: 'Staging data', glyph: '⇣', tone: 'info' },
+  TRAINING: { label: 'Training', glyph: '▶', tone: 'ok' },
+  SAVING_CHECKPOINTS: { label: 'Saving checkpoints', glyph: '⇡', tone: 'ok' },
+  COPYING_RESULTS: { label: 'Copying results', glyph: '⇡', tone: 'info' },
+  COMPLETED: { label: 'Completed', glyph: '✓', tone: 'ok' },
+  FAILED: { label: 'Failed', glyph: '✕', tone: 'bad' },
+  CANCELLED: { label: 'Cancelled', glyph: '⊘', tone: 'muted' },
+  TIMEOUT: { label: 'Timed out', glyph: '◷', tone: 'warn' },
+  NODE_FAILURE: { label: 'Node failure', glyph: '✕', tone: 'bad' },
+  RECOVERY_REQUIRED: { label: 'Needs your check', glyph: '?', tone: 'warn' },
+};
+
+export const FAILURE_LABEL: Record<FailureKind, string> = {
+  authentication: 'Authentication failure',
+  network: 'Network failure',
+  scheduler_rejected: 'Rejected by the scheduler',
+  invalid_resource: 'Invalid resource request',
+  missing_remote_file: 'Missing file on ICF',
+  python_environment: 'Python environment failure',
+  cuda_incompatible: 'CUDA / PyTorch incompatibility',
+  gpu_out_of_memory: 'GPU out of memory',
+  host_out_of_memory: 'Host RAM exhausted',
+  scratch_unavailable: 'Scratch unavailable',
+  scratch_exhausted: 'Scratch / disk full',
+  unsafe_archive: 'Unsafe archive rejected',
+  corrupt_archive: 'Corrupt archive',
+  nfs_failure: 'NFS (/home) failure',
+  training_script: 'Training script failed',
+  timeout: 'Wall-time limit reached',
+  node_failure: 'Compute node failure',
+  result_sync: 'Result copy-back failed',
+  cancelled: 'Cancelled',
+  unknown: 'Unknown failure',
+};
+
+export const TRANSFER_PHASE: Record<TransferPhase, { label: string; glyph: string; tone: string }> = {
+  queued: { label: 'Queued', glyph: '◌', tone: 'info' },
+  checking: { label: 'Checking', glyph: '◌', tone: 'info' },
+  hashing: { label: 'Computing checksum', glyph: '#', tone: 'info' },
+  transferring: { label: 'Transferring', glyph: '⇅', tone: 'info' },
+  verifying: { label: 'Verifying', glyph: '#', tone: 'info' },
+  publishing: { label: 'Publishing', glyph: '◐', tone: 'info' },
+  done: { label: 'Done', glyph: '✓', tone: 'ok' },
+  failed: { label: 'Failed', glyph: '✕', tone: 'bad' },
+  cancelled: { label: 'Cancelled', glyph: '⊘', tone: 'muted' },
+  interrupted: { label: 'Interrupted', glyph: '!', tone: 'warn' },
+};

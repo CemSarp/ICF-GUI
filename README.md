@@ -4,10 +4,11 @@
 
 **A friendly macOS app for the University of Edinburgh Informatics Compute Facility (ICF) GPU cluster.**
 
-See which GPUs are free, submit training jobs, follow their logs and cancel them,
-all without remembering a single `sinfo`, `sbatch` or `squeue` flag.
+See which GPUs are free, open your projects in VS Code, move datasets, run training on GPU nodes with
+scratch staging and checkpoints, and follow everything — without remembering a single `sinfo`,
+`sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.2.0-blue)
+![version](https://img.shields.io/badge/version-0.3.0-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -35,6 +36,10 @@ worked. **ICF Control Center puts all of that in one window.**
 | 📋 **My Jobs** | Your queued, running and finished jobs, with why a job is waiting, exit codes and hints (timeout, out of memory…). |
 | 📜 **Live logs** | Read your job's output and errors in the app, and follow them while it runs. |
 | 🛑 **Cancel safely** | Cancel your own jobs, with a confirmation. Other people's jobs can't be touched. |
+| 🗂️ **Projects + VS Code** | Browse your ICF home, open a project in VS Code over Remote - SSH, pick the remote Python interpreter and CUDA toolchain. |
+| ⇅ **Transfers** | Upload datasets and download results over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
+| 🏋️ **Training workflows** | One reviewed job that stages data to the GPU node's fast local disk, trains, saves checkpoints, copies results back and cleans up. |
+| 📈 **Runs** | Follow each run's stage, node, GPU, checkpoints, results and failures — even after restarting the app. |
 | 🔐 **Safe by design** | Uses your Mac's own `ssh`. Passwords never touch disk unless you opt in to the macOS Keychain. Nothing is ever submitted without your explicit click. |
 
 ## 🖼️ A quick tour
@@ -45,11 +50,16 @@ worked. **ICF Control Center puts all of that in one window.**
 | **My Jobs** | **Job detail and logs** |
 | ![My Jobs](docs/screenshots/my-jobs-demo.jpg) | ![Job detail with logs](docs/screenshots/job-detail-demo.jpg) |
 
-*Screenshots use the built-in demo data, not a real account.*
+| **Project + VS Code + Python env** | **Training workflow review** |
+| ![Project detail](docs/screenshots/project-detail-demo.jpg) | ![Workflow review](docs/screenshots/workflow-review-demo.jpg) |
+| **Run detail** | |
+| ![Run detail](docs/screenshots/run-detail-demo.jpg) | |
+
+*Screenshots use synthetic demo data, not a real account.*
 
 ## ⬇️ Install
 
-1. Download **`ICF-Control-Center-0.2.0-macOS-arm64.zip`** from the
+1. Download the latest **`ICF-Control-Center-<version>-macOS-arm64.zip`** from the
    [latest release](https://github.com/CemSarp/ICF-GUI/releases/latest) and unzip it.
 2. Drag **ICF Control Center.app** into your **Applications** folder.
 3. The first time, macOS will warn you because the app isn't notarized by Apple. Open it once anyway:
@@ -85,6 +95,11 @@ flowchart LR
    **Submit job…**, then confirm. The job is submitted **exactly once**.
 6. **Follow it** in **My Jobs**: open the job, load its log, and cancel it if you need to.
 
+7. **Train with your data (V3).** In **Projects**, open your project folder, pick its Python
+   environment and *Open in VS Code* to edit. Upload a dataset archive in **Transfers**, then
+   **Training → New workflow**: the job copies the archive to the GPU node's local scratch disk, trains,
+   syncs checkpoints to `/home` and copies results back. Follow it in **Training → Runs**.
+
 👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md).
 Want to look around first? Click **Explore demo data** on the login screen.
 
@@ -102,8 +117,11 @@ flowchart LR
 - Uses **your Mac's OpenSSH** with normal host-key checking, never `sshpass` or "accept any key".
 - Passwords travel only through a private, in-memory channel to `ssh`. They're never put in command
   lines, environment variables, logs or files, and go into the Keychain only if you tick *Remember*.
-- The interface can't run arbitrary commands, only a fixed set of read-only SLURM queries plus
-  `sbatch`/`scancel` after your confirmation.
+- The interface can't run arbitrary commands, only fixed, typed operations: read-only SLURM queries,
+  `sbatch`/`scancel` after your confirmation, and (V3) bounded folder listings, SFTP transfers and
+  explicit file writes that never overwrite.
+- VS Code makes its own SSH connection; the app never hands it your password and never edits
+  `~/.ssh/config`.
 - It's gentle on the cluster: one small query a minute while the window is visible, nothing while
   it's minimised, and the connection closes after 30 minutes of inactivity.
 
@@ -115,7 +133,11 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
   The scheduler decides when a job actually starts.
 - **Times** are shown as SLURM reports them (cluster-local, UK time).
 - **VRAM** figures are nominal per GPU model, not live free memory.
-- The app never uses `srun`/`salloc` or keeps an interactive GPU shell open.
+- The app never uses `srun`/`salloc` or keeps an interactive GPU shell open. Interactive Jupyter is
+  off; notebooks run as batch jobs.
+- **Scratch is temporary and `/home` is not backed up.** Results reach `/home` when a job ends, fails,
+  is cancelled or nears its time limit — but nothing can be copied from a node that fails. Use the
+  periodic checkpoint sync and keep your own copies of important results.
 
 ## 👋 About
 
@@ -153,7 +175,8 @@ pnpm tauri build
 ```
 
 The `.app` lands in `src-tauri/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
-For UI work without SSH, run `pnpm dev` and open <http://localhost:1420/dev/preview.html?state=demo>.
+For UI work without SSH, run `pnpm dev` and open <http://localhost:1420/dev/preview.html?state=demo>
+(or `?state=live` for the V3 screens with synthetic data).
 
 ### Tests
 
@@ -181,7 +204,8 @@ stub `sbatch`/`squeue`/`scancel`.
 ### Project docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
-[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) ·
+[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) · [V3 report](docs/V3_IMPLEMENTATION_REPORT.md) ·
+[Release checklist](docs/RELEASE_CHECKLIST.md) ·
 [Agent rules](AGENTS.md)
 
 </details>

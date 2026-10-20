@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-projects-browse"
+description = "Enables the projects_browse command without any pre-configured scope."
+commands.allow = ["projects_browse"]
+
+[[permission]]
+identifier = "deny-projects-browse"
+description = "Denies the projects_browse command without any pre-configured scope."
+commands.deny = ["projects_browse"]

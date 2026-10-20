@@ -1,14 +1,26 @@
 // Dev-only browser preview of the UI (pnpm dev, then /dev/preview.html). Never talks to SSH.
 import demo from '../fixtures/slurm/demo_snapshot.json';
+import * as v3 from '../tests/v3Fixtures';
 
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
 let state = new URLSearchParams(location.search).get('state') ?? 'login';
+// ?state=live previews the V3 screens as if connected (synthetic data, still no SSH).
 const status = () => ({
   state: state === 'login' ? 'disconnected' : 'connected',
-  profileId: null,
-  demo: state !== 'login',
-  capabilities: null,
+  profileId: state === 'live' ? 'default' : null,
+  demo: state === 'demo',
+  capabilities:
+    state === 'live'
+      ? {
+          remoteUser: 's1234567',
+          remoteHost: 'hastings',
+          commands: [],
+          missingCommands: [],
+          slurmVersion: 'slurm 25.05.3',
+          jsonSupported: true,
+        }
+      : null,
   hops: [],
   connectedAt: '2026-10-16T14:00:00Z',
   error: null,
@@ -216,6 +228,69 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         "'\n",
     };
   },
+  projects_recent: () => [v3.project()],
+  projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+  projects_open: (a) => v3.project({ path: a.path as string }),
+  projects_mkdir: (a) => `${a.parent}/${a.name}`,
+  projects_set_prefs: (a) => ({ ...v3.project(), ...(a.prefs as object) }),
+  projects_forget: () => null,
+  python_discover: () => v3.envReport,
+  toolchains_list: () => v3.toolchains,
+  presets_list: () => [],
+  presets_save: () => [],
+  prefs_get: () => ({ transferLimitMbps: 0 }),
+  prefs_set: (a) => a.prefs,
+  vscode_status: () => v3.vscodeStatus(true),
+  vscode_open: (a) => ({
+    remotePath: a.path,
+    alias: 'icf',
+    message: `VS Code was asked to open ${a.path} on 'icf'. It connects with its own SSH session and may ask you to sign in; this app cannot see whether that succeeded. Run/Debug in that window runs on the login node, not on a GPU.`,
+  }),
+  vscode_settings_preview: (a) => ({
+    previewId: 'sp',
+    project: a.project,
+    file: `${a.project}/.vscode/settings.json`,
+    exists: true,
+    before: '{\n  "editor.tabSize": 4\n}\n',
+    after: `{\n  "editor.tabSize": 4,\n  "python.defaultInterpreterPath": "${a.interpreter}"\n}\n`,
+    problem: null,
+    manualSnippet: '',
+  }),
+  vscode_settings_apply: (a) => ({
+    file: `${v3.PROJECT}/.vscode/settings.json`,
+    backup: a.previewId ? `${v3.PROJECT}/.vscode/settings.json.icfcc-backup-20261017T100000Z` : null,
+  }),
+  transfers_list: () => [
+    v3.transfer({
+      id: 't2',
+      phase: 'transferring',
+      doneBytes: 312_000_000,
+      message: null,
+      name: 'images.tar.gz',
+      remotePath: `${v3.PROJECT}/data/images.tar.gz`,
+    }),
+    v3.transfer(),
+  ],
+  transfers_pick_file: () => ({
+    token: 'tok',
+    name: 'semeval-v2.tar.gz',
+    path: '/Users/me/semeval-v2.tar.gz',
+    size: 1_234_567,
+    isArchive: true,
+  }),
+  transfers_upload: () => v3.transfer({ phase: 'queued', doneBytes: 0 }),
+  transfers_download: () => null,
+  workflow_preview: (a) => v3.workflowPreview(a.config as never),
+  workflow_refresh: () => v3.runs(),
+  workflow_runs: () => v3.runs().runs,
+  workflow_list_files: (a) => v3.listing(`${v3.PROJECT}/runs/train-4242/${a.which}`),
+  workflow_metrics: () => v3.metrics,
+  jobs_submit: () => ({
+    outcome: 'accepted',
+    jobId: '4243',
+    cluster: null,
+    receipt: receipt({ tag: 'a1b2c3d4e5f6', status: 'accepted', partition: 'Teaching', jobId: '4243' }),
+  }),
   connection_test_and_login: () => {
     throw { code: 'SSH_UNAVAILABLE', message: 'Preview mode: no SSH available in the browser.' };
   },

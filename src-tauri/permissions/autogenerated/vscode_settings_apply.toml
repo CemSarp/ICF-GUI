@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vscode-settings-apply"
+description = "Enables the vscode_settings_apply command without any pre-configured scope."
+commands.allow = ["vscode_settings_apply"]
+
+[[permission]]
+identifier = "deny-vscode-settings-apply"
+description = "Denies the vscode_settings_apply command without any pre-configured scope."
+commands.deny = ["vscode_settings_apply"]

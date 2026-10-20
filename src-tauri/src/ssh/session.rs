@@ -531,6 +531,25 @@ impl Session {
         super::run_capture_partial(c, Some(script), timeout, max_bytes).await
     }
 
+    /// `sftp` over the existing master: same generated config, same ssh binary (`-S`), BatchMode,
+    /// batch commands on stdin. It can never trigger a new login; a dead master just fails.
+    pub fn sftp_command(&self, sftp_bin: &Path, limit_kbps: Option<u32>) -> tokio::process::Command {
+        let mut c = ssh_command(sftp_bin);
+        c.arg("-S").arg(&self.ssh_bin).arg("-F").arg(&self.cfg);
+        c.args(["-o", &format!("ControlPath={}", self.ctl.display()), "-o", "ControlMaster=no", "-o", "BatchMode=yes"]);
+        if !self.profile.username.is_empty() {
+            c.args(["-o", &format!("User={}", self.profile.username)]);
+        }
+        if !self.profile.jump_host.is_empty() {
+            c.args(["-J", &self.profile.jump_host]);
+        }
+        if let Some(l) = limit_kbps {
+            c.args(["-l", &l.to_string()]);
+        }
+        c.args(["-q", "-b", "-", "--", &self.profile.ssh_alias]);
+        c
+    }
+
     /// Stop the master (`-O exit`, then kill its process group) and remove the private directory.
     /// Never touches SLURM jobs.
     pub async fn close(&self) {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-workflow-list-files"
+description = "Enables the workflow_list_files command without any pre-configured scope."
+commands.allow = ["workflow_list_files"]
+
+[[permission]]
+identifier = "deny-workflow-list-files"
+description = "Denies the workflow_list_files command without any pre-configured scope."
+commands.deny = ["workflow_list_files"]
