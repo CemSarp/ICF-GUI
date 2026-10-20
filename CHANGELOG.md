@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.0] — 2026-10-17 · Developer workflow (unreleased; awaiting live ICF verification)
+## [0.3.0] — 2026-10-20 · Developer workflow
 
 Remote projects, VS Code, Python environments, file transfers and reliable GPU training workflows.
 
@@ -30,6 +30,11 @@ Remote projects, VS Code, Python environments, file transfers and reliable GPU t
 - Interactive Jupyter servers (disabled until node SSH access is confirmed; batch notebooks work).
 
 ### Fixed
+- Nodes without a writable `/disk/scratch` (e.g. landonia11) failed at staging; workflows now fall
+  back to `$SLURM_TMPDIR`, then `/tmp/<you>`.
+- A failed run with an empty checkpoint folder claimed a checkpoint could be resumed.
+- A time-limit signal is reported as *Timed out*, not *Failed*.
+- The interpreter hint suggested `~`, which is not expanded; it now asks for a full path.
 - Screen-reader-only labels could extend the page height and let the whole window scroll off.
 
 ## [0.2.0] — 2026-10-17 · GPU jobs
