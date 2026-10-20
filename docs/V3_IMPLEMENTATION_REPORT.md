@@ -159,11 +159,9 @@ unchanged. No remote daemons, background services or Jupyter servers are created
 Everything below changes state on ICF and therefore needs your go-ahead. It is sized to be cheap:
 **one 10-minute job, 1 GPU of the smallest type, 2 CPUs, 8 GB RAM, plus two small files.**
 
-Preparation on this Mac (no cluster contact): create a tiny dataset archive, e.g.
-
-```bash
-mkdir -p /tmp/icfcc-smoke/ds && echo hello > /tmp/icfcc-smoke/ds/hello.txt && tar -czf /tmp/icfcc-smoke.tar.gz -C /tmp/icfcc-smoke ds
-```
+Preparation on this Mac (no cluster contact): build the tiny dataset archive with
+`python3 examples/workflow-smoke/make_dataset.py` (see `examples/workflow-smoke/README.md` for the
+full, still small, test table: training, checkpoint sync, resume, failure, unsafe archive, notebook).
 
 In the app, connected to ICF:
 
@@ -171,7 +169,7 @@ In the app, connected to ICF:
    (creates one folder), *Open as project*.
 2. **Python environment discovery** — *Discover interpreters*, add `~/projects/icf-env/bin/python`, *Use*
    it; choose the university CUDA 12.8 toolchain and check that it shows *exists on ICF*.
-3. **Upload** — *New training workflow…* → *Upload an archive from this Mac…* → `/tmp/icfcc-smoke.tar.gz`
+3. **Upload** — *New training workflow…* → *Upload an archive from this Mac…* → `tiny_dataset.tar.gz`
    (creates `~/projects/icfcc-smoke/data/` and uploads one small verified file).
 4. **Submit** — type *GPU smoke test*; partition Teaching, smallest GPU type, 1 GPU, 2 CPUs, 8 GB,
    0 h 10 m; *Review workflow* → check the script → acknowledge → *Submit workflow…* → confirm.

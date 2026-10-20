@@ -632,7 +632,7 @@ export function TrainingWizard({
               label="Python interpreter on ICF"
               field="interpreter"
               issues={issues}
-              help="e.g. ~/projects/icf-env/bin/python — choose one in Projects → Python environment"
+              help="Full path, e.g. /home/<you>/projects/icf-env/bin/python (~ is not expanded) — or choose one in Projects → Python environment"
             >
               <input
                 id="w-interpreter"

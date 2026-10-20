@@ -167,9 +167,12 @@ Write checkpoints to `$ICFCC_CHECKPOINT_DIR`:
 
 Results and checkpoints are copied back when the job ends, fails, is cancelled, or gets close to its
 time limit (your program gets SIGTERM *copy-back warning* seconds before the limit — save and exit on
-SIGTERM). **Nothing can be copied from a node that fails or loses power**; only what was synced before
+SIGTERM; such a run shows *Timed out* with what was copied). **Nothing can be copied from a node that fails or loses power**; only what was synced before
 survives. `/home` is NFS and is **not backed up** — copy important results elsewhere (e.g. Git, your
 Mac, or AFS if you have it).
+
+Example files for trying all of this cheaply are in `examples/workflow-smoke/` (a tiny dataset
+builder, a tiny PyTorch training script and a notebook, with a test table).
 
 ### Runs
 

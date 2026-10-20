@@ -77,8 +77,10 @@ trap 'on_signal time_limit' USR1
 trap 'on_signal terminate' TERM INT
 "#;
     // Checkpoint helpers.
-    s += r#"sync_ckpt() {
-  [ -d "$ICFCC_SCRATCH_CKPT" ] && [ -n "$(ls -A -- "$ICFCC_SCRATCH_CKPT" 2>/dev/null)" ] || return 0
+    // An empty checkpoint folder is not a checkpoint: report a sync only when there were files.
+    s += r#"has_ckpt() { [ -d "$ICFCC_SCRATCH_CKPT" ] && [ -n "$(ls -A -- "$ICFCC_SCRATCH_CKPT" 2>/dev/null)" ]; }
+sync_ckpt() {
+  has_ckpt || return 0
   mkdir -p -- "$RUN_DIR/checkpoints" || return 1
   if command -v rsync >/dev/null 2>&1; then nice -n 10 rsync -a --partial-dir=.icfcc-partial "$ICFCC_SCRATCH_CKPT/" "$RUN_DIR/checkpoints/"
   else nice -n 10 cp -a -- "$ICFCC_SCRATCH_CKPT/." "$RUN_DIR/checkpoints/"; fi
@@ -91,7 +93,7 @@ trap 'on_signal terminate' TERM INT
   [ "$SCRATCH_OK" = 1 ] || return 0
   ev STAGE COPYING_RESULTS
   if [ -n "$SYNCER" ]; then touch "$JOB_SCRATCH/.stop-sync"; wait "$SYNCER" 2>/dev/null; SYNCER=; fi
-  if [ -n "${ICFCC_SCRATCH_CKPT:-}" ]; then if sync_ckpt; then ev CHECKPOINT_SYNCED final; else ev CHECKPOINT_SYNC_FAILED final; fi; fi
+  if [ -n "${ICFCC_SCRATCH_CKPT:-}" ] && has_ckpt; then if sync_ckpt; then ev CHECKPOINT_SYNCED final; else ev CHECKPOINT_SYNC_FAILED final; fi; fi
   local src="$JOB_SCRATCH/outputs" tmp="$RUN_DIR/.outputs.partial" dst="$RUN_DIR/outputs"
   if [ -z "$(ls -A -- "$src" 2>/dev/null)" ]; then SYNC=none; ev RESULT_SYNC none; return 0; fi
   SYNC=failed
@@ -159,12 +161,19 @@ ev ENV "python=$PYV"
     s += "ev STAGE STAGING\n";
     match c.scratch_root {
         ScratchRoot::DiskScratch => {
+            // Not every ICF node has a writable /disk/scratch (job 3682039 on landonia11 did not), so
+            // fall back to $SLURM_TMPDIR, then /tmp/<user>; each candidate must be a real dir we own.
             s += r#"SCRATCH_BASE=/disk/scratch
-[ -d "$SCRATCH_BASE" ] && [ -w "$SCRATCH_BASE" ] || fail SCRATCH_UNAVAILABLE "base=$SCRATCH_BASE"
 ME=$(id -un)
 case "$ME" in ''|*[!A-Za-z0-9._-]*) fail SCRATCH_UNSAFE user;; esac
-OWN="$SCRATCH_BASE/$ME"
-[ -e "$OWN" ] || mkdir -m 0700 -- "$OWN" 2>/dev/null || true
+OWN=
+for cand in "$SCRATCH_BASE/$ME" "${SLURM_TMPDIR:-}" "/tmp/$ME"; do
+  [ -n "$cand" ] || continue
+  [ -e "$cand" ] || mkdir -m 0700 -- "$cand" 2>/dev/null || continue
+  if [ -d "$cand" ] && [ ! -L "$cand" ] && [ -O "$cand" ] && [ -w "$cand" ]; then OWN=$cand; break; fi
+done
+[ -n "$OWN" ] || fail SCRATCH_UNAVAILABLE "base=$SCRATCH_BASE"
+[ "$OWN" = "$SCRATCH_BASE/$ME" ] || ev SCRATCH_FALLBACK "dir=$OWN"
 "#
         }
         ScratchRoot::SlurmTmpdir => {
@@ -233,7 +242,7 @@ ev SCRATCH "free_kb=$(free_kb "$JOB_SCRATCH")" "reserve_kb=$RESERVE_KB"
     s += "ev STAGE TRAINING\n";
     if c.checkpoint_mode == CheckpointMode::ScratchSync {
         s += &format!(
-            "ckpt_loop() {{ local n=0; while [ ! -e \"$JOB_SCRATCH/.stop-sync\" ]; do sleep 2; n=$((n + 2)); if [ $n -ge {} ]; then n=0; ev STAGE SAVING_CHECKPOINTS; if sync_ckpt; then ev CHECKPOINT_SYNCED; else ev CHECKPOINT_SYNC_FAILED; fi; ev STAGE TRAINING; fi; done; }}\nckpt_loop &\nSYNCER=$!\n",
+            "ckpt_loop() {{ local n=0; while [ ! -e \"$JOB_SCRATCH/.stop-sync\" ]; do sleep 2; n=$((n + 2)); if [ $n -ge {} ]; then n=0; if has_ckpt; then ev STAGE SAVING_CHECKPOINTS; if sync_ckpt; then ev CHECKPOINT_SYNCED; else ev CHECKPOINT_SYNC_FAILED; fi; ev STAGE TRAINING; fi; fi; done; }}\nckpt_loop &\nSYNCER=$!\n",
             u64::from(c.checkpoint_sync_minutes) * 60
         );
     }
@@ -492,7 +501,7 @@ def main():
         reject("declared size is %d times the archive size (archive bomb?)" % (total // size))
     try:
         os.mkdir(dest, 0o700)
-    except OSError:
+    except FileExistsError:
         reject("the destination folder already exists")
     st = os.statvfs(dest)
     free = st.f_bavail * st.f_frsize

@@ -198,7 +198,8 @@ fn smoke_test_and_notebook_variants() {
 // ---------- executed wrapper ----------
 
 fn python3() -> Option<PathBuf> {
-    ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"]
+    // ponytail: /usr/bin/python3 is an xcrun stub that breaks when symlinked as "python"; it is the last resort.
+    ["/opt/homebrew/bin/python3", "/opt/homebrew/bin/python3.14", "/opt/homebrew/bin/python3.12", "/usr/local/bin/python3", "/usr/bin/python3"]
         .iter()
         .map(PathBuf::from)
         .find(|p| Command::new(p).arg("-c").arg("import tarfile, zipfile").output().is_ok_and(|o| o.status.success()))
@@ -211,7 +212,8 @@ data = open(f).read() if os.path.exists(f) else "none"
 with open(os.path.join(o, "result.txt"), "w") as f:
     f.write("trained on " + data + " args " + " ".join(sys.argv[1:]))
 os.makedirs(c, exist_ok=True)
-open(os.path.join(c, "ckpt.pt"), "w").write("weights")
+if not os.environ.get("NO_CKPT"):
+    open(os.path.join(c, "ckpt.pt"), "w").write("weights")
 if os.environ.get("BREAK_SYNC"):
     os.mkdir(os.path.join(os.environ["ICFCC_RUN_DIR"], ".outputs.partial"))
 print("hf", os.environ.get("HF_HOME"), "tmp", os.environ.get("TMPDIR"), flush=True)
@@ -414,6 +416,20 @@ fn training_failure_still_copies_results_back() {
 }
 
 #[test]
+fn empty_checkpoint_folder_is_not_reported_as_a_checkpoint() {
+    let n = node_or_skip!();
+    let mut c = n.config();
+    c.env = vec![EnvVar { name: "NO_CKPT".into(), value: "1".into() }, EnvVar { name: "EXIT".into(), value: "1".into() }];
+    let (code, out) = n.run(&c, "gg77");
+    assert_eq!(code, 1, "{out}");
+    let ev = n.status();
+    assert!(!ev.iter().any(|e| e.name == "CHECKPOINT_SYNCED"), "{out}");
+    let o = derive(ReceiptStatus::Accepted, Some(JobState::Failed), &ev, None);
+    assert!(o.last_checkpoint_at.is_none());
+    assert!(!o.recovery_note.unwrap_or_default().contains("resume"));
+}
+
+#[test]
 fn result_sync_failure_is_not_reported_as_completed() {
     let n = node_or_skip!();
     let mut c = n.config();
@@ -517,6 +533,23 @@ fn scratch_collision_never_deletes_the_existing_directory() {
 }
 
 #[test]
+fn unwritable_disk_scratch_falls_back_to_slurm_tmpdir() {
+    use std::os::unix::fs::PermissionsExt;
+    let n = node_or_skip!();
+    let base = n.root.join("scratch");
+    let tmpdir = n.root.join("slurm-tmp");
+    std::fs::create_dir(&tmpdir).unwrap();
+    std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o555)).unwrap(); // like landonia11
+    let out = n.command(&n.script(&n.config(), "ff66"), Some("4242")).env("SLURM_TMPDIR", &tmpdir).output().unwrap();
+    std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(out.status.code(), Some(0), "{}", String::from_utf8_lossy(&out.stdout));
+    let ev = n.status();
+    assert_eq!(ev.iter().find(|e| e.name == "SCRATCH_FALLBACK").and_then(|e| e.arg("dir")), Some(tmpdir.to_str().unwrap()));
+    assert!(n.run_dir().join("outputs/result.txt").exists());
+    assert!(!tmpdir.join("icfcc-4242-ff66").exists(), "job scratch cleaned up");
+}
+
+#[test]
 fn insufficient_scratch_space_fails_before_staging() {
     let n = node_or_skip!();
     let mut c = n.config();
@@ -585,6 +618,13 @@ fn time_limit_signal_stops_training_and_still_copies_back() {
     assert_ne!(status.code(), Some(0));
     let o = derive(ReceiptStatus::Accepted, Some(JobState::Timeout), &ev, None);
     assert_eq!((o.state, o.results), (Some(WorkflowState::Timeout), ResultState::Synced));
+    // The wrapper finished before the limit, so SLURM reports FAILED (exit 143) or COMPLETED (exit 0):
+    // still a time-limit stop, not a script failure or a normal completion.
+    for sched in [JobState::Failed, JobState::Completed] {
+        let o = derive(ReceiptStatus::Accepted, Some(sched), &ev, None);
+        assert_eq!((o.state, o.failure), (Some(WorkflowState::Timeout), Some(FailureKind::Timeout)), "{sched:?}");
+        assert!(o.message.unwrap().contains("copied back") && o.recovery_note.is_some());
+    }
 }
 
 // ---------- status derivation ----------

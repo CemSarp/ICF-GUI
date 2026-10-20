@@ -79,6 +79,9 @@ Notes:
   window opening (the CLI is exercised with a fake bundle; detection was checked read-only against the
   real install).
 
-## Live ICF smoke test (manual, needs explicit approval)
+## Live ICF smoke tests (manual, need explicit approval)
 
-See `docs/V3_IMPLEMENTATION_REPORT.md` → *Manual cluster verification*.
+See `docs/V3_IMPLEMENTATION_REPORT.md` → *Manual cluster verification* and the test table in
+`examples/workflow-smoke/README.md`. `make_dataset.py` output was checked locally against the
+compute-node stager (good archive extracted, unsafe one rejected); `train_tiny.py` and the notebook
+need PyTorch and run only on ICF.

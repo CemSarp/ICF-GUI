@@ -136,7 +136,7 @@ pub struct Observed {
 fn reason_failure(reason: &str) -> (FailureKind, &'static str) {
     match reason {
         "SCRATCH_FULL" => (FailureKind::ScratchExhausted, "Not enough free space on the node's scratch disk for the data plus the reserved output space. Reduce the data or expected output size, or try again later."),
-        "SCRATCH_UNAVAILABLE" => (FailureKind::ScratchUnavailable, "The node-local scratch directory is not available or not writable on this node. Try the SLURM_TMPDIR scratch policy, or ask Informatics support."),
+        "SCRATCH_UNAVAILABLE" => (FailureKind::ScratchUnavailable, "No writable scratch on this node: /disk/scratch, $SLURM_TMPDIR and /tmp were all unavailable. Ask Informatics support."),
         "SCRATCH_UNSAFE" => (FailureKind::ScratchUnavailable, "The scratch directory could not be created safely (it already existed, was not owned by you or resolved elsewhere). Nothing was deleted."),
         "ENV_SETUP" => (FailureKind::PythonEnvironment, "The Python environment could not be set up on the compute node. Check the interpreter path, the toolchain and the modules."),
         "MISSING_INPUT" => (FailureKind::MissingRemoteFile, "An input archive was missing or unreadable when the job started."),
@@ -250,9 +250,21 @@ pub fn derive(submission: ReceiptStatus, sched: Option<JobState>, events: &[Even
         }
         // Completed/Failed (or finished according to our own marker): decide from the markers.
         _ => {
+            // The wrapper usually finishes before SLURM's limit after the USR1 warning, so SLURM
+            // says COMPLETED/FAILED; the marker says what really happened.
+            let time_limit = events.iter().any(|e| e.name == "SIGNAL" && e.args.first().is_some_and(|a| a == "time_limit"));
             if let Some(reason) = &failed {
                 let (k, m) = reason_failure(reason);
                 set(&mut o, WorkflowState::Failed, Some(k), m);
+            } else if time_limit {
+                let m = match o.results {
+                    ResultState::Synced => {
+                        "Stopped at the time-limit warning; outputs were copied back and verified. Resume from the last checkpoint to continue."
+                    }
+                    ResultState::Failed => "Stopped at the time-limit warning, and copying results back failed.",
+                    _ => "Stopped at the time-limit warning.",
+                };
+                set(&mut o, WorkflowState::Timeout, Some(FailureKind::Timeout), m);
             } else if training_ok && o.results == ResultState::Failed {
                 let why = events.iter().rev().find(|e| e.name == "RESULT_SYNC").and_then(|e| e.arg("reason")).unwrap_or("unknown");
                 set(
