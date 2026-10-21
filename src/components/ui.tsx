@@ -1,5 +1,65 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
+/** Outline icons drawn on a 24-pt grid with SF Symbols-like proportions (1.75 stroke, round caps). */
+const PATHS = {
+  overview: 'M4.5 4.5h6v6h-6zM13.5 4.5h6v6h-6zM4.5 13.5h6v6h-6zM13.5 13.5h6v6h-6z',
+  partitions: 'M4 5h16v14H4zM4 9.7h16M4 14.3h16',
+  nodes: 'M4 4.5h16v6H4zM4 13.5h16v6H4zM7.5 7.5h.01M7.5 16.5h.01M11 7.5h5M11 16.5h5',
+  request: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM12 8.5v7M8.5 12h7',
+  jobs: 'M9 6.5h11M9 12h11M9 17.5h11M4.75 6.5h.01M4.75 12h.01M4.75 17.5h.01',
+  folder: 'M3.5 7.5a2 2 0 0 1 2-2h3.6l2 2h7.4a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z',
+  training: 'M4 4.5v15h16M7.5 15l3.5-4.5 3 2.5 5-6.5',
+  transfers: 'M7.5 19.5v-15M4 8l3.5-3.5L11 8M16.5 4.5v15M13 16l3.5 3.5L20 16',
+  settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 4.5v5M9 14.5v5',
+  back: 'M14.5 5.5L8 12l6.5 6.5',
+  forward: 'M9.5 5.5L16 12l-6.5 6.5',
+  up: 'M5.5 14.5L12 8l6.5 6.5',
+  upload: 'M12 19.5v-14M6.5 11L12 5.5l5.5 5.5',
+  download: 'M12 4.5v14M6.5 13l5.5 5.5 5.5-5.5',
+  home: 'M4 11l8-6.5 8 6.5M6.5 9.5V19.5h11V9.5',
+  refresh: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4',
+  file: 'M6.5 3.5h7l4 4v13h-11zM13.5 3.5v4h4',
+  link: 'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
+  info: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM12 11v5.5M12 7.75h.01',
+  warn: 'M12 4l8.5 15h-17zM12 10v4M12 16.75h.01',
+  bad: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.25 9.25l5.5 5.5M14.75 9.25l-5.5 5.5',
+  ok: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM8.25 12.25l2.5 2.5L15.75 9.5',
+  close: 'M6.5 6.5l11 11M17.5 6.5l-11 11',
+  external: 'M13.5 4.5h6v6M19.5 4.5l-8 8M17.5 14v4.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1H10',
+  chip: 'M7 7h10v10H7zM10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5',
+} as const;
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
+  return (
+    <svg
+      className="icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
+
+/** The one "go up a level" control, used by every detail screen. */
+export function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="btn plain back" onClick={onClick}>
+      <Icon name="back" />
+      {label}
+    </button>
+  );
+}
+
 export function Badge({ tone, glyph, children }: { tone: string; glyph?: string; children: ReactNode }) {
   return (
     <span className={`badge tone-${tone}`}>
@@ -18,12 +78,9 @@ export function Notice({
   title?: string;
   children: ReactNode;
 }) {
-  const glyph = { info: 'ℹ', warn: '⚠', bad: '✕', ok: '✓' }[tone];
   return (
     <div className={`notice tone-${tone}`} role={tone === 'bad' ? 'alert' : 'status'}>
-      <span aria-hidden="true" className="notice-glyph">
-        {glyph}
-      </span>
+      <Icon name={tone} size={18} />
       <div>
         {title && <strong>{title}</strong>}
         <div>{children}</div>

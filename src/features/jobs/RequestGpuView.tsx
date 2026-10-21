@@ -290,8 +290,10 @@ export function RequestGpuView({
   return (
     <div className="wizard">
       <ol className="steps" aria-label="Progress">
-        <li aria-current={!preview ? 'step' : undefined}>1. Configure</li>
-        <li aria-current={preview ? 'step' : undefined}>2. Review &amp; submit</li>
+        <li aria-current={!preview ? 'step' : undefined} className={preview ? 'done' : undefined}>
+          Configure
+        </li>
+        <li aria-current={preview ? 'step' : undefined}>Review &amp; submit</li>
       </ol>
       {status.demo && <Notice tone="info">Demo mode: you can review scripts, but submission is disabled.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Badge, EmptyState, Notice } from '../../components/ui';
+import { Badge, EmptyState, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { bytes, formatTime, TRANSFER_PHASE } from '../../lib/format';
 import type { ConnectionStatus, FolderPick, LocalPick, Transfer } from '../../types';
@@ -186,7 +186,8 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
       <section className="card" aria-labelledby="queue-title">
         <div className="card-head">
           <h2 id="queue-title">Transfers</h2>
-          <button className="btn ghost" onClick={refresh}>
+          <button className="btn" onClick={refresh}>
+            <Icon name="refresh" />
             Refresh
           </button>
         </div>
@@ -238,7 +239,7 @@ function TransferRow({ t, onAction }: { t: Transfer; onAction: (label: string, f
   return (
     <li className="transfer">
       <div className="transfer-head">
-        <span aria-hidden="true">{t.direction === 'upload' ? '↑' : '↓'}</span>
+        <Icon name={t.direction === 'upload' ? 'upload' : 'download'} />
         <strong>{t.name}</strong>
         <Badge tone={ph.tone} glyph={ph.glyph}>
           {ph.label}

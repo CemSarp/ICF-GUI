@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Badge, Dialog, EmptyState, Notice } from '../../components/ui';
+import { Badge, Dialog, EmptyState, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
-import { bytes, formatTime, nominalVram, WORKFLOW_STATE } from '../../lib/format';
+import { bytes, formatTime, nominalVram } from '../../lib/format';
 import { usePersistentState } from '../../lib/persist';
 import type {
   CheckpointMode,
@@ -197,8 +197,6 @@ function Field({
     </div>
   );
 }
-
-const STEPS: WorkflowState[] = ['DRAFT', 'UPLOADING', 'VALIDATING', 'READY', 'SUBMITTING'];
 
 export function TrainingWizard({
   status,
@@ -469,20 +467,16 @@ export function TrainingWizard({
         ),
       )
     : 1;
-  const stepIndex = STEPS.indexOf(phase);
+  // Same two steps as Request GPU; uploading and checking show their own notices.
+  const reviewing = phase === 'READY' || phase === 'SUBMITTING';
 
   return (
     <div className="wizard">
-      <ol className="steps" aria-label="Workflow state">
-        {STEPS.map((s, i) => (
-          <li
-            key={s}
-            aria-current={phase === s ? 'step' : undefined}
-            className={i < stepIndex && !(s === 'UPLOADING' && !upload) ? 'done' : undefined}
-          >
-            {WORKFLOW_STATE[s].label}
-          </li>
-        ))}
+      <ol className="steps" aria-label="Progress">
+        <li aria-current={!reviewing ? 'step' : undefined} className={reviewing ? 'done' : undefined}>
+          Configure
+        </li>
+        <li aria-current={reviewing ? 'step' : undefined}>Review &amp; submit</li>
       </ol>
       {error && <Notice tone="bad">{error}</Notice>}
       {phase === 'UPLOADING' && upload && (
@@ -695,7 +689,7 @@ export function TrainingWizard({
                   />
                   <button
                     type="button"
-                    className="btn ghost"
+                    className="btn ghost icon-btn"
                     aria-label={`Remove archive ${i + 1}`}
                     onClick={() =>
                       set(
@@ -704,7 +698,7 @@ export function TrainingWizard({
                       )
                     }
                   >
-                    ✕
+                    <Icon name="close" size={14} />
                   </button>
                 </div>
               ))}

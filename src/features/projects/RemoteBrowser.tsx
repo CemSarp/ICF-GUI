@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Dialog, Notice } from '../../components/ui';
+import { Dialog, Icon, Notice, type IconName } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { bytes, formatTime, formatUnix } from '../../lib/format';
 import type { ConnectionStatus, Entry, Listing } from '../../types';
@@ -16,10 +16,35 @@ export function parentOf(path: string): string {
 
 const isDir = (e: Entry) => e.kind === 'dir' || e.targetKind === 'dir';
 
-function icon(e: Entry) {
-  if (isDir(e)) return e.kind === 'symlink' ? '↪📁' : '📁';
-  if (e.kind === 'symlink') return '↪';
-  return e.kind === 'file' ? '📄' : '◇';
+function icon(e: Entry): IconName {
+  if (isDir(e)) return 'folder';
+  return e.kind === 'symlink' ? 'link' : 'file';
+}
+
+/** Clickable path segments from the home folder down; segments above home are plain text. */
+function Crumbs({ path, home, go }: { path: string; home: string; go: (p: string) => void }) {
+  const parts = path.split('/').filter(Boolean);
+  return (
+    <nav className="crumbs" aria-label="Current folder" title={path}>
+      {parts.map((part, i) => {
+        const p = `/${parts.slice(0, i + 1).join('/')}`;
+        const last = i === parts.length - 1;
+        const inside = p === home || p.startsWith(`${home}/`);
+        return (
+          <span key={p}>
+            <span className="crumb-sep">/</span>
+            {inside ? (
+              <button className="crumb" aria-current={last ? 'location' : undefined} onClick={() => !last && go(p)}>
+                {part}
+              </button>
+            ) : (
+              <span className="muted">{part}</span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
 }
 
 /**
@@ -97,30 +122,44 @@ export function RemoteBrowser({
         <span className="muted small">{listing ? `Listed ${formatTime(listing.fetchedAt)}` : ''}</span>
       </div>
       <div className="toolbar browser-bar">
-        <button className="btn ghost" onClick={() => setPos((p) => p - 1)} disabled={pos === 0} aria-label="Back">
-          ←
+        <button
+          className="btn ghost icon-btn"
+          onClick={() => setPos((p) => p - 1)}
+          disabled={pos === 0}
+          aria-label="Back"
+          title="Back"
+        >
+          <Icon name="back" />
         </button>
         <button
-          className="btn ghost"
+          className="btn ghost icon-btn"
           onClick={() => setPos((p) => p + 1)}
           disabled={pos >= history.length - 1}
           aria-label="Forward"
+          title="Forward"
         >
-          →
+          <Icon name="forward" />
         </button>
         <button
-          className="btn ghost"
+          className="btn ghost icon-btn"
           onClick={() => listing && go(parentOf(listing.path))}
           disabled={!listing || !!atHome}
           aria-label="Up one folder"
+          title="Up one folder"
         >
-          ↑
+          <Icon name="up" />
         </button>
-        <button className="btn ghost" onClick={() => go(null)} aria-label="Home folder">
-          ⌂
+        <button className="btn ghost icon-btn" onClick={() => go(null)} aria-label="Home folder" title="Home folder">
+          <Icon name="home" />
         </button>
-        <button className="btn ghost" onClick={() => void q.refetch()} disabled={q.isFetching}>
-          {q.isFetching ? 'Loading…' : 'Refresh'}
+        <button
+          className="btn ghost icon-btn"
+          onClick={() => void q.refetch()}
+          disabled={q.isFetching}
+          aria-label="Refresh"
+          title="Refresh"
+        >
+          <Icon name="refresh" />
         </button>
         <form onSubmit={submitPath} className="path-form">
           <label className="sr-only" htmlFor="browse-path">
@@ -129,7 +168,7 @@ export function RemoteBrowser({
           <input
             id="browse-path"
             className="mono"
-            placeholder={listing?.path ?? 'Path inside your home'}
+            placeholder="Go to a folder, e.g. projects/semeval"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             autoCapitalize="off"
@@ -141,9 +180,11 @@ export function RemoteBrowser({
         </form>
       </div>
       <div className="toolbar">
-        <code className="crumbs" title={listing?.path}>
-          {listing?.path ?? current ?? '~'}
-        </code>
+        {listing ? (
+          <Crumbs path={listing.path} home={listing.home} go={go} />
+        ) : (
+          <code className="crumbs">{current ?? '~'}</code>
+        )}
         <span className="spacer" />
         <label className="check">
           <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
@@ -208,12 +249,15 @@ export function RemoteBrowser({
                   <th scope="row">
                     {isDir(e) && !e.unsupported ? (
                       <button className="row-button" onClick={() => go(joinPath(listing.path, e.name))}>
-                        <span aria-hidden="true">{icon(e)} </span>
+                        <Icon name={icon(e)} />
                         {e.name}
                       </button>
                     ) : (
-                      <span title={e.unsupported ? 'This name has characters the app cannot use safely' : undefined}>
-                        <span aria-hidden="true">{icon(e)} </span>
+                      <span
+                        className="entry-name"
+                        title={e.unsupported ? 'This name has characters the app cannot use safely' : undefined}
+                      >
+                        <Icon name={icon(e)} />
                         {e.name}
                         {e.unsupported && <span className="muted small"> (unsupported name)</span>}
                         {e.kind === 'symlink' && e.targetKind === 'missing' && (

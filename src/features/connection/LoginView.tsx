@@ -114,8 +114,8 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
       <form className="card login-card" onSubmit={submit} aria-labelledby="login-title">
         <h1 id="login-title">Connect to ICF</h1>
         <p className="muted">
-          Signs in with macOS OpenSSH through your SSH config (alias <code>{profile?.sshAlias ?? 'icf'}</code>).
-          Read-only: nothing is submitted to the scheduler.
+          Signs in with macOS OpenSSH through your SSH config (alias <code>{profile?.sshAlias ?? 'icf'}</code>). Nothing
+          is submitted or changed on ICF until you confirm it.
         </p>
 
         {profiles.length > 1 && (

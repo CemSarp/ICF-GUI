@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Badge, Notice } from '../../components/ui';
+import { BackButton, Badge, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { count, formatTime, memory, NODE_STATE } from '../../lib/format';
 
@@ -8,9 +8,7 @@ export function NodeDetail({ nodeId, version, onBack }: { nodeId: string; versio
   const n = q.data;
   return (
     <section aria-labelledby="node-title">
-      <button className="btn ghost back" onClick={onBack}>
-        ← Back to nodes
-      </button>
+      <BackButton label="All nodes" onClick={onBack} />
       <h2 id="node-title">Node {nodeId}</h2>
       {q.error && <Notice tone="bad">{errorMessage(q.error)}</Notice>}
       {n && (
@@ -86,7 +84,7 @@ export function NodeDetail({ nodeId, version, onBack }: { nodeId: string; versio
               </table>
             )}
             <p className="muted small">
-              SLURM occupancy only. GPU memory and utilisation are not measured in V1 and are not implied by these
+              SLURM occupancy only. GPU memory and utilisation are not measured by this app and are not implied by these
               numbers.
             </p>
           </div>

@@ -1,72 +1,134 @@
-/* Semantic tokens. Light and dark are designed together; contrast pairs target WCAG AA. */
+/* Semantic tokens modelled on Apple's system colours and materials. Light and dark are designed
+   together; text colours use the accessible (AA) variants of the system colours. */
 :root {
   color-scheme: light dark;
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --radius: 8px;
-  --space: 8px;
-  --dur: 160ms;
 
-  --bg: #f1f5f9;
+  /* 4-pt spacing scale */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --space: 8px;
+
+  /* Radii: controls, cards, sheets */
+  --r-sm: 6px;
+  --r-control: 8px;
+  --radius: 12px;
+  --r-sheet: 16px;
+  --control-h: 32px;
+
+  /* Motion: Apple's default ease and the sheet curve; exits are faster than entrances. */
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+
+  --bg: #f5f5f7;
+  --sidebar: #ebebef;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --text: #0f172a;
-  --muted: #475569;
-  --border: #cbd5e1;
-  --focus: #2563eb;
-  --primary: #1d4ed8;
+  --surface-2: #f5f5f7;
+  --fill: rgb(120 120 128 / 12%);
+  --fill-strong: rgb(120 120 128 / 20%);
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --border: rgb(60 60 67 / 14%);
+  --border-strong: rgb(60 60 67 / 28%);
+  --focus: rgb(0 113 227 / 55%);
+  --primary: #0071e3;
+  --primary-fill: #0071e3;
   --on-primary: #ffffff;
-  --ok: #15803d;
-  --info: #1d4ed8;
-  --warn: #a16207;
-  --bad: #b91c1c;
-  --busy: #6d28d9;
-  --tint: 12%;
-  --scrim: rgb(15 23 42 / 55%);
+  --ok: #248a3d;
+  --info: #0071e3;
+  --warn: #c93400;
+  --bad: #d70015;
+  --busy: #8944ab;
+  --tint: 11%;
+  --scrim: rgb(0 0 0 / 40%);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 5%), 0 0 0 0.5px rgb(0 0 0 / 3%);
+  --shadow-pop: 0 24px 64px rgb(0 0 0 / 22%), 0 2px 8px rgb(0 0 0 / 8%);
+  --shadow-seg: 0 1px 3px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 6%);
+  --material: rgb(255 255 255 / 72%);
+  --seg: #ffffff;
+}
+
+/* Native controls (checkboxes, scrollbars, pickers) follow the chosen theme, not only the OS one. */
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0b1220;
-    --surface: #131c2e;
-    --surface-2: #1a2438;
-    --text: #f1f5f9;
-    --muted: #a3b1c6;
-    --border: #2c3a52;
-    --focus: #60a5fa;
-    --primary: #3b82f6;
-    --on-primary: #0b1220;
-    --ok: #4ade80;
-    --info: #60a5fa;
-    --warn: #fbbf24;
-    --bad: #f87171;
-    --busy: #c4b5fd;
+    color-scheme: dark;
+    --bg: #161618;
+    --sidebar: #1f1f22;
+    --surface: #232326;
+    --surface-2: #2c2c2f;
+    --fill: rgb(120 120 128 / 24%);
+    --fill-strong: rgb(120 120 128 / 34%);
+    --text: #f5f5f7;
+    --muted: #a1a1a6;
+    --border: rgb(255 255 255 / 9%);
+    --border-strong: rgb(255 255 255 / 18%);
+    --focus: rgb(64 156 255 / 60%);
+    --primary: #409cff;
+    --primary-fill: #0071e3;
+    --on-primary: #ffffff;
+    --ok: #30d158;
+    --info: #409cff;
+    --warn: #ff9f0a;
+    --bad: #ff6961;
+    --busy: #da8fff;
     --tint: 18%;
-    --scrim: rgb(0 0 0 / 60%);
+    --scrim: rgb(0 0 0 / 58%);
+    --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 4%);
+    --shadow-pop: 0 24px 64px rgb(0 0 0 / 55%), 0 0 0 0.5px rgb(255 255 255 / 10%);
+    --shadow-seg: 0 1px 3px rgb(0 0 0 / 40%);
+    --material: rgb(30 30 33 / 72%);
+    --seg: #5b5b60;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #0b1220;
-  --surface: #131c2e;
-  --surface-2: #1a2438;
-  --text: #f1f5f9;
-  --muted: #a3b1c6;
-  --border: #2c3a52;
-  --focus: #60a5fa;
-  --primary: #3b82f6;
-  --on-primary: #0b1220;
-  --ok: #4ade80;
-  --info: #60a5fa;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --busy: #c4b5fd;
+  color-scheme: dark;
+  --bg: #161618;
+  --sidebar: #1f1f22;
+  --surface: #232326;
+  --surface-2: #2c2c2f;
+  --fill: rgb(120 120 128 / 24%);
+  --fill-strong: rgb(120 120 128 / 34%);
+  --text: #f5f5f7;
+  --muted: #a1a1a6;
+  --border: rgb(255 255 255 / 9%);
+  --border-strong: rgb(255 255 255 / 18%);
+  --focus: rgb(64 156 255 / 60%);
+  --primary: #409cff;
+  --primary-fill: #0071e3;
+  --on-primary: #ffffff;
+  --ok: #30d158;
+  --info: #409cff;
+  --warn: #ff9f0a;
+  --bad: #ff6961;
+  --busy: #da8fff;
   --tint: 18%;
-  --scrim: rgb(0 0 0 / 60%);
+  --scrim: rgb(0 0 0 / 58%);
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 4%);
+  --shadow-pop: 0 24px 64px rgb(0 0 0 / 55%), 0 0 0 0.5px rgb(255 255 255 / 10%);
+  --shadow-seg: 0 1px 3px rgb(0 0 0 / 40%);
+  --material: rgb(30 30 33 / 72%);
+  --seg: #5b5b60;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
+    --dur-fast: 0ms;
     --dur: 0ms;
+    --dur-slow: 0ms;
   }
 }

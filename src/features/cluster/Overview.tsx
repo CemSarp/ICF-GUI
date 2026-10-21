@@ -52,7 +52,8 @@ export function Overview({
 
       {free === 0 && sum('unknown') === 0 && sum('configured') > 0 && (
         <Notice tone="info" title="No GPUs are potentially free right now">
-          Every known GPU is allocated or unavailable. You can still queue work later in V2; the scheduler decides.
+          Every known GPU is allocated or unavailable. You can still submit a job: it waits in the queue until the
+          scheduler starts it.
         </Notice>
       )}
 

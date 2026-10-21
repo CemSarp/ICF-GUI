@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, EmptyState, Notice } from '../../components/ui';
+import { Badge, EmptyState, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../lib/format';
 import type { ConnectionStatus, JobReceipt, JobRow } from '../../types';
@@ -58,7 +58,8 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
         </span>
         <span className="spacer" />
         <button className="btn" onClick={jobs.refreshNow} disabled={jobs.refreshDisabled}>
-          Refresh jobs
+          <Icon name="refresh" />
+          Refresh
         </button>
       </div>
       <p className="muted small">Only your own jobs are shown. Refreshes every 45 s while this screen is visible.</p>
@@ -167,7 +168,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
                     aria-label={`Dismiss submission ${r.name} from ${formatTime(r.submittedAt)}`}
                     title="Hide from this list (the app still remembers whether this partition accepted you)"
                   >
-                    ✕
+                    <Icon name="close" size={14} />
                   </button>
                 )}
                 <Badge tone={RECEIPT_LABEL[r.status].tone}>{RECEIPT_LABEL[r.status].label}</Badge>{' '}

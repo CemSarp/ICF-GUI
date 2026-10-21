@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Badge, Dialog, Notice } from '../../components/ui';
+import { BackButton, Badge, Dialog, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../lib/format';
 import type { CancelOutcome, ConnectionStatus, JobRow } from '../../types';
@@ -62,16 +62,15 @@ export function JobDetailView({
 
   return (
     <section aria-labelledby="job-title">
-      <button className="btn ghost back" onClick={onBack}>
-        ← Back to My Jobs
-      </button>
+      <BackButton label="All jobs" onClick={onBack} />
       <div className="card-head">
         <h2 id="job-title">
           Job {jobId} {j && <span className="muted">· {j.name}</span>}
         </h2>
         <div className="actions start">
           <button className="btn" onClick={() => void q.refetch()} disabled={q.isFetching}>
-            {q.isFetching ? 'Refreshing…' : 'Refresh job'}
+            <Icon name="refresh" />
+            {q.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
           {d?.cancelToken && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirm(true)}>

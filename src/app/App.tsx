@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Badge, EmptyState, Notice } from '../components/ui';
+import { Badge, EmptyState, Icon, Notice, type IconName } from '../components/ui';
 import { Nodes } from '../features/cluster/Nodes';
 import { NodeDetail } from '../features/cluster/NodeDetail';
 import { Overview } from '../features/cluster/Overview';
@@ -24,19 +24,36 @@ import type { Settings } from '../types';
 
 type View =
   'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'projects' | 'training' | 'transfers' | 'settings';
-const NAV: { id: View; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'partitions', label: 'Partitions' },
-  { id: 'nodes', label: 'GPU Nodes' },
-  { id: 'request', label: 'Request GPU' },
-  { id: 'jobs', label: 'My Jobs' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'training', label: 'Training' },
-  { id: 'transfers', label: 'Transfers' },
-  { id: 'settings', label: 'Settings' },
+type NavItem = { id: View; label: string; icon: IconName };
+const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
+  {
+    heading: 'Cluster',
+    items: [
+      { id: 'overview', label: 'Overview', icon: 'overview' },
+      { id: 'partitions', label: 'Partitions', icon: 'partitions' },
+      { id: 'nodes', label: 'GPU Nodes', icon: 'nodes' },
+    ],
+  },
+  {
+    heading: 'Jobs',
+    items: [
+      { id: 'request', label: 'Request GPU', icon: 'request' },
+      { id: 'jobs', label: 'My Jobs', icon: 'jobs' },
+    ],
+  },
+  {
+    heading: 'Workspace',
+    items: [
+      { id: 'projects', label: 'Projects', icon: 'folder' },
+      { id: 'training', label: 'Training', icon: 'training' },
+      { id: 'transfers', label: 'Transfers', icon: 'transfers' },
+    ],
+  },
+  { heading: '', items: [{ id: 'settings', label: 'Settings', icon: 'settings' }] },
 ];
-/** Screens that do not depend on the cluster snapshot (and have their own refresh, if any). */
-const OWN_REFRESH: View[] = ['jobs', 'projects', 'training', 'transfers'];
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
+/** Screens that use the cluster snapshot; only they show the snapshot's Refresh in the toolbar. */
+const USES_SNAPSHOT: View[] = ['overview', 'partitions', 'nodes', 'request'];
 
 export function App() {
   const { status, challenges, setChallenges } = useConnection();
@@ -106,19 +123,31 @@ export function App() {
       </a>
       <nav className="sidebar" aria-label="Main">
         <div className="brand">
-          <span className="logo" aria-hidden="true" />
+          <span className="logo" aria-hidden="true">
+            <Icon name="chip" size={16} />
+          </span>
           ICF Control Center
         </div>
-        <ul>
-          {NAV.map((n) => (
-            <li key={n.id}>
-              <button className="nav" aria-current={view === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
-                {n.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="sidebar-foot muted small">v0.3 · jobs need explicit confirmation</div>
+        {NAV_GROUPS.map((g) => (
+          <div className={g.heading ? 'nav-group' : 'nav-group bottom'} key={g.heading}>
+            {g.heading && (
+              <div className="nav-heading" aria-hidden="true">
+                {g.heading}
+              </div>
+            )}
+            <ul>
+              {g.items.map((n) => (
+                <li key={n.id}>
+                  <button className="nav" aria-current={view === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                    <Icon name={n.icon} />
+                    {n.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        <div className="sidebar-foot muted small">Version 0.3.0</div>
       </nav>
 
       <div className="content">
@@ -140,8 +169,8 @@ export function App() {
                   : ''}
             </span>
             <span className="spacer" />
-            {/* Jobs screens have their own refresh; one Refresh per screen avoids "which one?". */}
-            {!OWN_REFRESH.includes(view) && (
+            {/* Other screens have their own refresh (or none); one Refresh per screen avoids "which one?". */}
+            {USES_SNAPSHOT.includes(view) && (
               <>
                 <span aria-live="polite">
                   {snap.refreshing ? (
@@ -174,6 +203,7 @@ export function App() {
                   disabled={snap.refreshDisabled}
                   title="Manual refresh (at most every 10 s)"
                 >
+                  <Icon name="refresh" />
                   Refresh
                 </button>
               </>
@@ -191,122 +221,116 @@ export function App() {
         </header>
 
         <main id="main" tabIndex={-1} ref={mainRef} className="main">
-          <h1 className="page-title">
-            {selectedNode
-              ? 'Node detail'
-              : selectedJob
-                ? 'Job detail'
-                : view === 'request'
-                  ? 'Request GPU / Submit Job'
-                  : NAV.find((n) => n.id === view)?.label}
-          </h1>
-          {view === 'projects' ? (
-            <ProjectsView
-              status={status}
-              selected={project}
-              onSelect={setProject}
-              nav={{
-                onStartTraining: (init) => startTraining(init),
-                onUpload: (dir) => {
-                  setUploadDir(dir);
-                  go('transfers');
-                },
-              }}
-            />
-          ) : view === 'training' ? (
-            <TrainingView
-              status={status}
-              snapshot={snapshot}
-              tab={trainingTab}
-              setTab={setTrainingTab}
-              init={wizardInit.init}
-              wizardKey={wizardInit.key}
-              selectedRun={selectedRun}
-              onSelectRun={setSelectedRun}
-              onResume={(config) => startTraining({ config })}
-              onOpenJob={(jobId) => {
-                go('jobs');
-                setSelectedJob(jobId);
-              }}
-              onRefreshCluster={snap.refreshNow}
-            />
-          ) : view === 'transfers' ? (
-            <TransfersView status={status} uploadDir={uploadDir ?? project} />
-          ) : view === 'jobs' ? (
-            selectedJob ? (
-              <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
+          <div className="page" key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}`}>
+            <h1 className="page-title">{NAV.find((n) => n.id === view)?.label}</h1>
+            {view === 'projects' ? (
+              <ProjectsView
+                status={status}
+                selected={project}
+                onSelect={setProject}
+                nav={{
+                  onStartTraining: (init) => startTraining(init),
+                  onUpload: (dir) => {
+                    setUploadDir(dir);
+                    go('transfers');
+                  },
+                }}
+              />
+            ) : view === 'training' ? (
+              <TrainingView
+                status={status}
+                snapshot={snapshot}
+                tab={trainingTab}
+                setTab={setTrainingTab}
+                init={wizardInit.init}
+                wizardKey={wizardInit.key}
+                selectedRun={selectedRun}
+                onSelectRun={setSelectedRun}
+                onResume={(config) => startTraining({ config })}
+                onOpenJob={(jobId) => {
+                  go('jobs');
+                  setSelectedJob(jobId);
+                }}
+                onRefreshCluster={snap.refreshNow}
+              />
+            ) : view === 'transfers' ? (
+              <TransfersView status={status} uploadDir={uploadDir ?? project} />
+            ) : view === 'jobs' ? (
+              selectedJob ? (
+                <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
+              ) : (
+                <MyJobsView status={status} onOpen={setSelectedJob} />
+              )
+            ) : view === 'settings' ? (
+              <SettingsView
+                settings={settings}
+                onSettings={setSettings}
+                theme={theme}
+                setTheme={setTheme}
+                status={status}
+                snapshot={snap.data}
+                onCacheCleared={() => qc.invalidateQueries({ queryKey: ['node'] })}
+              />
+            ) : snap.loading ? (
+              <div className="skeleton" aria-busy="true">
+                Loading cluster data…
+              </div>
+            ) : !snapshot ? (
+              <EmptyState title="Data unavailable">
+                {err ? 'The scheduler could not be queried. Try Refresh in a moment.' : 'No snapshot yet.'}
+              </EmptyState>
+            ) : view === 'request' ? (
+              <RequestGpuView
+                key={requestPartition ?? 'draft'}
+                snapshot={snapshot}
+                status={status}
+                initialPartition={requestPartition}
+                onOpenJobs={(jobId) => {
+                  go('jobs');
+                  if (jobId) setSelectedJob(jobId);
+                }}
+              />
+            ) : selectedNode ? (
+              <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
+            ) : view === 'overview' ? (
+              <Overview
+                snapshot={snapshot}
+                onOpenPartition={(p) => {
+                  setPartitionFilter(p);
+                  go('nodes');
+                }}
+              />
+            ) : view === 'partitions' ? (
+              <Partitions
+                snapshot={snapshot}
+                onOpenNodes={(p) => {
+                  setPartitionFilter(p);
+                  go('nodes');
+                }}
+                onRequest={(p) => {
+                  go('request');
+                  setRequestPartition(p);
+                }}
+              />
             ) : (
-              <MyJobsView status={status} onOpen={setSelectedJob} />
-            )
-          ) : view === 'settings' ? (
-            <SettingsView
-              settings={settings}
-              onSettings={setSettings}
-              theme={theme}
-              setTheme={setTheme}
-              status={status}
-              snapshot={snap.data}
-              onCacheCleared={() => qc.invalidateQueries({ queryKey: ['node'] })}
-            />
-          ) : snap.loading ? (
-            <div className="skeleton" aria-busy="true">
-              Loading cluster data…
-            </div>
-          ) : !snapshot ? (
-            <EmptyState title="Data unavailable">
-              {err ? 'The scheduler could not be queried. Try Refresh in a moment.' : 'No snapshot yet.'}
-            </EmptyState>
-          ) : view === 'request' ? (
-            <RequestGpuView
-              key={requestPartition ?? 'draft'}
-              snapshot={snapshot}
-              status={status}
-              initialPartition={requestPartition}
-              onOpenJobs={(jobId) => {
-                go('jobs');
-                if (jobId) setSelectedJob(jobId);
-              }}
-            />
-          ) : selectedNode ? (
-            <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
-          ) : view === 'overview' ? (
-            <Overview
-              snapshot={snapshot}
-              onOpenPartition={(p) => {
-                setPartitionFilter(p);
-                go('nodes');
-              }}
-            />
-          ) : view === 'partitions' ? (
-            <Partitions
-              snapshot={snapshot}
-              onOpenNodes={(p) => {
-                setPartitionFilter(p);
-                go('nodes');
-              }}
-              onRequest={(p) => {
-                go('request');
-                setRequestPartition(p);
-              }}
-            />
-          ) : (
-            <Nodes
-              snapshot={snapshot}
-              partitionFilter={partitionFilter}
-              setPartitionFilter={setPartitionFilter}
-              onSelect={setSelectedNode}
-            />
-          )}
-          {snapshot && snapshot.warnings.length > 0 && ['overview', 'partitions', 'nodes'].includes(view) && (
-            <details className="card small">
-              <summary>{snapshot.warnings.length} data warning(s)</summary>
-              <ul>
-                {snapshot.warnings.map((w, i) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
-            </details>
-          )}
+              <Nodes
+                snapshot={snapshot}
+                partitionFilter={partitionFilter}
+                setPartitionFilter={setPartitionFilter}
+                onSelect={setSelectedNode}
+              />
+            )}
+            {snapshot && snapshot.warnings.length > 0 && ['overview', 'partitions', 'nodes'].includes(view) && (
+              <details className="card small">
+                <summary>{snapshot.warnings.length} data warning(s)</summary>
+                <ul>
+                  {snapshot.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
         </main>
       </div>
       {challenge && <ChallengeDialog key={challenge.id} challenge={challenge} onDone={dismissChallenge} />}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Badge, EmptyState, Notice } from '../../components/ui';
+import { BackButton, Badge, EmptyState, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { bytes, clusterTime, FAILURE_LABEL, formatTime, formatUnix, JOB_STATE, WORKFLOW_STATE } from '../../lib/format';
 import type {
@@ -99,28 +99,39 @@ export function RunsView({
 
   return (
     <div className="runs">
-      <div className="toolbar">
-        <span className="muted small" aria-live="polite">
-          {runs.refreshing
-            ? 'Checking…'
-            : runs.data?.fetchedAt
-              ? `Checked ${formatTime(runs.data.fetchedAt)}`
-              : 'Not checked yet'}
-        </span>
-        <span className="spacer" />
-        <button
-          className="btn"
-          onClick={runs.refreshNow}
-          disabled={runs.refreshDisabled}
-          title="At most every 10 s; one scheduler query plus one status read"
-        >
-          Refresh runs
-        </button>
-      </div>
+      {!run && (
+        <div className="toolbar">
+          <span className="muted small" aria-live="polite">
+            {runs.refreshing
+              ? 'Checking…'
+              : runs.data?.fetchedAt
+                ? `Checked ${formatTime(runs.data.fetchedAt)}`
+                : 'Not checked yet'}
+          </span>
+          <span className="spacer" />
+          <button
+            className="btn"
+            onClick={runs.refreshNow}
+            disabled={runs.refreshDisabled}
+            title="At most every 10 s; one scheduler query plus one status read"
+          >
+            <Icon name="refresh" />
+            Refresh
+          </button>
+        </div>
+      )}
       {runs.data?.lastError && <Notice tone="warn">Showing the last known state: {runs.data.lastError.message}</Notice>}
       {runs.error && <Notice tone="bad">{errorMessage(runs.error)}</Notice>}
       {run ? (
-        <RunDetail status={status} run={run} onBack={() => onSelect(null)} onResume={onResume} onOpenJob={onOpenJob} />
+        <RunDetail
+          status={status}
+          run={run}
+          onBack={() => onSelect(null)}
+          onResume={onResume}
+          onOpenJob={onOpenJob}
+          onRefreshRuns={runs.refreshNow}
+          refreshDisabled={runs.refreshDisabled}
+        />
       ) : list.length === 0 ? (
         <EmptyState title="No workflow runs yet">
           Configure one in the New workflow tab. Runs submitted from this Mac appear here, also after a restart.
@@ -128,7 +139,7 @@ export function RunsView({
       ) : (
         <ul className="run-list">
           {list.map((r) => (
-            <li key={r.tag} className="card run-card">
+            <li key={r.tag} className="run-card">
               <button className="row-button" onClick={() => onSelect(r.tag)}>
                 <strong>{r.name}</strong>
                 <span className="muted small">
@@ -186,12 +197,16 @@ function RunDetail({
   onBack,
   onResume,
   onOpenJob,
+  onRefreshRuns,
+  refreshDisabled,
 }: {
   status: ConnectionStatus;
   run: WorkflowRun;
   onBack: () => void;
   onResume: (config: WorkflowConfig) => void;
   onOpenJob: (jobId: string) => void;
+  onRefreshRuns: () => void;
+  refreshDisabled: boolean;
 }) {
   const qc = useQueryClient();
   const o = run.observed;
@@ -221,16 +236,23 @@ function RunDetail({
 
   return (
     <section aria-labelledby="run-title">
-      <button className="btn ghost back" onClick={onBack}>
-        ← All runs
-      </button>
+      <BackButton label="All runs" onClick={onBack} />
       <div className="card-head">
         <h2 id="run-title">
           {run.name} <span className="muted">· job {run.jobId ?? '—'}</span>
         </h2>
         <div className="actions start">
-          <button className="btn" onClick={() => void detail.refetch()} disabled={!run.jobId || detail.isFetching}>
-            {detail.isFetching ? 'Refreshing…' : 'Refresh job'}
+          <button
+            className="btn"
+            onClick={() => {
+              onRefreshRuns(); // workflow state (markers) and scheduler details together
+              void detail.refetch();
+            }}
+            disabled={!run.jobId || detail.isFetching || refreshDisabled}
+            title="At most every 10 s; one scheduler query plus one status read"
+          >
+            <Icon name="refresh" />
+            {detail.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
           {runDir && (
             <button
@@ -473,7 +495,7 @@ function RunFiles({
           return (
             <li key={e.name}>
               <span className="mono">
-                {dir ? '📁 ' : '📄 '}
+                <Icon name={dir ? 'folder' : 'file'} />
                 {e.name}
               </span>
               <span className="muted small">

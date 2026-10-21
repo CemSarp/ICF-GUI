@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Badge, Dialog, EmptyState, Notice } from '../../components/ui';
+import { BackButton, Badge, Dialog, EmptyState, Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { formatTime } from '../../lib/format';
 import type {
@@ -163,9 +163,7 @@ function ProjectDetail({
 
   return (
     <section aria-labelledby="project-title" className="project-detail">
-      <button className="btn ghost back" onClick={onBack}>
-        ← All projects
-      </button>
+      <BackButton label="All projects" onClick={onBack} />
       <div className="card-head">
         <h2 id="project-title" className="mono">
           {project.path}
@@ -299,7 +297,8 @@ export function VsCodePanel({ status }: { status: ConnectionStatus }) {
                   {copied ? 'Copied' : 'Copy block'}
                 </button>
                 <button className="btn ghost" onClick={() => void api.openExternal('vscode_remote_ssh')}>
-                  Remote - SSH guide ↗
+                  Remote - SSH guide
+                  <Icon name="external" size={14} />
                 </button>
               </div>
               <p className="muted small">Paste it into ~/.ssh/config yourself; the app never edits that file.</p>

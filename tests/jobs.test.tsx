@@ -44,7 +44,7 @@ const receipt = {
 async function openWizard() {
   renderApp();
   await userEvent.click(await screen.findByRole('button', { name: 'Request GPU' }));
-  await screen.findByRole('heading', { name: 'Request GPU / Submit Job' });
+  await screen.findByRole('heading', { name: 'Request GPU' });
 }
 
 async function reviewAndConfirm() {
@@ -301,7 +301,7 @@ describe('My Jobs, details, cancel and logs (V2-AC04..AC07)', () => {
     await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
     expect(scheduled()).toBe(2);
     act(() => focusManager.setFocused(true));
-    const btn = screen.getByRole('button', { name: 'Refresh jobs' });
+    const btn = screen.getByRole('button', { name: 'Refresh' });
     for (let i = 0; i < 5; i++) await userEvent.click(btn);
     expect(backend.count('jobs_list_mine', (a) => a.forceRefresh === true)).toBe(1);
   });
@@ -327,8 +327,9 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
     renderApp();
     await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
     await screen.findByRole('heading', { name: 'Queued and running' });
-    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh jobs' })).toBeInTheDocument();
+    // One Refresh per screen: the jobs list's own, not the cluster snapshot's.
+    expect(screen.getAllByRole('button', { name: 'Refresh' })).toHaveLength(1);
+    expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
   });
 
   it('marks a partition that rejected you and sends relative working dirs inside home', async () => {

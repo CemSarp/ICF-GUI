@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Notice } from '../../components/ui';
+import { Icon, Notice } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { formatTime } from '../../lib/format';
 import type { ConnectionStatus, Settings, SnapshotResponse, SshConfigReport, ToolchainProfile } from '../../types';
@@ -78,15 +78,17 @@ export function SettingsView({
 
       <section className="card">
         <h2>Appearance</h2>
-        <fieldset className="segmented">
-          <legend>Theme</legend>
-          {(['system', 'light', 'dark'] as const).map((t) => (
-            <label key={t}>
-              <input type="radio" name="theme" checked={theme === t} onChange={() => setTheme(t)} />
-              {t[0]!.toUpperCase() + t.slice(1)}
-            </label>
-          ))}
-        </fieldset>
+        <div className="field">
+          <span id="theme-label">Theme</span>
+          <div className="segmented choice" role="radiogroup" aria-labelledby="theme-label">
+            {(['system', 'light', 'dark'] as const).map((t) => (
+              <label key={t}>
+                <input type="radio" name="theme" checked={theme === t} onChange={() => setTheme(t)} />
+                {t[0]!.toUpperCase() + t.slice(1)}
+              </label>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="card">
@@ -103,7 +105,7 @@ export function SettingsView({
           <dt>SLURM</dt>
           <dd>
             {caps?.slurmVersion ?? '—'}
-            {caps && ` · JSON output ${caps.jsonSupported ? 'available (not used in V1)' : 'not available'}`}
+            {caps && ` · JSON output ${caps.jsonSupported ? 'available (not used)' : 'not available'}`}
           </dd>
           {caps && caps.missingCommands.length > 0 && (
             <>
@@ -174,13 +176,16 @@ export function SettingsView({
         <p className="muted small">Opens in your browser. The app does not read or scrape these pages.</p>
         <div className="actions start">
           <button className="btn ghost" onClick={() => void api.openExternal('icf_status')}>
-            ICF status page ↗
+            ICF status page
+            <Icon name="external" size={14} />
           </button>
           <button className="btn ghost" onClick={() => void api.openExternal('icf_tutorial')}>
-            ICF tutorial ↗
+            ICF tutorial
+            <Icon name="external" size={14} />
           </button>
           <button className="btn ghost" onClick={() => void api.openExternal('vscode_remote_ssh')}>
-            VS Code Remote - SSH ↗
+            VS Code Remote - SSH
+            <Icon name="external" size={14} />
           </button>
         </div>
       </section>
