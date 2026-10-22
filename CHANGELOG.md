@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-22 · Edit on ICF
+
 ### Added
 - **Edit files in the app**: Python, C/C++, CUDA and Markdown with colours and indentation, other
   text files as plain text, and notebooks as cells (outputs read-only). Saves replace the file on ICF
