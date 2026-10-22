@@ -127,7 +127,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 
 - **Capabilities.** New reads/launches are in `default.json`; every V3 command that writes a file is in
   `capabilities/file-mutations.json` (`projects_mkdir`, `vscode_settings_apply`, `transfers_upload`,
-  `transfers_download`, `transfers_retry`, `transfers_discard`). Workflow submission has no new mutation
+  `transfers_download`, `transfers_retry`, `transfers_discard`, `files_write`, `vscode_share_apply`,
+  `vscode_share_disable`). Workflow submission has no new mutation
   command: it goes through `jobs_submit` (job-mutations). `tauri-plugin-dialog` is registered for Rust
   only; the webview has no dialog permission.
 - **No new remote code path.** Every V3 remote operation is a fixed script on stdin to `sh -s` over the
@@ -153,6 +154,17 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 - **VS Code** is started with argv only and a cleared environment (no askpass variables, no passwords);
   it authenticates on its own. `~/.ssh/config` is never modified; a suggested block is shown instead.
   `.vscode/settings.json` changes need a preview, a matching SHA-256 at write time, and make a backup.
+- **VS Code connection sharing (opt-in, ADR-028).** VS Code's `ssh` multiplexes over the app's master
+  through a control-socket link in the per-user private `$TMPDIR`, reachable only by the same macOS
+  user, exactly like the app's own commands. No password, token or askpass is given to VS Code. The
+  only files written are the app-managed ssh config (0600) and one reviewed, hash-checked and backed-up
+  key in VS Code's local `settings.json`. Host-key checking is unchanged: the master verified the keys,
+  and the fallback login (app not connected) verifies them normally.
+- **In-app editor (ADR-029).** Reads and writes are fixed scripts on stdin. Only regular files inside
+  the canonical home are allowed: symlinks are refused, and the folder is re-resolved on ICF. Content
+  travels base64-encoded (it cannot end the heredoc). Saves are atomic, keep the mode, and are refused
+  when the file changed since it was opened. File text is rendered by CodeMirror as text, never as
+  HTML; notebook images are shown only as `data:image/png` (the CSP allows `img-src 'self' data:`).
 - **Local files** come only from native dialogs owned by the backend (opaque tokens to the UI). Folder
   packing refuses links that leave the folder and special files. Downloaded data goes to a partial file
   opened with `O_NOFOLLOW` and is renamed only after its SHA-256 matches the remote file.

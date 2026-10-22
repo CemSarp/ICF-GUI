@@ -4,6 +4,7 @@ import { Dialog, Icon, Notice, type IconName } from '../../components/ui';
 import { api, errorMessage } from '../../lib/api';
 import { bytes, formatTime, formatUnix } from '../../lib/format';
 import type { ConnectionStatus, Entry, Listing } from '../../types';
+import { fileKind, sizeLimit } from '../editor/languages';
 
 export function joinPath(dir: string, name: string): string {
   return dir === '/' ? `/${name}` : `${dir}/${name}`;
@@ -15,11 +16,42 @@ export function parentOf(path: string): string {
 }
 
 const isDir = (e: Entry) => e.kind === 'dir' || e.targetKind === 'dir';
+/** Regular (not linked) text files the editor supports, within its size limit. */
+const editable = (e: Entry) =>
+  e.kind === 'file' && !e.unsupported && fileKind(e.name) !== null && e.size <= sizeLimit(e.name);
 
 function icon(e: Entry): IconName {
   if (isDir(e)) return 'folder';
   return e.kind === 'symlink' ? 'link' : 'file';
 }
+
+/** Empty notebook (nbformat 4.5) with one code cell and a Python 3 kernel. */
+const NOTEBOOK_TEMPLATE =
+  JSON.stringify(
+    {
+      cells: [{ cell_type: 'code', execution_count: null, id: 'c0ffee01', metadata: {}, outputs: [], source: [] }],
+      metadata: {
+        kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' },
+        language_info: { name: 'python' },
+      },
+      nbformat: 4,
+      nbformat_minor: 5,
+    },
+    null,
+    1,
+  ) + '\n';
+
+const NEW_FILE_TYPES = {
+  python: { label: 'Python', ext: '.py', template: '' },
+  notebook: { label: 'Jupyter notebook', ext: '.ipynb', template: NOTEBOOK_TEMPLATE },
+  cuda: { label: 'CUDA', ext: '.cu', template: '' },
+  cpp: { label: 'C++', ext: '.cpp', template: '' },
+  c: { label: 'C', ext: '.c', template: '' },
+  header: { label: 'C/C++ header', ext: '.h', template: '' },
+  markdown: { label: 'Markdown', ext: '.md', template: '' },
+  text: { label: 'Plain text', ext: '.txt', template: '' },
+} as const;
+type NewFileType = keyof typeof NEW_FILE_TYPES;
 
 /** Clickable path segments from the home folder down; segments above home are plain text. */
 function Crumbs({ path, home, go }: { path: string; home: string; go: (p: string) => void }) {
@@ -58,6 +90,7 @@ export function RemoteBrowser({
   onSelectDir,
   selectDirLabel = 'Use this folder',
   fileAction,
+  onOpenFile,
   fileFilter,
   title,
 }: {
@@ -69,6 +102,8 @@ export function RemoteBrowser({
   /** Per-file action button (e.g. Select, Download). */
   fileAction?: { label: string; run: (path: string, e: Entry) => void; enabled?: (e: Entry) => boolean };
   fileFilter?: (e: Entry) => boolean;
+  /** Opens a text file in the in-app editor; only regular files the editor supports. */
+  onOpenFile?: (path: string) => void;
   title?: ReactNode;
 }) {
   const [history, setHistory] = useState<(string | null)[]>([start]);
@@ -78,6 +113,7 @@ export function RemoteBrowser({
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [mkdirError, setMkdirError] = useState<string | null>(null);
+  const [newFile, setNewFile] = useState<{ name: string; type: NewFileType; error: string | null } | null>(null);
   const qc = useQueryClient();
   const current = history[pos] ?? null;
   const key = ['browse', current, status.connectedAt];
@@ -107,6 +143,21 @@ export function RemoteBrowser({
       go(made);
     } catch (e) {
       setMkdirError(errorMessage(e));
+    }
+  };
+
+  const createFile = async () => {
+    if (!listing || !newFile || !onOpenFile) return;
+    const t = NEW_FILE_TYPES[newFile.type];
+    const base = newFile.name.trim();
+    const name = base.toLowerCase().endsWith(t.ext) ? base : `${base}${t.ext}`;
+    try {
+      const made = await api.filesCreate(listing.path, name, t.template);
+      setNewFile(null);
+      void qc.invalidateQueries({ queryKey: key });
+      onOpenFile(made.path);
+    } catch (e) {
+      setNewFile({ ...newFile, error: errorMessage(e) });
     }
   };
 
@@ -190,6 +241,11 @@ export function RemoteBrowser({
           <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
           Show hidden
         </label>
+        {onOpenFile && listing?.writable && (
+          <button className="btn" onClick={() => setNewFile({ name: '', type: 'python', error: null })}>
+            New file…
+          </button>
+        )}
         {allowMkdir && listing?.writable && (
           <button className="btn" onClick={() => setMkdirOpen(true)}>
             New folder…
@@ -236,7 +292,7 @@ export function RemoteBrowser({
                 </th>
                 <th scope="col">Modified</th>
                 <th scope="col">Mode</th>
-                {fileAction && (
+                {(fileAction || onOpenFile) && (
                   <th scope="col">
                     <span className="sr-only">Action</span>
                   </th>
@@ -247,7 +303,12 @@ export function RemoteBrowser({
               {entries.map((e) => (
                 <tr key={e.name}>
                   <th scope="row">
-                    {isDir(e) && !e.unsupported ? (
+                    {onOpenFile && editable(e) ? (
+                      <button className="row-button" onClick={() => onOpenFile(joinPath(listing.path, e.name))}>
+                        <Icon name="file" />
+                        {e.name}
+                      </button>
+                    ) : isDir(e) && !e.unsupported ? (
                       <button className="row-button" onClick={() => go(joinPath(listing.path, e.name))}>
                         <Icon name={icon(e)} />
                         {e.name}
@@ -272,9 +333,14 @@ export function RemoteBrowser({
                     {e.mode}
                     {!e.mine && <span className="muted"> (not yours)</span>}
                   </td>
-                  {fileAction && (
-                    <td>
-                      {!isDir(e) && !e.unsupported && (fileAction.enabled?.(e) ?? true) && (
+                  {(fileAction || onOpenFile) && (
+                    <td className="row-actions">
+                      {onOpenFile && editable(e) && (
+                        <button className="btn small-btn" onClick={() => onOpenFile(joinPath(listing.path, e.name))}>
+                          Edit
+                        </button>
+                      )}
+                      {fileAction && !isDir(e) && !e.unsupported && (fileAction.enabled?.(e) ?? true) && (
                         <button
                           className="btn small-btn"
                           onClick={() => fileAction.run(joinPath(listing.path, e.name), e)}
@@ -289,6 +355,54 @@ export function RemoteBrowser({
             </tbody>
           </table>
         </div>
+      )}
+      {newFile && listing && (
+        <Dialog title="Create a file on ICF" labelledBy="newfile-title" onClose={() => setNewFile(null)}>
+          <p>
+            Creates one new file inside <code>{listing.path}</code> and opens it in the editor. Existing files are never
+            overwritten.
+          </p>
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor="new-file-name">File name</label>
+              <input
+                id="new-file-name"
+                data-autofocus
+                className="mono"
+                value={newFile.name}
+                placeholder={`e.g. train${NEW_FILE_TYPES[newFile.type].ext}`}
+                onChange={(e) => setNewFile({ ...newFile, name: e.target.value, error: null })}
+                onKeyDown={(e) => e.key === 'Enter' && newFile.name.trim() && void createFile()}
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+              <small className="muted">The extension is added if you leave it out.</small>
+            </div>
+            <div className="field">
+              <label htmlFor="new-file-type">Type</label>
+              <select
+                id="new-file-type"
+                value={newFile.type}
+                onChange={(e) => setNewFile({ ...newFile, type: e.target.value as NewFileType, error: null })}
+              >
+                {Object.entries(NEW_FILE_TYPES).map(([k, t]) => (
+                  <option key={k} value={k}>
+                    {t.label} ({t.ext})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {newFile.error && <Notice tone="bad">{newFile.error}</Notice>}
+          <div className="actions">
+            <button className="btn" onClick={() => setNewFile(null)}>
+              Cancel
+            </button>
+            <button className="btn primary" onClick={() => void createFile()} disabled={!newFile.name.trim()}>
+              Create and edit
+            </button>
+          </div>
+        </Dialog>
       )}
       {mkdirOpen && listing && (
         <Dialog title="Create a folder on ICF" labelledBy="mkdir-title" onClose={() => setMkdirOpen(false)}>

@@ -1332,6 +1332,7 @@ dependencies = [
 name = "icf-control-center"
 version = "0.3.0"
 dependencies = [
+ "base64 0.22.1",
  "libc",
  "security-framework",
  "serde",

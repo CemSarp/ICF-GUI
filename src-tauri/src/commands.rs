@@ -83,6 +83,11 @@ pub struct AppState {
     pub vscode: tokio::sync::Mutex<Option<(u64, Option<crate::integrations::vscode::Install>)>>,
     pub settings_previews: Mutex<HashMap<String, crate::integrations::vscode::StoredSettings>>,
     pub wf_cache: tokio::sync::Mutex<crate::state::Cache<()>>,
+    // ---- VS Code connection sharing (ADR-028) ----
+    pub config_dir: std::path::PathBuf,
+    /// VS Code was opened through the shared connection since this connect: no idle disconnect.
+    pub vscode_in_use: AtomicBool,
+    pub share_previews: Mutex<HashMap<String, crate::integrations::vscode_share::StoredShare>>,
 }
 
 impl AppState {
@@ -111,6 +116,9 @@ impl AppState {
             vscode: Default::default(),
             settings_previews: Default::default(),
             wf_cache: Default::default(),
+            config_dir: config_dir.to_path_buf(),
+            vscode_in_use: AtomicBool::new(false),
+            share_previews: Default::default(),
         }
     }
 
@@ -262,6 +270,7 @@ async fn close_session(state: &AppState) {
     if let Some(s) = state.session.lock().await.take() {
         s.close().await;
     }
+    crate::integrations::vscode_share::on_closed(state);
     *state.cache.lock().await = SnapshotCache::default();
     *state.jobs_cache.lock().await = Default::default();
     state.previews.lock().unwrap().clear();
@@ -351,6 +360,7 @@ async fn do_login(app: &AppHandle, state: &AppState, request: LoginRequest) -> A
             })?;
             let hops = c.session.resolved.hops.clone();
             let session = Arc::new(c.session);
+            crate::integrations::vscode_share::on_connected(state, &session.ctl);
             spawn_idle_watch(app.clone(), Arc::downgrade(&session));
             *state.session.lock().await = Some(session);
             *state.cache.lock().await = SnapshotCache::default();
@@ -395,10 +405,11 @@ fn spawn_idle_watch(app: AppHandle, session: std::sync::Weak<Session>) {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             let Some(s) = session.upgrade() else { return };
-            if s.idle_for() < session::IDLE_TIMEOUT {
+            let state = app.state::<AppState>();
+            // VS Code is working over this connection (ADR-028): keep it until the user disconnects.
+            if s.idle_for() < session::IDLE_TIMEOUT || state.vscode_in_use.load(std::sync::atomic::Ordering::Relaxed) {
                 continue;
             }
-            let state = app.state::<AppState>();
             let mut cur = state.session.lock().await;
             if !cur.as_ref().is_some_and(|c| Arc::ptr_eq(c, &s)) {
                 return;
@@ -406,6 +417,7 @@ fn spawn_idle_watch(app: AppHandle, session: std::sync::Weak<Session>) {
             cur.take();
             drop(cur);
             s.close().await;
+            crate::integrations::vscode_share::on_closed(&state);
             *state.cache.lock().await = SnapshotCache::default();
             set_status(&app, |st| {
                 *st = ConnectionStatus {
@@ -553,6 +565,7 @@ pub(crate) async fn note_remote_error(app: &AppHandle, state: &AppState, e: &App
             if let Some(s) = state.session.lock().await.take() {
                 s.close().await;
             }
+            crate::integrations::vscode_share::on_closed(state);
             set_status(app, |s| {
                 s.state = ConnState::Offline;
                 s.error = Some(e.clone());

@@ -199,7 +199,11 @@ fn interpreter_probe_is_light_and_classifies_candidates() {
     let out = s.run(&env_probe_script(&cands, &[format!("{h}/toolchain.rc"), "/home/htang2/toolchain-20251006/toolchain.rc".into()]));
     let r = parse_env_probe(&out, &h, "now".into()).unwrap();
     let i = &r.interpreters;
-    assert_eq!(i.len(), 5, "{out}");
+    // `system` resolving to an already listed path is shown once (no duplicate rows).
+    let sys = out.lines().find_map(|l| l.strip_prefix("@@resolved ")).unwrap_or_default();
+    let dup = sys == real;
+    assert_eq!(i.len(), if dup { 4 } else { 5 }, "{out}");
+    assert_eq!(i.iter().filter(|x| x.path == real).count(), 1, "each path once: {out}");
     assert_eq!((i[0].status, i[0].env_type.as_str(), i[0].version.as_deref()), (InterpreterStatus::Ok, "venv", Some("3.12.4")));
     assert_eq!((i[0].torch.as_deref(), i[0].torch_cuda.as_deref()), (Some("2.7.0+cu128"), Some("12.8")));
     assert!(i[0].has_activate && i[0].nbconvert);
@@ -207,7 +211,9 @@ fn interpreter_probe_is_light_and_classifies_candidates() {
     assert_eq!(i[2].status, InterpreterStatus::NotExecutable);
     assert_eq!(i[3].status, InterpreterStatus::Ok, "real python answers the metadata-only probe: {out}");
     assert!(i[3].version.as_deref().is_some_and(|v| v.starts_with('3')));
-    assert_eq!(i[4].env_type, "system");
+    if !dup {
+        assert_eq!(i[4].env_type, "system");
+    }
     assert_eq!(r.toolchains[0].status, "ok");
     assert_eq!(r.toolchains[1].status, "missing", "the university toolchain is never assumed to exist");
     assert!(!out.contains("import torch"), "probe never imports ML libraries");
@@ -417,4 +423,121 @@ fn alias_problems_explain_what_vscode_will_not_know() {
     assert_eq!(alias_problems(&a("icf", "s1234567", Some("edinburgh-jump")), "", "s1234567"), (vec![], None));
     let (p, _) = alias_problems(&AliasCheck { alias: "mybox".into(), ..a("10.0.0.1", "s1", None) }, "s1@gw", "s1");
     assert_eq!(p.len(), 1, "jump host override not in ssh config");
+}
+
+mod editor_files {
+    use super::super::files::*;
+    use super::Sandbox;
+    use crate::errors::ErrorCode;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn read(s: &Sandbox, path: &str) -> crate::errors::AppResult<FileContent> {
+        parse_read(&s.run(&read_script(path)), path)
+    }
+    fn write(s: &Sandbox, path: &str, content: &str, sha: &str) -> crate::errors::AppResult<FileSaved> {
+        parse_write(&s.run(&write_script(path, content, sha, "1700000000000", "abc123")), path)
+    }
+
+    #[test]
+    fn reads_exact_text_and_its_hash() {
+        let s = Sandbox::new();
+        let f = s.home().join("projects/semeval/train.py");
+        let text = "def f(x):\n    return \"π\" * x  # données"; // no trailing newline
+        std::fs::write(&f, text).unwrap();
+        let r = read(&s, &f.display().to_string()).unwrap();
+        assert_eq!(r.content, text);
+        assert_eq!(r.sha256, sha256_hex(text.as_bytes()));
+        assert_eq!(r.size, text.len());
+        assert!(r.writable);
+        let empty = s.home().join("projects/semeval/empty.txt");
+        std::fs::write(&empty, "").unwrap();
+        assert_eq!(read(&s, &empty.display().to_string()).unwrap().content, "");
+    }
+
+    #[test]
+    fn refuses_links_outside_paths_binary_and_large_files() {
+        let s = Sandbox::new();
+        let h = s.h();
+        let p = s.home().join("projects/semeval");
+        std::fs::write(p.join("a.py"), "x = 1\n").unwrap();
+        std::fs::write(s.root.join("elsewhere/secret.txt"), "outside\n").unwrap();
+        std::os::unix::fs::symlink(p.join("a.py"), p.join("link.py")).unwrap();
+        std::os::unix::fs::symlink(s.root.join("elsewhere"), p.join("out")).unwrap();
+        std::fs::write(p.join("bin.dat"), b"ab\0cd").unwrap();
+        std::fs::write(p.join("latin1.txt"), b"caf\xe9\n").unwrap();
+        std::fs::write(p.join("big.txt"), "a".repeat(MAX_TEXT_BYTES + 1)).unwrap();
+        let code = |path: String| read(&s, &path).unwrap_err().message;
+        assert!(code(format!("{h}/projects/semeval/link.py")).contains("symbolic link"));
+        assert!(code(format!("{h}/projects/semeval/out/secret.txt")).contains("outside your home"));
+        assert!(code(s.root.join("elsewhere/secret.txt").display().to_string()).contains("outside your home"));
+        assert!(code(format!("{h}/projects/semeval/nope.py")).contains("does not exist"));
+        assert!(code(format!("{h}/projects/semeval")).contains("not a regular file"));
+        assert!(code(format!("{h}/projects/semeval/bin.dat")).contains("not text"));
+        assert!(code(format!("{h}/projects/semeval/latin1.txt")).contains("not text"));
+        assert!(code(format!("{h}/projects/semeval/big.txt")).contains("too large"));
+    }
+
+    #[test]
+    fn saves_atomically_keeps_the_mode_and_round_trips_exact_bytes() {
+        let s = Sandbox::new();
+        let f = s.home().join("projects/semeval/kernel.cu");
+        std::fs::write(&f, "old\n").unwrap();
+        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o750)).unwrap();
+        let path = f.display().to_string();
+        let sha = read(&s, &path).unwrap().sha256;
+        // A line equal to a heredoc delimiter, unicode and no trailing newline must survive.
+        let new = "__global__ void k() {}\nICFCC_FILE_abc123\nEOF\n// π";
+        let saved = write(&s, &path, new, &sha).unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), new);
+        assert_eq!(saved.sha256, sha256_hex(new.as_bytes()));
+        assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o750);
+        let leftovers: Vec<_> =
+            std::fs::read_dir(f.parent().unwrap()).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().contains("icfcc-")).collect();
+        assert!(leftovers.is_empty(), "no temp files left: {leftovers:?}");
+        // Saving the opened version again is refused: the file changed since.
+        let err = write(&s, &path, "mine\n", &sha).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Conflict);
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), new, "a refused save leaves the file untouched");
+        // Empty content is a valid save.
+        write(&s, &path, "", &saved.sha256).unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "");
+    }
+
+    #[test]
+    fn creates_new_files_but_never_replaces_or_escapes() {
+        let s = Sandbox::new();
+        let p = s.home().join("projects/semeval");
+        let create = |dir: &std::path::Path, name: &str, content: &str| {
+            parse_create(&s.run(&create_script(&dir.display().to_string(), name, content, "1700000000001", "abc123")))
+        };
+        let made = create(&p, "kernel.cu", "__global__ void k() {}\n").unwrap();
+        assert_eq!(made.path, p.join("kernel.cu").display().to_string());
+        assert_eq!(std::fs::read_to_string(p.join("kernel.cu")).unwrap(), "__global__ void k() {}\n");
+        assert_eq!(made.sha256, sha256_hex(b"__global__ void k() {}\n"));
+        create(&p, "empty.py", "").unwrap();
+        assert_eq!(std::fs::read_to_string(p.join("empty.py")).unwrap(), "");
+        let err = create(&p, "kernel.cu", "other").unwrap_err();
+        assert!(err.message.contains("already exists"), "{}", err.message);
+        assert_eq!(std::fs::read_to_string(p.join("kernel.cu")).unwrap(), "__global__ void k() {}\n", "existing file untouched");
+        std::os::unix::fs::symlink(s.root.join("elsewhere"), p.join("out")).unwrap();
+        assert!(create(&p.join("out"), "x.py", "x").unwrap_err().message.contains("outside your home"));
+        assert!(!s.root.join("elsewhere/x.py").exists());
+        let leftovers = std::fs::read_dir(&p).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().contains("icfcc-")).count();
+        assert_eq!(leftovers, 0);
+    }
+
+    #[test]
+    fn never_writes_through_links_or_outside_home() {
+        let s = Sandbox::new();
+        let p = s.home().join("projects/semeval");
+        let outside = s.root.join("elsewhere/secret.txt");
+        std::fs::write(&outside, "outside\n").unwrap();
+        let sha = sha256_hex(b"outside\n");
+        std::os::unix::fs::symlink(&outside, p.join("link.txt")).unwrap();
+        std::os::unix::fs::symlink(s.root.join("elsewhere"), p.join("out")).unwrap();
+        for path in [p.join("link.txt"), p.join("out/secret.txt"), outside.clone()] {
+            assert!(write(&s, &path.display().to_string(), "pwned\n", &sha).is_err(), "{}", path.display());
+        }
+        assert_eq!(std::fs::read_to_string(&outside).unwrap(), "outside\n");
+    }
 }

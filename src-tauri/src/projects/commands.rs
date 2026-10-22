@@ -249,3 +249,49 @@ pub fn prefs_set(state: State<AppState>, prefs: Prefs) -> AppResult<Prefs> {
     store.save()?;
     Ok(store.data.prefs.clone())
 }
+
+/// Open one text file inside the remote home in the in-app editor (read-only; bounded size).
+#[tauri::command]
+pub async fn files_read(state: State<'_, AppState>, path: String) -> AppResult<super::files::FileContent> {
+    check_browse_path(&path).map_err(bad_path("File"))?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "opening a file")?;
+    let out = session.run(&super::files::read_script(&path), FILE_TIMEOUT, super::files::read_output_cap(&path)).await?;
+    super::files::parse_read(&out, &path)
+}
+
+/// Save the editor's content, only if the file still has the SHA-256 it was opened with.
+#[tauri::command]
+pub async fn files_write(state: State<'_, AppState>, path: String, content: String, expected_sha256: String) -> AppResult<super::files::FileSaved> {
+    check_browse_path(&path).map_err(bad_path("File"))?;
+    if expected_sha256.len() != 64 || !expected_sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::invalid("The editor lost track of the file version; reopen the file."));
+    }
+    if content.len() > super::files::limit_for(&path) {
+        return Err(super::files::file_error("too_large"));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "saving a file")?;
+    let script = super::files::write_script(&path, &content, &expected_sha256, &now_ms().to_string(), &random_hex(6));
+    let out = session.run(&script, FILE_TIMEOUT, 64 * 1024).await?;
+    super::files::parse_write(&out, &path)
+}
+
+/// Create one new text file (empty or a small template) inside the remote home; never overwrites.
+#[tauri::command]
+pub async fn files_create(state: State<'_, AppState>, dir: String, name: String, content: String) -> AppResult<super::files::FileSaved> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    if !valid_name(&name) {
+        return Err(AppError::invalid("File name: up to 128 letters, digits, '.', '_', '-', '+', '@', '=' or ',' starting with a letter, digit or '_'."));
+    }
+    if content.len() > 64 * 1024 {
+        return Err(AppError::invalid("A new file starts small; paste longer content after creating it."));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "creating a file")?;
+    let script = super::files::create_script(&dir, &name, &content, &now_ms().to_string(), &random_hex(6));
+    super::files::parse_create(&session.run(&script, COMMAND_TIMEOUT, 16 * 1024).await?)
+}
+
+/// Large notebooks over a slow link need longer than the usual 15 s command budget.
+const FILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);

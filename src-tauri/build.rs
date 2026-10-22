@@ -46,6 +46,9 @@ const COMMANDS: &[&str] = &[
     "vscode_status",
     "vscode_open",
     "vscode_settings_preview",
+    "files_read",
+    "vscode_share_status",
+    "vscode_share_preview",
     "transfers_list",
     "transfers_pick_file",
     "transfers_pick_folder",
@@ -65,6 +68,10 @@ const COMMANDS: &[&str] = &[
     "transfers_download",
     "transfers_retry",
     "transfers_discard",
+    "files_write",
+    "files_create",
+    "vscode_share_apply",
+    "vscode_share_disable",
 ];
 
 fn main() {

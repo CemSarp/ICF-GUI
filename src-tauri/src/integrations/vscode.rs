@@ -216,13 +216,30 @@ pub async fn vscode_open(state: State<'_, AppState>, path: String) -> AppResult<
     if inst.remote_ssh.is_none() {
         return Err(AppError::new(ErrorCode::SshUnavailable, "Install the Remote - SSH extension (ms-vscode-remote.remote-ssh) in VS Code first."));
     }
-    let alias = session.profile.ssh_alias.clone();
+    let mut alias = session.profile.ssh_alias.clone();
     crate::profiles::validate_host(&alias).map_err(|m| AppError::invalid(format!("SSH alias: {m}")))?;
+    let shared = state.projects.lock().unwrap().data.vscode_share;
+    if shared {
+        // Sign VS Code in through this app (ADR-028): refresh the link, open the managed alias.
+        crate::integrations::vscode_share::update_link(Some(&session.ctl));
+        alias = crate::integrations::vscode_share::share_alias(&alias);
+    }
     let mut cmd = cli_command(Path::new(&inst.cli_path));
     cmd.args(launch_args(&alias, &r.path));
     let out = crate::ssh::run_capture(cmd, None, CLI_TIMEOUT, 64 * 1024).await?;
     if out.code != Some(0) {
         return Err(AppError::new(ErrorCode::SshUnavailable, format!("VS Code could not be started: {}", sanitize_text(&out.stderr, 200))));
+    }
+    if shared {
+        state.vscode_in_use.store(true, std::sync::atomic::Ordering::Relaxed);
+        return Ok(LaunchResult {
+            message: format!(
+                "VS Code was asked to open {} on '{alias}'. It reuses this app's signed-in connection, so it should not ask for a password. Keep this app connected while you use VS Code. Run/Debug in that window runs on the login node, not on a GPU.",
+                r.path
+            ),
+            remote_path: r.path,
+            alias,
+        });
     }
     Ok(LaunchResult {
         message: format!(
@@ -263,13 +280,25 @@ pub const INTERPRETER_KEY: &str = "python.defaultInterpreterPath";
 /// Set one key, keep every other key and its order. JSON with comments/trailing commas (JSONC) is
 /// refused rather than rewritten, because rewriting would drop the comments.
 pub fn merge_settings(existing: Option<&str>, interpreter: &str) -> Result<String, String> {
+    merge_key(existing, INTERPRETER_KEY, Some(serde_json::Value::String(interpreter.into())))
+}
+
+/// Set (`Some`) or remove (`None`) one key; same JSONC refusal and order preservation as above.
+pub fn merge_key(existing: Option<&str>, key: &str, value: Option<serde_json::Value>) -> Result<String, String> {
     let mut v: serde_json::Value = match existing.map(|t| t.trim_start_matches('\u{feff}')) {
         None => serde_json::json!({}),
         Some(t) if t.trim().is_empty() => serde_json::json!({}),
         Some(t) => serde_json::from_str(t).map_err(|e| format!("settings.json is not plain JSON ({e}); it may contain comments or trailing commas"))?,
     };
     let obj = v.as_object_mut().ok_or("settings.json does not contain a JSON object")?;
-    obj.insert(INTERPRETER_KEY.into(), serde_json::Value::String(interpreter.into()));
+    match value {
+        Some(val) => {
+            obj.insert(key.into(), val);
+        }
+        None => {
+            obj.shift_remove(key);
+        }
+    }
     serde_json::to_string_pretty(&v).map(|s| s + "\n").map_err(|e| e.to_string())
 }
 

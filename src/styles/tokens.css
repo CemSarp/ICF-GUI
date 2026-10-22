@@ -56,6 +56,16 @@
   --shadow-seg: 0 1px 3px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 6%);
   --material: rgb(255 255 255 / 72%);
   --seg: #ffffff;
+  /* Syntax colours (Xcode-like); every one is ≥ 4.5:1 on its editor surface. */
+  --syn-keyword: #9b2393;
+  --syn-string: #c41a16;
+  --syn-comment: #5d6c79;
+  --syn-number: #1c00cf;
+  --syn-type: #0b4f79;
+  --syn-function: #326d74;
+  --syn-definition: #0f68a0;
+  --syn-macro: #643820;
+  --syn-cuda: #0b6e62;
 }
 
 /* Native controls (checkboxes, scrollbars, pickers) follow the chosen theme, not only the OS one. */
@@ -92,6 +102,15 @@
     --shadow-seg: 0 1px 3px rgb(0 0 0 / 40%);
     --material: rgb(30 30 33 / 72%);
     --seg: #5b5b60;
+    --syn-keyword: #ff7ab2;
+    --syn-string: #ff8170;
+    --syn-comment: #8f9ba6;
+    --syn-number: #d9c97c;
+    --syn-type: #dabaff;
+    --syn-function: #67b7a4;
+    --syn-definition: #4eb0cc;
+    --syn-macro: #fd8f3f;
+    --syn-cuda: #6ee7d8;
   }
 }
 
@@ -123,6 +142,15 @@
   --shadow-seg: 0 1px 3px rgb(0 0 0 / 40%);
   --material: rgb(30 30 33 / 72%);
   --seg: #5b5b60;
+  --syn-keyword: #ff7ab2;
+  --syn-string: #ff8170;
+  --syn-comment: #8f9ba6;
+  --syn-number: #d9c97c;
+  --syn-type: #dabaff;
+  --syn-function: #67b7a4;
+  --syn-definition: #4eb0cc;
+  --syn-macro: #fd8f3f;
+  --syn-cuda: #6ee7d8;
 }
 
 @media (prefers-reduced-motion: reduce) {

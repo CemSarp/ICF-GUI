@@ -3,6 +3,7 @@
 //! secrets), toolchain profiles and training presets.
 
 pub mod commands;
+pub mod files;
 pub mod remote;
 
 #[cfg(test)]
@@ -103,6 +104,9 @@ pub struct ProjectData {
     pub presets: Vec<Preset>,
     #[serde(default)]
     pub prefs: Prefs,
+    /// VS Code reuses the app's connection (ADR-028). Changed only by the share commands.
+    #[serde(default)]
+    pub vscode_share: bool,
 }
 
 /// Seeded once; editable and deletable. The university toolchain is *not* assumed to exist:

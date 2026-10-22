@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Edit files in the app**: Python, C/C++, CUDA and Markdown with colours and indentation, other
+  text files as plain text, and notebooks as cells (outputs read-only). Saves replace the file on ICF
+  only if it is unchanged since you opened it; conflicts let you reload or overwrite explicitly.
+- **Sign VS Code in through this app** (opt-in): VS Code reuses the app's signed-in connection, so it
+  no longer asks for the gateway or ICF password. Shows both local changes before applying them;
+  never touches `~/.ssh/config` and never gives VS Code a password.
+- **New file…** in Project files: create a Python, notebook, CUDA, C/C++, header, Markdown or text file
+  (never overwriting an existing one) and open it straight in the editor.
+- **New job**: one screen for script jobs and training workflows; **Runs** is its own sidebar item.
+- `~` paths in the training wizard, an environment import check, cancel from the run page, and
+  optional SLURM e-mail when a job ends or fails.
+
+### Changed
+- Apple-style redesign of the whole UI; recent projects shown as tiles; My Jobs lists the most
+  recently finished jobs first.
+
+### Fixed
+- A typed interpreter path in Projects → Python environment was never checked (no submit); the
+  system Python was listed twice. The project's own `.venv`/`venv`/`env` are no longer listed when
+  they don't exist.
+
 ## [0.3.0] — 2026-10-20 · Developer workflow
 
 Remote projects, VS Code, Python environments, file transfers and reliable GPU training workflows.

@@ -150,6 +150,30 @@ async fn real_openssh_proxyjump_hostkeys_mux_and_teardown() {
     let out = c.session.run("printf 'mux-ok %s\\n' \"$(id -un)\"", Duration::from_secs(10), 4096).await.unwrap();
     assert!(out.starts_with("mux-ok "), "{out}");
     assert!(c.session.is_alive().await);
+
+    // 3b. VS Code sharing (ADR-028): a plain `ssh` reading only the managed config reuses the
+    // master with BatchMode and no identity, so it can only succeed through the socket.
+    let link = srv.dir.join("vs.sock");
+    std::os::unix::fs::symlink(&c.session.ctl, &link).unwrap();
+    let managed = icf_control_center_lib::integrations::vscode_share::managed_config(
+        "target",
+        // Destination only: here jump and target are both 127.0.0.1, which ssh rejects as a loop.
+        &c.session.resolved.hops[c.session.resolved.hops.len() - 1..],
+        c.session.resolved.uses_proxy_command,
+        &link,
+        &srv.dir.join("home/.ssh/config"),
+    )
+    .unwrap();
+    std::fs::write(srv.dir.join("managed"), &managed).unwrap();
+    let vs = std::process::Command::new("/usr/bin/ssh")
+        .args(["-F"])
+        .arg(srv.dir.join("managed"))
+        .args(["-o", "BatchMode=yes", "icfcc-target", "printf shared-ok"])
+        .env_clear()
+        .env("HOME", srv.dir.join("home"))
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&vs.stdout), "shared-ok", "{}", String::from_utf8_lossy(&vs.stderr));
     c.session.close().await;
     assert!(!c.session.is_alive().await, "master stopped on disconnect");
 

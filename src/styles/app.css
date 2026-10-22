@@ -984,10 +984,69 @@ pre.log {
 .file-rows .icon {
   color: var(--muted);
 }
-.project-list .row-button {
-  grid-template-columns: 1fr;
-  gap: 2px;
+/* Recent projects: separate tiles on a contrasting fill, each named by its folder. */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+.project-list li {
+  border-bottom: 0;
+  padding: 0;
+  gap: var(--s2);
+}
+.project-tile {
+  font: inherit;
+  color: inherit;
+  text-align: left;
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--fill);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.project-tile:hover {
+  background: color-mix(in srgb, var(--primary-fill) 12%, var(--fill));
+  border-color: color-mix(in srgb, var(--primary-fill) 40%, transparent);
+}
+.project-tile:active {
+  transform: scale(0.99);
+}
+.project-tile > .icon:last-child {
+  color: var(--muted);
+}
+.project-glyph {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary-fill) 16%, transparent);
+}
+.project-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.project-text strong {
+  font-size: 15px;
+}
+.project-text .mono {
+  overflow-wrap: anywhere;
 }
 /* Runs: a grouped list; the name button stretches over the row so the whole row is clickable. */
 .run-list {
@@ -1350,6 +1409,116 @@ pre.log {
 }
 .row-button .icon {
   color: var(--primary);
+}
+
+/* ---------- Editor ---------- */
+.editor-head {
+  align-items: flex-end;
+}
+.editor-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.editor-title h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.editor-title .mono {
+  overflow-wrap: anywhere;
+}
+.dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-fill);
+}
+.editor-card {
+  padding: 0;
+  overflow: hidden;
+}
+.code-editor {
+  height: calc(100vh - 330px);
+  min-height: 360px;
+}
+.code-editor.compact {
+  height: auto;
+  min-height: 0;
+}
+.notebook {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--s3);
+}
+.nb-cell {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 6px 0 0;
+  overflow: hidden;
+}
+.nb-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--s2) 0 var(--s4);
+}
+.nb-cell .nb-add {
+  border-top: 1px solid var(--border);
+}
+.nb-add {
+  display: flex;
+  justify-content: center;
+  gap: var(--s1);
+  padding: 2px 0;
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.nb-add:hover,
+.nb-add:focus-within {
+  opacity: 1;
+}
+.notebook > .nb-add {
+  margin-bottom: var(--s1);
+}
+.nb-cell + .nb-cell {
+  margin-top: var(--s2);
+}
+.nb-outputs {
+  border-top: 1px solid var(--border);
+  padding: var(--s2) var(--s4);
+  max-height: 420px;
+  overflow: auto;
+  background: var(--surface-2);
+}
+pre.nb-out {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre.nb-error {
+  color: var(--bad);
+}
+.nb-img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--r-sm);
+  background: #fff;
+  margin-bottom: 6px;
+}
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.row-actions .btn + .btn {
+  margin-left: 6px;
 }
 
 /* ---------- Transfers ---------- */

@@ -21,6 +21,7 @@ security-framework = "3"
 zeroize = { version = "1", features = ["serde"] }
 libc = "0.2"
 tauri-plugin-dialog = "2"
+base64 = "0.22"
 
 [profile.release]
 strip = true

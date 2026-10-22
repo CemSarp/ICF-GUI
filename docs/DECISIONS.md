@@ -184,6 +184,50 @@ replay the job's ENV stage (toolchain, venv activate) before importing.
 value cannot add an sbatch option or a second recipient. The address is kept in the local form draft
 (localStorage), like paths. **Open:** whether ICF's SLURM delivers job mail (see question 9).
 
+## ADR-028 — VS Code can reuse the app's connection (opt-in)
+*Status: accepted (0.3.2); amends ADR-023 when turned on.* The user asked for VS Code to stop asking
+for the gateway and ICF passwords. Handing VS Code the password (askpass, files, environment) would
+break the core rule that secrets stay in Rust memory or the Keychain. Instead, VS Code's own `ssh`
+multiplexes over the app's already authenticated master:
+- On connect the app points a stable symlink, `$TMPDIR/icfcc_vscode.sock`, at the master's control
+  socket. `$TMPDIR` is per-user and private, so only the same macOS user can reach it. The name is
+  outside the `icfcc-*` sweep pattern.
+- An app-managed ssh config (`<config dir>/vscode_ssh_config`, mode 0600) defines `Host icfcc-<alias>`
+  with the resolved HostName/User/Port/ProxyJump, `ControlMaster no` and `ControlPath <link>`. It then
+  ends with `Host *` + `Include ~/.ssh/config`, so every other host is unchanged. Our block comes first
+  because the first value wins in ssh_config. `ssh -G` tests prove both.
+- VS Code reads that file through one key, `remote.SSH.configFile`, in its local `settings.json`. The
+  key is shown in a preview, written only after confirmation, behind a SHA-256 check and with a
+  backup. JSONC is refused, and the user gets the line to paste instead. `~/.ssh/config` is never
+  touched.
+- When the app is not connected the link dangles. ssh then falls back to a normal, prompted login with
+  the same route, so nothing fails silently and host-key checking is unchanged in both paths.
+- Lifetime: VS Code works only while the app's master lives. Once VS Code was opened through the
+  shared connection, the 30-minute idle disconnect is skipped; Disconnect asks first and names VS Code.
+- Turning it off removes the key (only if it still points at our file, with a backup), the managed
+  file and the link.
+
+A separate long-lived master for VS Code was rejected: it would need `ControlPersist`, which hides
+host-key-changed errors (ADR-003), and a second login.
+
+## ADR-029 — In-app editor saves are hash-checked, without backups
+*Status: accepted (0.3.2).*
+- **Opening.** `files_read` (read-only) opens one regular, non-symlink file inside the canonical home:
+  2 MB for text, 20 MB for notebooks, UTF-8 without NUL. The bytes travel base64-encoded and the
+  SHA-256 is computed in Rust.
+- **Saving.** `files_write` (file-mutations) replaces the file only if its current SHA-256 still
+  equals the one the editor opened. The new bytes go to a temp file in the same folder from a base64
+  heredoc, so content can never end the heredoc. `cp -p` keeps the mode, the hash is verified, then an
+  atomic `mv` puts the file in place.
+- **No backups.** A mismatch is a conflict that the user resolves by reloading or by an explicit
+  overwrite, which re-reads the current hash. No backup copies are written: the hash check already
+  prevents silently overwriting someone else's change, and backups would litter project folders.
+- **Notebooks.** Saving changes only the `source` of edited cells. Outputs, metadata, ids and the
+  original indent are kept.
+- **Styles under the CSP.** CodeMirror is mounted in a shadow root, so its styles go into
+  constructable stylesheets. The CSP (`style-src 'self'`) blocks the `<style>` tag it would otherwise
+  inject. Verified in Chrome with that policy; **open:** confirm in the built app's WebKit.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

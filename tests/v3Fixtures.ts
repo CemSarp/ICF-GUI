@@ -1,6 +1,9 @@
 // Synthetic V3 data shared by the UI tests and the dev preview. Never real ICF output.
 import type {
   EnvReport,
+  FileContent,
+  SharePreview,
+  ShareStatus,
   Listing,
   MetricsResponse,
   ProjectRecord,
@@ -37,6 +40,8 @@ const TREE: Record<string, ReturnType<typeof e>[]> = {
     e('notebooks', 'dir'),
     e('runs', 'dir'),
     e('train.py', 'file', 4210),
+    e('kernel.cu', 'file', 640),
+    e('analysis.ipynb', 'file', 2900),
     e('requirements.txt', 'file', 120),
   ],
   [`${PROJECT}/data`]: [e('semeval.tar.gz', 'file', 734_003_200), e('dev.zip', 'file', 12_582_912)],
@@ -343,3 +348,131 @@ export const transfer = (o: Partial<Transfer> = {}): Transfer => ({
   deleteLocalAfter: false,
   ...o,
 });
+
+/** Text files the editor can open in the preview and tests (synthetic content). */
+export const FILES: Record<string, string> = {
+  [`${PROJECT}/train.py`]: `import argparse
+import torch
+from torch import nn
+
+
+class Tiny(nn.Module):
+    """Two-layer MLP used by the smoke tests."""
+
+    def __init__(self, hidden: int = 32):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(2, hidden), nn.ReLU(), nn.Linear(hidden, 2))
+
+    def forward(self, x):
+        return self.net(x)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--epochs", type=int, default=20)
+    args = ap.parse_args()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = Tiny().to(device)
+    for epoch in range(args.epochs):  # one JSON line per epoch
+        print({"epoch": epoch, "lr": 0.1})
+
+
+if __name__ == "__main__":
+    main()
+`,
+  [`${PROJECT}/kernel.cu`]: `#include <cstdio>
+#include <cuda_runtime.h>
+
+// y = a * x + y on the GPU
+__global__ void saxpy(int n, float a, const float *__restrict__ x, float *y) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        y[i] = a * x[i] + y[i];
+    }
+}
+
+int main() {
+    const int n = 1 << 20;
+    float *x, *y;
+    cudaMallocManaged(&x, n * sizeof(float));
+    cudaMallocManaged(&y, n * sizeof(float));
+    saxpy<<<(n + 255) / 256, 256>>>(n, 2.0f, x, y);
+    cudaDeviceSynchronize();
+    printf("done\\n");
+    cudaFree(x);
+    cudaFree(y);
+    return 0;
+}
+`,
+  [`${PROJECT}/requirements.txt`]: 'transformers>=4.44,<4.50\npeft>=0.15,<0.16\nnbconvert\nipykernel\n',
+  [`${PROJECT}/analysis.ipynb`]:
+    JSON.stringify(
+      {
+        cells: [
+          { cell_type: 'markdown', id: 'a1', metadata: {}, source: ['# Results\n', '\n', 'Spearman on dev per seed.'] },
+          {
+            cell_type: 'code',
+            execution_count: 3,
+            id: 'b2',
+            metadata: {},
+            outputs: [{ name: 'stdout', output_type: 'stream', text: ['seed 42: 0.612\n', 'seed 43: 0.598\n'] }],
+            source: ['for seed in (42, 43):\n', '    print(f"seed {seed}: {score[seed]:.3f}")'],
+          },
+          {
+            cell_type: 'code',
+            execution_count: 4,
+            id: 'c3',
+            metadata: {},
+            outputs: [
+              {
+                ename: 'KeyError',
+                evalue: '44',
+                output_type: 'error',
+                traceback: ['\u001b[0;31mKeyError\u001b[0m: 44'],
+              },
+            ],
+            source: ['score[44]'],
+          },
+        ],
+        metadata: { kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' } },
+        nbformat: 4,
+        nbformat_minor: 5,
+      },
+      null,
+      1,
+    ) + '\n',
+};
+
+/** Stand-in for SHA-256 in fixtures: stable, 64 hex characters, different per content. */
+export function fakeSha(text: string): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h.toString(16).padStart(8, '0').repeat(8);
+}
+
+export function file(path: string, content = FILES[path]): FileContent {
+  if (content === undefined) throw { code: 'INVALID_PATH', message: 'That file does not exist on ICF any more.' };
+  return { path, content, sha256: fakeSha(content), size: new TextEncoder().encode(content).length, writable: true };
+}
+
+export const shareStatus = (enabled: boolean, inUse = false): ShareStatus => ({
+  enabled,
+  alias: enabled ? 'icfcc-icf' : null,
+  active: enabled,
+  inUse: enabled && inUse,
+  configFile: '/Users/me/Library/Application Support/uk.ac.ed.icfcc/vscode_ssh_config',
+  settingsFile: '/Users/me/Library/Application Support/Code/User/settings.json',
+});
+
+export const sharePreview: SharePreview = {
+  previewId: 'share-1',
+  alias: 'icfcc-icf',
+  settingsFile: shareStatus(false).settingsFile,
+  settingsBefore: '{\n  "editor.fontSize": 13\n}\n',
+  settingsAfter: `{\n  "editor.fontSize": 13,\n  "remote.SSH.configFile": "${shareStatus(false).configFile}"\n}\n`,
+  configFile: shareStatus(false).configFile,
+  configText:
+    '# Managed by ICF Control Center: VS Code reuses the app\'s signed-in connection.\nHost icfcc-icf\n    HostName hastings.inf.ed.ac.uk\n    User s1234567\n    ProxyJump s1234567@student.ssh.inf.ed.ac.uk\n    ControlMaster no\n    ControlPath "/var/folders/xy/T/icfcc_vscode.sock"\n\nHost *\n    Include "/Users/me/.ssh/config"\n',
+  problem: null,
+  manualSnippet: `"remote.SSH.configFile": "${shareStatus(false).configFile}"`,
+};

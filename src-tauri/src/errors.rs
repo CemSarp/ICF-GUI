@@ -21,6 +21,8 @@ pub enum ErrorCode {
     OutputTooLarge,
     NoResource,
     JobSubmitUncertain,
+    /// A file changed on ICF since it was opened; nothing was written.
+    Conflict,
     Internal,
 }
 

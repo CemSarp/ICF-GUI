@@ -1,6 +1,6 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
-import { Badge, EmptyState, Icon, Notice, type IconName } from '../components/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Badge, Dialog, EmptyState, Icon, Notice, type IconName } from '../components/ui';
 import { Nodes } from '../features/cluster/Nodes';
 import { NodeDetail } from '../features/cluster/NodeDetail';
 import { Overview } from '../features/cluster/Overview';
@@ -21,6 +21,9 @@ import { api, errorMessage } from '../lib/api';
 import { CONN_STATE, formatTime } from '../lib/format';
 import { usePersistentState } from '../lib/persist';
 import type { Settings } from '../types';
+
+// CodeMirror is only needed once a file is opened: keep it out of the startup bundle.
+const EditorView = lazy(() => import('../features/editor/EditorView').then((m) => ({ default: m.EditorView })));
 
 type View =
   'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'projects' | 'training' | 'transfers' | 'settings';
@@ -70,9 +73,20 @@ export function App() {
   const [wizardInit, setWizardInit] = useState<{ init: WizardInit | null; key: number }>({ init: null, key: 0 });
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [uploadDir, setUploadDir] = useState<string | null>(null);
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  /** Navigation (or disconnect) held back while the editor has unsaved changes. */
+  const [pendingLeave, setPendingLeave] = useState<View | 'disconnect' | null>(null);
   const qc = useQueryClient();
   const live = isLive(status);
   const snap = useSnapshot(status, settings.pollIntervalSecs);
+  const share = useQuery({
+    queryKey: ['vscode-share', status.connectedAt],
+    queryFn: api.vscodeShareStatus,
+    enabled: live && !status.demo,
+    retry: false,
+  });
+  const vscodeInUse = !!share.data?.inUse;
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -87,9 +101,11 @@ export function App() {
   }, [theme]);
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
-  }, [view, selectedNode, selectedJob, project, selectedRun]);
+  }, [view, selectedNode, selectedJob, project, selectedRun, editingFile]);
 
   const go = (v: View) => {
+    setEditingFile(null);
+    setEditorDirty(false);
     setSelectedNode(null);
     setSelectedJob(null);
     setRequestPartition(null);
@@ -100,6 +116,11 @@ export function App() {
     setWizardInit((w) => ({ init, key: w.key + 1 }));
     setJobMode('workflow');
     go('request');
+  };
+  const disconnect = () => {
+    setEditingFile(null);
+    setEditorDirty(false);
+    void api.disconnect().then(() => qc.clear());
   };
   const snapshot = snap.data?.snapshot ?? null;
   const challenge = challenges[0];
@@ -139,7 +160,11 @@ export function App() {
             <ul>
               {g.items.map((n) => (
                 <li key={n.id}>
-                  <button className="nav" aria-current={view === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                  <button
+                    className="nav"
+                    aria-current={view === n.id ? 'page' : undefined}
+                    onClick={() => (editorDirty ? setPendingLeave(n.id) : go(n.id))}
+                  >
                     <Icon name={n.icon} />
                     {n.label}
                   </button>
@@ -209,7 +234,15 @@ export function App() {
                 </button>
               </>
             )}
-            <button className="btn ghost" onClick={() => void api.disconnect().then(() => qc.clear())}>
+            {share.data?.active && (
+              <Badge tone="info" glyph="⇄">
+                Shared with VS Code
+              </Badge>
+            )}
+            <button
+              className="btn ghost"
+              onClick={() => (editorDirty || vscodeInUse ? setPendingLeave('disconnect') : disconnect())}
+            >
               Disconnect
             </button>
           </div>
@@ -222,9 +255,19 @@ export function App() {
         </header>
 
         <main id="main" tabIndex={-1} ref={mainRef} className="main">
-          <div className="page" key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}`}>
+          <div className="page" key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}|${editingFile ?? ''}`}>
             <h1 className="page-title">{NAV.find((n) => n.id === view)?.label}</h1>
-            {view === 'projects' ? (
+            {view === 'projects' && editingFile ? (
+              <Suspense
+                fallback={
+                  <div className="skeleton" aria-busy="true">
+                    Opening the editor…
+                  </div>
+                }
+              >
+                <EditorView path={editingFile} onClose={() => setEditingFile(null)} onDirtyChange={setEditorDirty} />
+              </Suspense>
+            ) : view === 'projects' ? (
               <ProjectsView
                 status={status}
                 selected={project}
@@ -235,6 +278,7 @@ export function App() {
                     setUploadDir(dir);
                     go('transfers');
                   },
+                  onEditFile: setEditingFile,
                 }}
               />
             ) : view === 'training' ? (
@@ -334,6 +378,42 @@ export function App() {
           </div>
         </main>
       </div>
+      {pendingLeave && (
+        <Dialog
+          title={pendingLeave === 'disconnect' ? 'Disconnect from ICF?' : 'Discard unsaved changes?'}
+          labelledBy="leave-title"
+          onClose={() => setPendingLeave(null)}
+        >
+          {editorDirty && (
+            <p>
+              Your edits to <code>{editingFile?.split('/').pop()}</code> have not been saved to ICF and will be lost.
+            </p>
+          )}
+          {pendingLeave === 'disconnect' && vscodeInUse && (
+            <p>VS Code windows using this app&apos;s connection will disconnect too.</p>
+          )}
+          <div className="actions">
+            <button className="btn" onClick={() => setPendingLeave(null)} data-autofocus>
+              {editorDirty ? 'Keep editing' : 'Stay connected'}
+            </button>
+            <button
+              className="btn danger"
+              onClick={() => {
+                const target = pendingLeave;
+                setPendingLeave(null);
+                if (target === 'disconnect') disconnect();
+                else go(target);
+              }}
+            >
+              {pendingLeave !== 'disconnect'
+                ? 'Discard changes'
+                : editorDirty
+                  ? 'Discard and disconnect'
+                  : 'Disconnect'}
+            </button>
+          </div>
+        </Dialog>
+      )}
       {challenge && <ChallengeDialog key={challenge.id} challenge={challenge} onDone={dismissChallenge} />}
     </div>
   );

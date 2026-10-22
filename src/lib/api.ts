@@ -40,6 +40,10 @@ import type {
   Settings,
   SnapshotResponse,
   SshConfigReport,
+  FileContent,
+  FileSaved,
+  SharePreview,
+  ShareStatus,
 } from '../types';
 
 export function isAppError(e: unknown): e is AppError {
@@ -93,6 +97,15 @@ export const api = {
   setProjectPrefs: (path: string, prefs: ProjectPrefs) => invoke<ProjectRecord>('projects_set_prefs', { path, prefs }),
   forgetProject: (path: string | null) => invoke<null>('projects_forget', { path }),
   pythonDiscover: (project: string, extra: string | null) => invoke<EnvReport>('python_discover', { project, extra }),
+  vscodeShareStatus: () => invoke<ShareStatus>('vscode_share_status'),
+  vscodeSharePreview: () => invoke<SharePreview>('vscode_share_preview'),
+  vscodeShareApply: (previewId: string) => invoke<ShareStatus>('vscode_share_apply', { previewId }),
+  vscodeShareDisable: () => invoke<ShareStatus>('vscode_share_disable'),
+  filesRead: (path: string) => invoke<FileContent>('files_read', { path }),
+  filesCreate: (dir: string, name: string, content: string) =>
+    invoke<FileSaved>('files_create', { dir, name, content }),
+  filesWrite: (path: string, content: string, expectedSha256: string) =>
+    invoke<FileSaved>('files_write', { path, content, expectedSha256 }),
   pythonCheckImports: (interpreter: string, modules: string[]) =>
     invoke<ImportResult[]>('python_check_imports', { interpreter, modules }),
   toolchains: () => invoke<ToolchainProfile[]>('toolchains_list'),

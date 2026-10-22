@@ -10,6 +10,7 @@ import type {
   LaunchResult,
   ProjectRecord,
   SettingsPreview,
+  SharePreview,
   ToolchainProfile,
 } from '../../types';
 import { RemoteBrowser } from './RemoteBrowser';
@@ -22,6 +23,7 @@ export interface ProjectNav {
     toolchainId?: string | null;
   }) => void;
   onUpload: (remoteDir: string) => void;
+  onEditFile: (remotePath: string) => void;
 }
 
 const recentKey = (s: ConnectionStatus) => ['projects', s.profileId, s.connectedAt];
@@ -90,12 +92,19 @@ export function ProjectsView({
           <ul className="project-list">
             {recent.data.map((p) => (
               <li key={p.path}>
-                <button className="row-button" onClick={() => void open(p.path)}>
-                  <span className="mono">{p.path}</span>
-                  <span className="muted small">
-                    opened {formatTime(p.lastOpenedAt)}
-                    {p.interpreter ? ` · ${p.interpreter}` : ' · no interpreter selected'}
+                <button className="project-tile" onClick={() => void open(p.path)}>
+                  <span className="project-glyph">
+                    <Icon name="folder" size={20} />
                   </span>
+                  <span className="project-text">
+                    <strong>{p.path.split('/').pop() || p.path}</strong>
+                    <span className="mono muted">{p.path}</span>
+                    <span className="muted small">
+                      opened {formatTime(p.lastOpenedAt)}
+                      {p.interpreter ? ` · ${p.interpreter}` : ' · no interpreter selected'}
+                    </span>
+                  </span>
+                  <Icon name="forward" />
                 </button>
                 <button
                   className="btn ghost small-btn"
@@ -146,6 +155,7 @@ function ProjectDetail({
     setLaunch(null);
     try {
       setLaunch(await api.vscodeOpen(project.path));
+      void qc.invalidateQueries({ queryKey: ['vscode-share'] }); // the app now keeps the connection for VS Code
     } catch (e) {
       setLaunchError(errorMessage(e));
     } finally {
@@ -218,6 +228,7 @@ function ProjectDetail({
         onSelectDir={(p) => nav.onUpload(p)}
         selectDirLabel="Upload here…"
         fileAction={{ label: 'Download', run: (p) => void download(p) }}
+        onOpenFile={nav.onEditFile}
       />
     </section>
   );
@@ -265,10 +276,11 @@ export function VsCodePanel({ status }: { status: ConnectionStatus }) {
               {v.alias.proxyJump ? ` via ${v.alias.proxyJump}` : v.alias.usesProxyCommand ? ' via ProxyCommand' : ''}
             </dd>
           </dl>
+          <VsCodeShare status={status} />
           {v.problems.length === 0 ? (
             <p className="muted small">
-              Ready. VS Code opens its own SSH connection with your ~/.ssh/config and may ask you to sign in again; this
-              app never passes it a password.
+              Ready. Without sharing, VS Code opens its own SSH connection with your ~/.ssh/config and may ask you to
+              sign in again. The app never passes VS Code a password either way.
             </p>
           ) : (
             <Notice tone="warn" title="Before opening in VS Code">
@@ -402,6 +414,10 @@ function EnvPanel({
     }
   };
   const selected = report?.interpreters.find((i) => i.path === project.interpreter);
+  // The project's own .venv/venv/env are always probed; list them only when they exist.
+  const isDefault = (p: string) => ['.venv', 'venv', 'env'].some((d) => p === `${project.path}/${d}/bin/python`);
+  const shown = report?.interpreters.filter((i) => !(i.status === 'missing' && isDefault(i.path))) ?? [];
+  const noProjectEnv = !!report && shown.every((i) => !isDefault(i.path));
   const info = selected ?? project.interpreterInfo;
   const torchCuda = selected?.torchCuda ?? project.interpreterInfo?.torchCuda ?? null;
   const rcStatus =
@@ -422,21 +438,36 @@ function EnvPanel({
         system <code>python3</code> and any path you add — not a recursive search. Each runs <code>python -I -c</code>{' '}
         on the login node to read its version and installed package versions; nothing is imported and no GPU is touched.
       </p>
-      <div className="input-row">
+      <form
+        className="input-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void discover();
+        }}
+      >
         <label className="sr-only" htmlFor="extra-interp">
           Add interpreter path
         </label>
         <input
           id="extra-interp"
           className="mono"
-          placeholder={`e.g. ${project.path.split('/').slice(0, 3).join('/')}/projects/icf-env/bin/python`}
+          placeholder={`Add another, e.g. ${project.path.split('/').slice(0, 3).join('/')}/projects/icf-env/bin/python`}
           value={extra}
           onChange={(e) => setExtra(e.target.value)}
           autoCapitalize="off"
           spellCheck={false}
         />
-      </div>
+        <button className="btn" type="submit" disabled={busy || !extra.trim()}>
+          Check this path
+        </button>
+      </form>
       {error && <Notice tone="bad">{error}</Notice>}
+      {noProjectEnv && (
+        <p className="muted small">
+          No <code>.venv</code>, <code>venv</code> or <code>env</code> folder in this project; the interpreters below
+          live elsewhere.
+        </p>
+      )}
       {report && (
         <div className="table-wrap">
           <table className="table">
@@ -452,7 +483,7 @@ function EnvPanel({
               </tr>
             </thead>
             <tbody>
-              {report.interpreters.map((i) => (
+              {shown.map((i) => (
                 <tr key={i.path}>
                   <th scope="row" className="mono small">
                     {i.path}
@@ -582,5 +613,108 @@ function EnvPanel({
         </Dialog>
       )}
     </section>
+  );
+}
+
+/** "Sign VS Code in through this app": VS Code reuses the app's connection (ADR-028). */
+function VsCodeShare({ status }: { status: ConnectionStatus }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['vscode-share', status.connectedAt],
+    queryFn: api.vscodeShareStatus,
+    retry: false,
+  });
+  const [preview, setPreview] = useState<SharePreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const s = q.data;
+  const run = async (f: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await f();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const done = () => qc.invalidateQueries({ queryKey: ['vscode-share'] });
+
+  return (
+    <div className="share">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={!!s?.enabled}
+          disabled={!s || busy}
+          onChange={(e) =>
+            void run(async () => {
+              if (e.target.checked) setPreview(await api.vscodeSharePreview());
+              else {
+                await api.vscodeShareDisable();
+                await done();
+              }
+            })
+          }
+        />
+        Sign VS Code in through this app (no password prompts)
+      </label>
+      <p className="muted small">
+        VS Code reuses this app&apos;s signed-in connection, so neither the gateway nor ICF asks for your password. Your
+        password never leaves the app. VS Code stays connected only while this app is connected, and the app does not
+        disconnect for inactivity while VS Code uses it.
+      </p>
+      {s?.enabled && (
+        <p className="small">
+          {s.active ? (
+            <Badge tone="ok" glyph="✓">
+              VS Code reuses this connection ({s.alias})
+            </Badge>
+          ) : (
+            <Badge tone="muted">On — takes effect while the app is connected</Badge>
+          )}
+        </p>
+      )}
+      {error && <Notice tone="bad">{error}</Notice>}
+      {preview && (
+        <Dialog title="Let VS Code reuse this connection?" labelledBy="share-title" onClose={() => setPreview(null)}>
+          <p>Turning this on makes two local changes on this Mac. Nothing changes on ICF or in ~/.ssh/config.</p>
+          <h4>1. A new ssh config file, used only by VS Code</h4>
+          <p className="muted small mono">{preview.configFile}</p>
+          <pre className="code">{preview.configText}</pre>
+          <h4>2. One setting in VS Code&apos;s settings.json</h4>
+          <p className="muted small mono">{preview.settingsFile}</p>
+          <pre className="code">{preview.manualSnippet}</pre>
+          {preview.problem ? (
+            <Notice tone="warn" title="The app cannot edit this settings.json">
+              {preview.problem}. Add the line above to it yourself in VS Code, then try again. Nothing was changed.
+            </Notice>
+          ) : (
+            <p className="muted small">
+              A backup of settings.json is kept next to it. Turning sharing off removes both.
+            </p>
+          )}
+          <div className="actions">
+            <button className="btn" onClick={() => setPreview(null)} data-autofocus>
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              disabled={!preview.previewId || busy}
+              onClick={() =>
+                void run(async () => {
+                  await api.vscodeShareApply(preview.previewId ?? '');
+                  setPreview(null);
+                  await done();
+                })
+              }
+            >
+              Turn on
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </div>
   );
 }

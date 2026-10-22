@@ -2,6 +2,8 @@
 import demo from '../fixtures/slurm/demo_snapshot.json';
 import * as v3 from '../tests/v3Fixtures';
 
+let shareOn = false;
+
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
 let state = new URLSearchParams(location.search).get('state') ?? 'login';
@@ -233,6 +235,21 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   },
   projects_recent: () => [v3.project()],
   projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+  files_create: (a) => {
+    const path = `${a.dir}/${a.name}`;
+    if (v3.FILES[path] !== undefined)
+      throw { code: 'INVALID_INPUT', message: 'Something with that name already exists there. Nothing was overwritten.' };
+    v3.FILES[path] = a.content as string;
+    return { path, sha256: v3.fakeSha(a.content as string) };
+  },
+  files_read: (a) => v3.file(a.path as string),
+  files_write: (a) => {
+    const cur = v3.FILES[a.path as string];
+    if (cur === undefined || v3.fakeSha(cur) !== a.expectedSha256)
+      throw { code: 'CONFLICT', message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.' };
+    v3.FILES[a.path as string] = a.content as string;
+    return { path: a.path, sha256: v3.fakeSha(a.content as string) };
+  },
   projects_open: (a) => v3.project({ path: a.path as string }),
   projects_mkdir: (a) => `${a.parent}/${a.name}`,
   projects_set_prefs: (a) => ({ ...v3.project(), ...(a.prefs as object) }),
@@ -250,6 +267,10 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   prefs_get: () => ({ transferLimitMbps: 0 }),
   prefs_set: (a) => a.prefs,
   vscode_status: () => v3.vscodeStatus(true),
+  vscode_share_status: () => v3.shareStatus(shareOn),
+  vscode_share_preview: () => v3.sharePreview,
+  vscode_share_apply: () => ((shareOn = true), v3.shareStatus(true)),
+  vscode_share_disable: () => ((shareOn = false), v3.shareStatus(false)),
   vscode_open: (a) => ({
     remotePath: a.path,
     alias: 'icf',

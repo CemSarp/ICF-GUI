@@ -93,6 +93,39 @@ project** on a folder to see its detail page.
 - **Editing is not GPU compute.** VS Code's Run/Debug buttons run on the login node (hastings), which
   has no GPU for you and must not run training. Use **New training workflow…** for GPU work.
 
+### Sign VS Code in through this app (no password prompts)
+
+Tick **Sign VS Code in through this app** on the VS Code card. VS Code then reuses the app's
+signed-in connection, so neither the gateway nor ICF asks for your password. Your password never
+leaves the app.
+
+The first time, the app shows the two local changes it will make:
+- a small ssh config file that only VS Code uses;
+- one line in VS Code's `settings.json` (`remote.SSH.configFile`), with a backup of the old file.
+
+Nothing changes on ICF or in `~/.ssh/config`.
+
+While the app is connected and VS Code was opened from it, the toolbar shows **Shared with VS Code**
+and the app does not disconnect for inactivity. If you disconnect or quit the app, VS Code
+disconnects too; Disconnect asks first. Without the app, VS Code falls back to asking for passwords
+as before. Untick the box to undo both changes.
+
+### Editing files in the app
+
+On a project page, click a text file in **Project files**, or use its **Edit** button, to edit it
+without VS Code:
+- **Supported files:** Python, C/C++, CUDA (`.cu`, `.cuh`) and Markdown get colours; other text files
+  (`.txt`, `.sh`, `.json`, `.yaml`, …) open as plain text.
+- **Keys:** Tab indents (press Esc, then Tab, to leave the editor). ⌘F searches and ⌘S saves.
+- **Notebooks** (`.ipynb`) open as cells, with outputs shown read-only. You can edit, add, move and
+  delete cells. Saving changes only the cells' source, so outputs and metadata stay as they were.
+
+**Saving.** Save writes to ICF only if nobody changed the file since you opened it, for example in
+VS Code. If someone did, you choose **Reload from ICF** or **Overwrite the version on ICF**. Leaving
+with unsaved edits asks first.
+
+**Limits.** Files over 2 MB (20 MB for notebooks), binary files and symbolic links are not opened.
+
 ### Python environment
 
 **Discover interpreters** checks `.venv`, `venv`, `env` in the project, interpreters you used before,

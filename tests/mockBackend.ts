@@ -90,6 +90,8 @@ export const backend = {
   reset(status: ConnectionStatus, overrides: Record<string, Handler> = {}) {
     this.calls = [];
     this.listeners = {};
+    const files: Record<string, string> = { ...v3.FILES }; // editor saves stay within one test
+    let shared = false;
     const snap: SnapshotResponse = {
       snapshot,
       lastError: null,
@@ -150,6 +152,27 @@ export const backend = {
       // V3 defaults (synthetic). Tests override what they exercise.
       projects_recent: () => [v3.project()],
       projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+      files_create: (a) => {
+        const path = `${a.dir}/${a.name}`;
+        if (files[path] !== undefined)
+          throw {
+            code: 'INVALID_INPUT',
+            message: 'Something with that name already exists there. Nothing was overwritten.',
+          };
+        files[path] = a.content as string;
+        return { path, sha256: v3.fakeSha(a.content as string) };
+      },
+      files_read: (a) => v3.file(a.path as string, files[a.path as string]),
+      files_write: (a) => {
+        const cur = files[a.path as string];
+        if (cur === undefined || v3.fakeSha(cur) !== a.expectedSha256)
+          throw {
+            code: 'CONFLICT',
+            message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.',
+          };
+        files[a.path as string] = a.content as string;
+        return { path: a.path, sha256: v3.fakeSha(a.content as string) };
+      },
       projects_open: (a) => v3.project({ path: a.path as string }),
       projects_mkdir: (a) => `${a.parent}/${a.name}`,
       projects_set_prefs: (a) => ({ ...v3.project(), ...(a.prefs as object) }),
@@ -159,6 +182,10 @@ export const backend = {
       presets_list: () => [],
       prefs_get: () => ({ transferLimitMbps: 0 }),
       vscode_status: () => v3.vscodeStatus(true),
+      vscode_share_status: () => v3.shareStatus(shared),
+      vscode_share_preview: () => v3.sharePreview,
+      vscode_share_apply: () => ((shared = true), v3.shareStatus(true)),
+      vscode_share_disable: () => ((shared = false), v3.shareStatus(false)),
       transfers_list: () => [v3.transfer()],
       workflow_preview: (a) => v3.workflowPreview(a.config as WorkflowConfig),
       workflow_refresh: () => v3.runs(),

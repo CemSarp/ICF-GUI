@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'OUTPUT_TOO_LARGE'
   | 'NO_RESOURCE'
   | 'JOB_SUBMIT_UNCERTAIN'
+  | 'CONFLICT'
   | 'INTERNAL';
 
 export interface AppError {
@@ -378,6 +379,42 @@ export interface Entry {
   mode: string;
   mine: boolean;
   unsupported: boolean;
+}
+
+/** VS Code reuses the app's signed-in connection (ADR-028). */
+export interface ShareStatus {
+  enabled: boolean;
+  alias: string | null;
+  active: boolean;
+  inUse: boolean;
+  configFile: string;
+  settingsFile: string;
+}
+
+export interface SharePreview {
+  previewId: string | null;
+  alias: string;
+  settingsFile: string;
+  settingsBefore: string | null;
+  settingsAfter: string | null;
+  configFile: string;
+  configText: string;
+  problem: string | null;
+  manualSnippet: string;
+}
+
+/** One text file opened in the in-app editor (`files_read`). */
+export interface FileContent {
+  path: string;
+  content: string;
+  sha256: string;
+  size: number;
+  writable: boolean;
+}
+
+export interface FileSaved {
+  path: string;
+  sha256: string;
 }
 
 export interface Listing {

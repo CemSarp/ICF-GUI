@@ -391,6 +391,9 @@ pub fn parse_env_probe(out: &str, home: &str, now_iso: String) -> AppResult<EnvR
             _ => {}
         }
     }
+    // `system` can resolve to a path already listed (e.g. one used before): show each path once.
+    let mut seen = std::collections::HashSet::new();
+    interpreters.retain(|i| seen.insert(i.path.clone()));
     Ok(EnvReport { interpreters, toolchains, modules_available, checked_at: now_iso })
 }
 
