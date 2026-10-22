@@ -4,6 +4,7 @@ import { BackButton, Badge, EmptyState, Icon, Notice } from '../../components/ui
 import { api, errorMessage } from '../../lib/api';
 import { bytes, clusterTime, FAILURE_LABEL, formatTime, formatUnix, JOB_STATE, WORKFLOW_STATE } from '../../lib/format';
 import type {
+  CancelOutcome,
   ConnectionStatus,
   Listing,
   MetricsResponse,
@@ -12,7 +13,9 @@ import type {
   WorkflowRun,
   WorkflowState,
 } from '../../types';
+import { CancelJobDialog, CancelNotice } from '../jobs/JobDetailView';
 import { LogViewer } from '../jobs/LogViewer';
+import { jobsKey } from '../jobs/useJobs';
 
 const RUNS_POLL_MS = 60_000;
 const MANUAL_DEBOUNCE_MS = 10_000;
@@ -83,13 +86,11 @@ export function RunsView({
   selected,
   onSelect,
   onResume,
-  onOpenJob,
 }: {
   status: ConnectionStatus;
   selected: string | null;
   onSelect: (tag: string | null) => void;
   onResume: (config: WorkflowConfig) => void;
-  onOpenJob: (jobId: string) => void;
 }) {
   const runs = useRuns(status);
   const list = runs.data?.runs ?? [];
@@ -128,7 +129,6 @@ export function RunsView({
           run={run}
           onBack={() => onSelect(null)}
           onResume={onResume}
-          onOpenJob={onOpenJob}
           onRefreshRuns={runs.refreshNow}
           refreshDisabled={runs.refreshDisabled}
         />
@@ -196,7 +196,6 @@ function RunDetail({
   run,
   onBack,
   onResume,
-  onOpenJob,
   onRefreshRuns,
   refreshDisabled,
 }: {
@@ -204,7 +203,6 @@ function RunDetail({
   run: WorkflowRun;
   onBack: () => void;
   onResume: (config: WorkflowConfig) => void;
-  onOpenJob: (jobId: string) => void;
   onRefreshRuns: () => void;
   refreshDisabled: boolean;
 }) {
@@ -221,6 +219,8 @@ function RunDetail({
   const [note, setNote] = useState<{ tone: 'ok' | 'bad' | 'info'; text: string } | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [tab, setTab] = useState<'outputs' | '.outputs.partial' | 'checkpoints'>('outputs');
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelResult, setCancelResult] = useState<CancelOutcome | null>(null);
   const s = wfState(run);
   const j = detail.data?.job;
 
@@ -267,9 +267,9 @@ function RunDetail({
               Open run folder in VS Code
             </button>
           )}
-          {run.jobId && TERMINAL.includes(s) === false && (
-            <button className="btn ghost" onClick={() => onOpenJob(run.jobId ?? '')}>
-              Cancel in My Jobs…
+          {detail.data?.cancelToken && !TERMINAL.includes(s) && !cancelResult && (
+            <button className="btn danger" onClick={() => setConfirmCancel(true)}>
+              Cancel job…
             </button>
           )}
           {TERMINAL.includes(s) && (
@@ -285,6 +285,20 @@ function RunDetail({
         </div>
       </div>
       {note && <Notice tone={note.tone}>{note.text}</Notice>}
+      <CancelNotice result={cancelResult} />
+      {confirmCancel && run.jobId && detail.data?.cancelToken && (
+        <CancelJobDialog
+          jobId={run.jobId}
+          name={run.name}
+          stateLabel={WORKFLOW_STATE[s].label}
+          token={detail.data.cancelToken}
+          onClose={() => setConfirmCancel(false)}
+          onResult={(r) => {
+            setCancelResult(r);
+            void qc.invalidateQueries({ queryKey: jobsKey(status) });
+          }}
+        />
+      )}
       <Timeline r={run} />
       <div className="card">
         <dl className="kv">

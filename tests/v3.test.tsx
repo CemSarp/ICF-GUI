@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_DRAFT, fromConfig, toConfig } from '../src/features/training/TrainingWizard';
+import { DEFAULT_DRAFT, expandHome, fromConfig, toConfig } from '../src/features/training/TrainingWizard';
 import { safeName } from '../src/features/transfers/TransfersView';
 import type { WorkflowConfig } from '../src/types';
 import { backend, connectedDemo, connectedLive } from './mockBackend';
@@ -198,6 +198,55 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     expect(cfg.resources.timeLimitSeconds).toBe(600);
   });
 
+  it('expands ~ in path fields to the remote home and shows the resolved path', async () => {
+    await wizardFromProject();
+    const py = screen.getByLabelText('Python interpreter on ICF');
+    await userEvent.clear(py);
+    await userEvent.type(py, '~/projects/icf-env/bin/python');
+    expect(screen.getByText('/home/s1/projects/icf-env/bin/python')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    const cfg = backend.calls.find((c) => c.cmd === 'workflow_preview')?.args.config as WorkflowConfig;
+    expect(cfg.interpreter).toBe('/home/s1/projects/icf-env/bin/python');
+  });
+
+  it('checks the environment on the login node only on request and reports each import', async () => {
+    backend.handlers.python_check_imports = (a) =>
+      (a.modules as string[]).map((module) =>
+        module === 'transformers'
+          ? { module, status: 'failed', detail: 'RuntimeError: operator torchvision::nms does not exist' }
+          : { module, status: 'ok', detail: '1.0' },
+      );
+    await wizardFromProject();
+    await userEvent.click(screen.getByLabelText('Notebook, batch execution'));
+    expect(screen.getByLabelText('Modules to check')).toHaveValue('torch transformers peft nbconvert ipykernel');
+    expect(backend.count('python_check_imports')).toBe(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Check environment' }));
+    expect(await screen.findByText('1 of 5 imports failed')).toBeInTheDocument();
+    expect(screen.getByText('RuntimeError: operator torchvision::nms does not exist')).toBeInTheDocument();
+    expect(backend.calls.find((c) => c.cmd === 'python_check_imports')?.args).toEqual({
+      interpreter: v3.VENV_PY,
+      modules: ['torch', 'transformers', 'peft', 'nbconvert', 'ipykernel'],
+    });
+    expect(backend.count('jobs_submit')).toBe(0);
+  });
+
+  it('can ask SLURM to e-mail when the workflow ends or fails', async () => {
+    await wizardFromProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    expect(screen.getByLabelText('Batch script')).not.toHaveTextContent('--mail');
+    await userEvent.click(screen.getByRole('button', { name: 'Back to edit' }));
+    await userEvent.click(screen.getByLabelText('E-mail me when the job ends or fails'));
+    await userEvent.type(screen.getByLabelText('E-mail address'), 's1234567@ed.ac.uk');
+    await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
+    expect(await screen.findByLabelText('Batch script')).toHaveTextContent(
+      '#SBATCH --mail-type=END,FAIL #SBATCH --mail-user=s1234567@ed.ac.uk',
+    );
+    const cfgs = backend.calls.filter((c) => c.cmd === 'workflow_preview').map((c) => c.args.config as WorkflowConfig);
+    expect(cfgs.map((c) => c.mailUser)).toEqual([null, 's1234567@ed.ac.uk']);
+  });
+
   it('shows backend validation errors next to fields', async () => {
     backend.handlers.workflow_preview = () => ({
       ...v3.workflowPreview(v3.config()),
@@ -236,6 +285,26 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: 'Resume from this…' }))[0]!);
     await screen.findByRole('heading', { name: 'Workflow' });
     expect(screen.getByLabelText('Resume from checkpoint (optional)')).not.toHaveValue('');
+  });
+
+  it('cancels a running workflow from its run detail with the same confirmation and token', async () => {
+    const detail = backend.handlers.jobs_get_detail!;
+    backend.handlers.jobs_get_detail = (a) => ({ ...(detail(a) as object), cancelToken: 'tok' });
+    backend.handlers.jobs_cancel = () => ({ outcome: 'requested' });
+    await nav('Training');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Runs' }));
+    await userEvent.click(await screen.findByText('train'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
+    expect(screen.queryByText('Cancel in My Jobs…')).toBeNull();
+    const dialog = screen.getByRole('dialog', { name: 'Cancel job 4242?' });
+    expect(within(dialog).getByRole('button', { name: 'Keep job' })).toHaveFocus();
+    expect(backend.count('jobs_cancel')).toBe(0);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel job 4242' }));
+    await waitFor(() =>
+      expect(backend.count('jobs_cancel', (a) => a.jobId === '4242' && a.cancelToken === 'tok')).toBe(1),
+    );
+    expect(await screen.findByText('Cancellation requested')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel job…' })).toBeNull();
   });
 
   it('asks the user to reconcile an uncertain submission instead of resubmitting', async () => {
@@ -325,5 +394,27 @@ describe('V3 helpers', () => {
     });
     expect(toConfig(fromConfig(c, v3.toolchains), v3.toolchains)).toEqual(c);
     expect(toConfig({ ...DEFAULT_DRAFT, projectDir: `${v3.PROJECT}/` }, []).resultsRoot).toBe(`${v3.PROJECT}/runs`);
+  });
+
+  it('expands only a leading ~ or $HOME', () => {
+    const c = toConfig(
+      {
+        ...DEFAULT_DRAFT,
+        projectDir: '~/projects/semeval/',
+        interpreter: ' ~/projects/icf-env/bin/python ',
+        resumeFrom: '$HOME/ckpt',
+        datasets: [{ archive: '~/data.tar.gz', into: 'data' }],
+      },
+      [],
+      '/home/s1',
+    );
+    expect(c.projectDir).toBe('/home/s1/projects/semeval');
+    expect(c.interpreter).toBe('/home/s1/projects/icf-env/bin/python');
+    expect(c.resultsRoot).toBe('/home/s1/projects/semeval/runs');
+    expect(c.resumeFrom).toBe('/home/s1/ckpt');
+    expect(c.datasets[0]?.archive).toBe('/home/s1/data.tar.gz');
+    expect(expandHome('~', '/home/s1')).toBe('/home/s1');
+    for (const kept of ['~other/x', '/opt/~/x', '~x', '$HOMEx/y']) expect(expandHome(kept, '/home/s1')).toBe(kept);
+    expect(expandHome('~/x', '')).toBe('~/x');
   });
 });

@@ -14,7 +14,6 @@ export function TrainingView({
   selectedRun,
   onSelectRun,
   onResume,
-  onOpenJob,
   onRefreshCluster,
 }: {
   status: ConnectionStatus;
@@ -26,7 +25,6 @@ export function TrainingView({
   selectedRun: string | null;
   onSelectRun: (tag: string | null) => void;
   onResume: (config: WorkflowConfig) => void;
-  onOpenJob: (jobId: string) => void;
   onRefreshCluster: () => void;
 }) {
   return (
@@ -52,13 +50,7 @@ export function TrainingView({
           }}
         />
       ) : (
-        <RunsView
-          status={status}
-          selected={selectedRun}
-          onSelect={onSelectRun}
-          onResume={onResume}
-          onOpenJob={onOpenJob}
-        />
+        <RunsView status={status} selected={selectedRun} onSelect={onSelectRun} onResume={onResume} />
       )}
     </div>
   );

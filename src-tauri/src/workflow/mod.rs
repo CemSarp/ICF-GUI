@@ -139,6 +139,9 @@ pub struct WorkflowConfig {
     /// `--signal=B:USR1@N`: warning before the wall-time limit so results can be copied back.
     pub signal_grace_seconds: u32,
     pub resources: Resources,
+    /// SLURM e-mails this address when the job ends or fails; validated with the resources.
+    #[serde(default)]
+    pub mail_user: Option<String>,
 }
 
 /// `{name}` placeholders allowed in arguments and the environment variable each one becomes.
@@ -237,6 +240,7 @@ impl WorkflowConfig {
             program_args: vec![],
             python_env: None,
             setup_source: None,
+            mail_user: self.mail_user.clone(),
         }
     }
 

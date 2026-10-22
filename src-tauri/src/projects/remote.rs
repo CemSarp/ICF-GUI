@@ -394,6 +394,90 @@ pub fn parse_env_probe(out: &str, home: &str, now_iso: String) -> AppResult<EnvR
     Ok(EnvReport { interpreters, toolchains, modules_available, checked_at: now_iso })
 }
 
+pub const MAX_IMPORTS: usize = 24;
+
+/// A module the environment check may import: a dotted Python identifier such as `sklearn.metrics`.
+pub fn valid_import(n: &str) -> bool {
+    n.len() <= 64
+        && n.split('.').all(|p| p.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+}
+
+/// Imports the modules named in argv, in order, in one process. Anything the modules print goes to
+/// stderr, so stdout carries only one `@@ok`/`@@failed` line per module.
+const IMPORT_CHECK_PY: &str = r#"import sys, importlib, traceback
+out, sys.stdout = sys.stdout, sys.stderr
+for name in sys.argv[1:]:
+    try:
+        v = getattr(importlib.import_module(name), "__version__", "")
+        out.write("@@ok %s %s\n" % (name, v if isinstance(v, str) else ""))
+    except BaseException as e:
+        out.write("@@failed %s %s\n" % (name, traceback.format_exception_only(type(e), e)[-1].strip().replace("\n", " ")))
+    out.flush()"#;
+
+/// Read-only: runs the interpreter with `-I -c` (no cwd, `PYTHONPATH` or user site) on the login
+/// node. The code is fixed; the interpreter and module names are single-quoted arguments.
+pub fn import_check_script(interpreter: &str, modules: &[String]) -> String {
+    let mut s = String::from("# icfcc:imports\n");
+    s += &format!("CODE={}\nPY={}\n", q(IMPORT_CHECK_PY), q(interpreter));
+    s += &format!("set -- {}\n", modules.iter().map(|m| q(m)).collect::<Vec<_>>().join(" "));
+    s += r#"[ -e "$PY" ] || { printf '@@err missing\n'; exit 0; }
+[ -f "$PY" ] && [ -x "$PY" ] || { printf '@@err notexec\n'; exit 0; }
+if command -v timeout >/dev/null 2>&1; then T='timeout 90'; else T=; fi
+$T "$PY" -I -c "$CODE" "$@" 2>/dev/null
+printf '@@exit %s\n' "$?"
+"#;
+    s
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImportStatus {
+    Ok,
+    Failed,
+    /// Python ended (crash, timeout) before reaching this module.
+    NotChecked,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub module: String,
+    pub status: ImportStatus,
+    /// Version for `ok`, the error's last line for `failed`, the reason for `not_checked`.
+    pub detail: String,
+}
+
+pub fn parse_import_check(out: &str, modules: &[String]) -> AppResult<Vec<ImportResult>> {
+    match out.lines().find_map(|l| l.strip_prefix("@@err ")) {
+        Some("missing") => return Err(AppError::new(ErrorCode::InvalidPath, "The interpreter does not exist on ICF.")),
+        Some(_) => return Err(AppError::new(ErrorCode::InvalidPath, "The interpreter is not an executable file.")),
+        None => {}
+    }
+    let exit = header(out, "@@exit").ok_or_else(|| AppError::new(ErrorCode::SlurmError, "The environment check did not complete."))?;
+    let mut seen = std::collections::HashMap::new();
+    for line in out.lines() {
+        let (status, rest) = match (line.strip_prefix("@@ok "), line.strip_prefix("@@failed ")) {
+            (Some(r), _) => (ImportStatus::Ok, r),
+            (_, Some(r)) => (ImportStatus::Failed, r),
+            _ => continue,
+        };
+        let (name, detail) = rest.split_once(' ').unwrap_or((rest, ""));
+        seen.entry(name).or_insert((status, sanitize_text(detail, 300)));
+    }
+    let stopped = if exit == "124" {
+        "The check timed out before this import.".to_string()
+    } else {
+        format!("Python stopped before this import (exit status {}).", sanitize_text(exit, 8))
+    };
+    Ok(modules
+        .iter()
+        .map(|m| {
+            let (status, detail) = seen.get(m.as_str()).cloned().unwrap_or((ImportStatus::NotChecked, stopped.clone()));
+            ImportResult { module: m.clone(), status, detail }
+        })
+        .collect())
+}
+
 /// Read `.vscode/settings.json` (bounded) with its SHA-256, refusing symlinks.
 pub fn settings_read_script(project: &str) -> String {
     let mut s = String::from("# icfcc:vscode-read\n");

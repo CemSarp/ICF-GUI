@@ -34,6 +34,7 @@ const COMMANDS: &[&str] = &[
     "projects_set_prefs",
     "projects_forget",
     "python_discover",
+    "python_check_imports",
     "toolchains_list",
     "toolchains_save",
     "toolchains_delete",

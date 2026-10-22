@@ -47,6 +47,7 @@ pub fn render(c: &WorkflowConfig, tag: &str) -> String {
     s += &format!("#SBATCH --error={results}/slurm-%j.err\n");
     s += &format!("#SBATCH --signal=B:USR1@{}\n", c.signal_grace_seconds);
     s += &format!("#SBATCH --comment=icfcc-{tag}\n");
+    s += &crate::jobs::request::mail_lines(c.mail_user.as_deref());
     let kind = match c.kind {
         WorkflowKind::Train => "training",
         WorkflowKind::Notebook => "notebook",

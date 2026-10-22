@@ -8,7 +8,7 @@ use crate::errors::{AppError, AppResult, ErrorCode};
 use crate::jobs::commands::{ctx, live};
 use crate::jobs::request::{check_abs_path, under};
 use crate::ssh::session::COMMAND_TIMEOUT;
-use crate::util::{now_iso, random_hex};
+use crate::util::{now_iso, now_ms, random_hex};
 use crate::workflow::{valid_module, valid_name, Toolchain, WorkflowConfig};
 use tauri::State;
 
@@ -147,6 +147,27 @@ pub async fn python_discover(state: State<'_, AppState>, project: String, extra:
         }
     }
     Ok(report)
+}
+
+/// Read-only and on request: imports the listed modules with the interpreter on the login node, so a
+/// broken environment shows up before a GPU job waits in the queue. Nothing is installed or changed.
+#[tauri::command]
+pub async fn python_check_imports(state: State<'_, AppState>, interpreter: String, modules: Vec<String>) -> AppResult<Vec<remote::ImportResult>> {
+    check_abs_path(&interpreter).map_err(bad_path("Interpreter"))?;
+    if modules.is_empty() || modules.len() > remote::MAX_IMPORTS || !modules.iter().all(|m| remote::valid_import(m)) {
+        return Err(AppError::invalid(format!("List 1–{} module names such as torch or sklearn.metrics.", remote::MAX_IMPORTS)));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "the environment check")?;
+    {
+        let mut last = state.log_rate.lock().unwrap();
+        if last.get("imports").is_some_and(|t| now_ms().saturating_sub(*t) < 10_000) {
+            return Err(AppError::invalid("The environment was checked a moment ago; try again in a few seconds."));
+        }
+        last.insert("imports".into(), now_ms());
+    }
+    let out = session.run(&remote::import_check_script(&interpreter, &modules), std::time::Duration::from_secs(120), 64 * 1024).await?;
+    remote::parse_import_check(&out, &modules)
 }
 
 #[tauri::command]

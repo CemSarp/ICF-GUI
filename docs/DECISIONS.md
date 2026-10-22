@@ -156,6 +156,34 @@ app has no shell `PATH`), checks `--version` and `--list-extensions` for Remote 
 reports "launch requested", never "connected". `ssh -G <alias>` without the app's forced block shows
 whether VS Code can reach the host; the app suggests (never writes) a `~/.ssh/config` block.
 
+## ADR-024 — `~` in training paths is expanded from the probed home
+*Status: accepted (0.3.1).* The remote `$HOME` from the login probe now reaches the UI with the
+capabilities (it was backend-only; it is still never logged). The training wizard turns a leading
+`~` or `$HOME` into that home before the config leaves the UI and shows the resolved path under the
+field. Rust still accepts only absolute paths, so `~user/…` fails validation as before.
+
+## ADR-025 — Environment check imports modules on the login node
+*Status: accepted (0.3.1), one open point.* `python_check_imports` (read-only, `default.json`) runs
+the chosen interpreter as `-I -c <fixed code> <module>…` on the login node: one process, `timeout
+90`, at most one call per 10 s, nothing installed. Module names must be dotted identifiers (at most
+24) and are passed as quoted arguments. Module output goes to stderr, so stdout carries only the
+per-module result. It runs only when the user clicks, because importing torch takes a while.
+**Open:** the check does not source the CUDA toolchain, and `-I` ignores `PYTHONPATH`. A package that
+only the toolchain makes importable may fail here and still work in the job. If that happens on ICF,
+replay the job's ENV stage (toolchain, venv activate) before importing.
+
+## ADR-026 — Cancel from the run detail
+*Status: accepted (0.3.1).* The run detail uses the same `CancelJobDialog` as My Jobs: the token from
+`jobs_get_detail`, `jobs_cancel` in the job-mutations capability, one request per confirmation. The
+"Cancel in My Jobs…" detour is gone.
+
+## ADR-027 — SLURM e-mail on end/fail
+*Status: accepted (0.3.1), one open point.* An optional `mailUser` on job requests and workflows adds
+`#SBATCH --mail-type=END,FAIL` and `--mail-user=<address>` to the reviewed script. Rust accepts only
+`local@domain.tld` with letters, digits and `._+-`: no spaces, quotes, `%`, commas or newlines, so the
+value cannot add an sbatch option or a second recipient. The address is kept in the local form draft
+(localStorage), like paths. **Open:** whether ICF's SLURM delivers job mail (see question 9).
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.
@@ -165,3 +193,4 @@ whether VS Code can reach the host; the app suggests (never writes) a `~/.ssh/co
 6. Is the SFTP subsystem enabled for students on the ICF login host?
 7. Can users SSH into the compute node running their job (needed for interactive Jupyter)?
 8. Does `/home` have per-user quotas lower than the filesystem free space reported by `df`?
+9. Does ICF's SLURM send job e-mail (`MailProg`) to university addresses?

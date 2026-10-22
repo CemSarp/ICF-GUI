@@ -6,6 +6,7 @@ import type {
   AppError,
   EnvReport,
   FolderPick,
+  ImportResult,
   LaunchResult,
   Listing,
   LocalPick,
@@ -92,6 +93,8 @@ export const api = {
   setProjectPrefs: (path: string, prefs: ProjectPrefs) => invoke<ProjectRecord>('projects_set_prefs', { path, prefs }),
   forgetProject: (path: string | null) => invoke<null>('projects_forget', { path }),
   pythonDiscover: (project: string, extra: string | null) => invoke<EnvReport>('python_discover', { project, extra }),
+  pythonCheckImports: (interpreter: string, modules: string[]) =>
+    invoke<ImportResult[]>('python_check_imports', { interpreter, modules }),
   toolchains: () => invoke<ToolchainProfile[]>('toolchains_list'),
   saveToolchain: (profile: ToolchainProfile) => invoke<ToolchainProfile[]>('toolchains_save', { profile }),
   deleteToolchain: (id: string) => invoke<ToolchainProfile[]>('toolchains_delete', { id }),

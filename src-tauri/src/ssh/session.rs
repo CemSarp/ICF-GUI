@@ -93,8 +93,7 @@ pub struct Capabilities {
     #[serde(skip)]
     pub groups: BTreeSet<String>,
     pub remote_host: String,
-    /// Kept in the backend only (privacy: not shown/logged by default).
-    #[serde(skip)]
+    /// Sent to the UI so `~/` in path fields can be shown resolved; never logged.
     pub home: String,
     pub commands: Vec<String>,
     pub missing_commands: Vec<String>,
@@ -440,10 +439,15 @@ pub async fn connect(
 
     match outcome {
         Ok(None) => {}
-        Ok(Some(_exited)) => {
+        Ok(Some(exited)) => {
             let err_text =
                 std::fs::read(session.dir.file("master.err")).map(|b| String::from_utf8_lossy(&b[..b.len().min(64 * 1024)]).into_owned()).unwrap_or_default();
             let mut e = classify_ssh_failure(&err_text);
+            if err_text.trim().is_empty() {
+                use std::os::unix::process::ExitStatusExt;
+                let how = exited.code().map_or_else(|| format!("signal {}", exited.signal().unwrap_or(0)), |c| format!("exit status {c}"));
+                e.message = format!("{} (ssh ended with {how}.)", e.message);
+            }
             if rejected_host_key && e.code == ErrorCode::SshHostKey {
                 e.message = "You did not accept the host key, so nothing was sent to the server.".into();
             }

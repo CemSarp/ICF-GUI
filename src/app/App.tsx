@@ -247,10 +247,6 @@ export function App() {
                 selectedRun={selectedRun}
                 onSelectRun={setSelectedRun}
                 onResume={(config) => startTraining({ config })}
-                onOpenJob={(jobId) => {
-                  go('jobs');
-                  setSelectedJob(jobId);
-                }}
                 onRefreshCluster={snap.refreshNow}
               />
             ) : view === 'transfers' ? (

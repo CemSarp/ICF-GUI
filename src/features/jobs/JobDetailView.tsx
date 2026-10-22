@@ -22,6 +22,64 @@ function failureHint(j: JobRow): string | null {
   }
 }
 
+/** The one confirmation before `jobs_cancel`; the token comes from the job's detail and is used once. */
+export function CancelJobDialog({
+  jobId,
+  name,
+  stateLabel,
+  token,
+  onClose,
+  onResult,
+}: {
+  jobId: string;
+  name: string;
+  stateLabel: string;
+  token: string;
+  onClose: () => void;
+  onResult: (r: CancelOutcome) => void;
+}) {
+  const [cancelling, setCancelling] = useState(false);
+  const cancel = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      onResult(await api.jobsCancel(jobId, token));
+    } catch (e) {
+      onResult({ outcome: 'refused', code: 'INTERNAL', message: errorMessage(e) });
+    } finally {
+      setCancelling(false);
+      onClose();
+    }
+  };
+  return (
+    <Dialog title={`Cancel job ${jobId}?`} onClose={() => !cancelling && onClose()}>
+      <p>
+        This asks SLURM to cancel <strong>{name}</strong> (job {jobId}, {stateLabel.toLowerCase()}). Output written so
+        far stays in its log files. This cannot be undone.
+      </p>
+      <div className="actions">
+        <button className="btn" onClick={onClose} disabled={cancelling} data-autofocus>
+          Keep job
+        </button>
+        <button className="btn danger" onClick={() => void cancel()} disabled={cancelling}>
+          {cancelling ? 'Cancelling…' : `Cancel job ${jobId}`}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+export function CancelNotice({ result }: { result: CancelOutcome | null }) {
+  if (!result) return null;
+  return result.outcome === 'requested' ? (
+    <Notice tone="info" title="Cancellation requested">
+      SLURM accepted the request. The state will change to Cancelled on a later refresh.
+    </Notice>
+  ) : (
+    <Notice tone={result.outcome === 'refused' ? 'bad' : 'warn'}>{result.message}</Notice>
+  );
+}
+
 export function JobDetailView({
   jobId,
   status,
@@ -39,26 +97,11 @@ export function JobDetailView({
     staleTime: Infinity,
   });
   const [confirm, setConfirm] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [cancelResult, setCancelResult] = useState<CancelOutcome | null>(null);
   const d = q.data;
   const j = d?.job;
   const s = j ? JOB_STATE[j.state] : null;
   const hint = j ? failureHint(j) : null;
-
-  const cancel = async () => {
-    if (!d?.cancelToken || cancelling) return;
-    setCancelling(true);
-    try {
-      setCancelResult(await api.jobsCancel(jobId, d.cancelToken));
-    } catch (e) {
-      setCancelResult({ outcome: 'refused', code: 'INTERNAL', message: errorMessage(e) });
-    } finally {
-      setCancelling(false);
-      setConfirm(false);
-      void qc.invalidateQueries({ queryKey: jobsKey(status) });
-    }
-  };
 
   return (
     <section aria-labelledby="job-title">
@@ -80,14 +123,7 @@ export function JobDetailView({
         </div>
       </div>
       {q.error && <Notice tone="bad">{errorMessage(q.error)}</Notice>}
-      {cancelResult?.outcome === 'requested' && (
-        <Notice tone="info" title="Cancellation requested">
-          SLURM accepted the request. The state will change to Cancelled on a later refresh.
-        </Notice>
-      )}
-      {cancelResult && cancelResult.outcome !== 'requested' && (
-        <Notice tone={cancelResult.outcome === 'refused' ? 'bad' : 'warn'}>{cancelResult.message}</Notice>
-      )}
+      <CancelNotice result={cancelResult} />
       {j && s && (
         <>
           <div className="card">
@@ -161,21 +197,18 @@ export function JobDetailView({
           )}
         </>
       )}
-      {confirm && j && (
-        <Dialog title={`Cancel job ${jobId}?`} onClose={() => !cancelling && setConfirm(false)}>
-          <p>
-            This asks SLURM to cancel <strong>{j.name}</strong> (job {jobId}, {s?.label.toLowerCase()}). Output written
-            so far stays in its log files. This cannot be undone.
-          </p>
-          <div className="actions">
-            <button className="btn" onClick={() => setConfirm(false)} disabled={cancelling} data-autofocus>
-              Keep job
-            </button>
-            <button className="btn danger" onClick={() => void cancel()} disabled={cancelling}>
-              {cancelling ? 'Cancelling…' : `Cancel job ${jobId}`}
-            </button>
-          </div>
-        </Dialog>
+      {confirm && j && s && d?.cancelToken && (
+        <CancelJobDialog
+          jobId={jobId}
+          name={j.name}
+          stateLabel={s.label}
+          token={d.cancelToken}
+          onClose={() => setConfirm(false)}
+          onResult={(r) => {
+            setCancelResult(r);
+            void qc.invalidateQueries({ queryKey: jobsKey(status) });
+          }}
+        />
       )}
     </section>
   );

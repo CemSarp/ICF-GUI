@@ -31,6 +31,8 @@ interface Draft {
   args: string;
   pythonEnv: string;
   setupSource: string;
+  mail: boolean;
+  mailUser: string;
 }
 
 /** Relative working directories start in the user's home on ICF. */
@@ -70,6 +72,7 @@ function toRequest(d: Draft, home: string): JobRequest {
       .filter(Boolean),
     pythonEnv: d.pythonEnv.trim() || null,
     setupSource: d.setupSource.trim() || null,
+    mailUser: d.mail ? d.mailUser.trim() : null,
   };
 }
 
@@ -80,6 +83,50 @@ function FieldError({ issues, field }: { issues: Issue[]; field: string }) {
     <span className="field-error" id={`err-${field}`} role="alert">
       {mine.map((i) => i.message).join(' ')}
     </span>
+  );
+}
+
+/** Optional SLURM e-mail on end/fail; works while the app is closed. Shared with the training wizard. */
+export function MailOption({
+  draft,
+  issues,
+  set,
+  id,
+}: {
+  draft: { mail: boolean; mailUser: string };
+  issues: Issue[];
+  set: (k: 'mail' | 'mailUser', v: boolean | string) => void;
+  id: string;
+}) {
+  const mine = issues.filter((i) => i.field === 'mailUser');
+  return (
+    <div className={`field${mine.length ? ' invalid' : ''}`}>
+      <label className="check">
+        <input type="checkbox" checked={draft.mail} onChange={(e) => set('mail', e.target.checked)} />
+        E-mail me when the job ends or fails
+      </label>
+      {draft.mail && (
+        <>
+          <label htmlFor={id}>E-mail address</label>
+          <input
+            id={id}
+            type="email"
+            className="mono"
+            value={draft.mailUser}
+            placeholder="s1234567@ed.ac.uk"
+            onChange={(e) => set('mailUser', e.target.value)}
+            autoCapitalize="off"
+            spellCheck={false}
+          />
+          <small className="muted">SLURM sends it itself, so it arrives even while this app is closed.</small>
+        </>
+      )}
+      {mine.length > 0 && (
+        <span className="field-error" role="alert">
+          {mine.map((i) => i.message).join(' ')}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -122,7 +169,7 @@ export function RequestGpuView({
   const receipts = useQuery({ queryKey: ['receipts', status.connectedAt], queryFn: api.jobsReceipts, retry: false });
   const learned = learnedPartitions(receipts.data ?? []);
   const defaultPartition = snapshot.partitions.find((p) => p.isDefault)?.name ?? snapshot.partitions[0]?.name ?? '';
-  const [draft, setDraft] = usePersistentState<Draft>('job.draft', {
+  const [stored, setDraft] = usePersistentState<Draft>('job.draft', {
     partition: defaultPartition,
     gres: '',
     gpuCount: 1,
@@ -137,7 +184,10 @@ export function RequestGpuView({
     args: '',
     pythonEnv: '',
     setupSource: '',
+    mail: false,
+    mailUser: '',
   });
+  const draft: Draft = Object.assign({ mail: false, mailUser: '' }, stored); // drafts saved before the e-mail option
   const [override, setOverride] = useState(initialPartition); // e.g. from a partition card; applies until the first edit
   const partitionName = override ?? draft.partition;
   const partition =
@@ -510,6 +560,7 @@ export function RequestGpuView({
               className="mono"
             />
           </Field>
+          <MailOption draft={draft} issues={issues} set={set} id="f-mailUser" />
           <details>
             <summary>Advanced</summary>
             <Field

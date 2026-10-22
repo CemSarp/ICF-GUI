@@ -85,6 +85,7 @@ fn req() -> JobRequest {
         program_args: vec![],
         python_env: None,
         setup_source: None,
+        mail_user: None,
     }
 }
 

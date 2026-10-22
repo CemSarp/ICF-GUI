@@ -42,6 +42,7 @@ fn cfg(home: &str) -> WorkflowConfig {
             memory_mib: 16384,
             time_limit_seconds: 4 * 3600,
         },
+        mail_user: None,
     }
 }
 
@@ -174,6 +175,21 @@ fn rendered_script_quotes_every_user_value() {
     assert_eq!(s.lines().filter(|l| *l == "ICFCC_STAGER_t1").count(), 1, "only the real closing delimiter");
     assert!(!s.contains("rm -rf \"$JOB_SCRATCH\"\n") && s.contains("rm -rf -- \"$JOB_SCRATCH\""));
     assert!(!s.contains("StrictHostKeyChecking") && !s.contains("password"));
+}
+
+#[test]
+fn optional_end_or_fail_email_is_validated_and_rendered() {
+    let mut c = cfg(HOME);
+    assert!(!render(&c, "t1").contains("--mail"), "no e-mail unless asked for");
+    let mut old = serde_json::to_value(&c).unwrap();
+    old.as_object_mut().unwrap().remove("mailUser");
+    assert_eq!(serde_json::from_value::<WorkflowConfig>(old).unwrap(), c, "saved presets and runs without the field still load");
+    c.mail_user = Some("s1234567@ed.ac.uk".into());
+    assert!(check(&c).0.errors.is_empty());
+    let s = render(&c, "t1");
+    assert!(s.contains("#SBATCH --comment=icfcc-t1\n#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=s1234567@ed.ac.uk\n"), "{s}");
+    c.mail_user = Some("s1@ed.ac.uk\n#SBATCH --wrap=x".into());
+    assert_eq!(fields(&check(&c).0), ["mailUser"]);
 }
 
 #[test]

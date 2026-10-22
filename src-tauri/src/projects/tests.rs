@@ -216,6 +216,63 @@ fn interpreter_probe_is_light_and_classifies_candidates() {
 }
 
 #[test]
+fn import_check_parser_reports_each_module_once_and_what_was_not_reached() {
+    let mods: Vec<String> = ["torch", "transformers", "peft", "nbconvert"].map(String::from).to_vec();
+    let out = "noise from a login banner\n@@ok torch 2.8.0a0+gitunknown\n@@failed transformers RuntimeError: operator torchvision::nms does not exist\n@@ok transformers 9.9 (a module printing a fake marker)\n@@ok peft\n@@exit 124\n";
+    let r = parse_import_check(out, &mods).unwrap();
+    let got: Vec<(&str, ImportStatus, &str)> = r.iter().map(|x| (x.module.as_str(), x.status, x.detail.as_str())).collect();
+    assert_eq!(
+        got,
+        [
+            ("torch", ImportStatus::Ok, "2.8.0a0+gitunknown"),
+            ("transformers", ImportStatus::Failed, "RuntimeError: operator torchvision::nms does not exist"),
+            ("peft", ImportStatus::Ok, ""),
+            ("nbconvert", ImportStatus::NotChecked, "The check timed out before this import."),
+        ]
+    );
+    assert!(parse_import_check("@@ok torch 1\n", &mods).is_err(), "no @@exit = incomplete");
+    assert_eq!(parse_import_check("@@err missing\n", &mods).unwrap_err().code, ErrorCode::InvalidPath);
+    for ok in ["torch", "sklearn.metrics", "_private", "PIL"] {
+        assert!(valid_import(ok), "{ok}");
+    }
+    for bad in ["", "1x", "a..b", "a.", ".a", "os;id", "a b", "-c", "x'y", "torch\nx", &"a".repeat(65)] {
+        assert!(!valid_import(bad), "{bad:?}");
+    }
+}
+
+#[test]
+fn import_check_runs_isolated_and_keeps_module_output_off_the_result() {
+    let s = Sandbox::new();
+    let real = ["/opt/homebrew/bin/python3", "/usr/bin/python3"].into_iter().find(|p| Path::new(p).exists()).unwrap().to_string();
+    // A module in the working directory must not shadow the real one (-I).
+    std::fs::write(s.root.join("json.py"), "raise SystemExit('shadowed')\n").unwrap();
+    // `this` prints the Zen of Python when imported; it must not reach the parsed result.
+    let mods: Vec<String> = ["json", "icfcc_no_such_module", "this"].map(String::from).to_vec();
+    let script = import_check_script(&real, &mods);
+    assert!(script.contains("-I -c \"$CODE\" \"$@\""), "fixed template, values as arguments");
+    let out = s.run(&script);
+    let r = parse_import_check(&out, &mods).unwrap();
+    assert_eq!(r[0].status, ImportStatus::Ok, "{out}");
+    assert_eq!((r[1].status, r[1].detail.as_str()), (ImportStatus::Failed, "ModuleNotFoundError: No module named 'icfcc_no_such_module'"));
+    assert_eq!(r[2].status, ImportStatus::Ok);
+    assert!(!out.contains("Beautiful is better"), "{out}");
+
+    // An interpreter that dies after the first import leaves the rest unchecked, with the reason.
+    let crash = s.home().join("crash");
+    std::fs::write(&crash, "#!/bin/sh\necho '@@ok json 2.0'\nexit 139\n").unwrap();
+    std::fs::set_permissions(&crash, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let r = parse_import_check(&s.run(&import_check_script(&crash.display().to_string(), &mods)), &mods).unwrap();
+    assert_eq!(r.iter().map(|x| x.status).collect::<Vec<_>>(), [ImportStatus::Ok, ImportStatus::NotChecked, ImportStatus::NotChecked]);
+    assert!(r[1].detail.contains("exit status 139"));
+
+    std::fs::write(s.home().join("notexec"), "").unwrap();
+    let e = parse_import_check(&s.run(&import_check_script(&format!("{}/notexec", s.h()), &mods)), &mods).unwrap_err();
+    assert!(e.message.contains("not an executable"));
+    let e = parse_import_check(&s.run(&import_check_script(&format!("{}/nope", s.h()), &mods)), &mods).unwrap_err();
+    assert!(e.message.contains("does not exist"));
+}
+
+#[test]
 fn settings_merge_preserves_keys_order_and_refuses_jsonc() {
     let before =
         "{\n  \"editor.tabSize\": 2,\n  \"files.exclude\": {\"**/.git\": true},\n  \"python.defaultInterpreterPath\": \"/old\",\n  \"zzz\": [1, 2]\n}\n";

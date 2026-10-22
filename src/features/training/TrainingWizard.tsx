@@ -8,6 +8,7 @@ import type {
   CheckpointMode,
   ClusterSnapshot,
   ConnectionStatus,
+  ImportResult,
   Issue,
   SubmitResponse,
   ToolchainProfile,
@@ -17,6 +18,7 @@ import type {
   WorkflowPreview,
   WorkflowState,
 } from '../../types';
+import { MailOption } from '../jobs/RequestGpuView';
 import { PickRemote } from '../projects/RemoteBrowser';
 import { safeName } from '../transfers/TransfersView';
 
@@ -48,6 +50,10 @@ export interface Draft {
   memoryGb: number;
   hours: number;
   minutes: number;
+  /** Modules for "Check environment"; empty = the defaults for the workflow type. */
+  checkModules: string;
+  mail: boolean;
+  mailUser: string;
 }
 
 export interface WizardInit {
@@ -86,6 +92,15 @@ export const DEFAULT_DRAFT: Draft = {
   memoryGb: 16,
   hours: 4,
   minutes: 0,
+  checkModules: '',
+  mail: false,
+  mailUser: '',
+};
+
+const CHECK_MODULES: Record<WorkflowKind, string> = {
+  notebook: 'torch transformers peft nbconvert ipykernel',
+  train: 'torch',
+  gpu_smoke_test: 'torch',
 };
 
 const lines = (s: string) =>
@@ -94,31 +109,38 @@ const lines = (s: string) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
-export function toConfig(d: Draft, toolchains: ToolchainProfile[]): WorkflowConfig {
+/** A leading `~` or `$HOME` (alone or before `/`) becomes the remote home; anything else is only trimmed. */
+export function expandHome(p: string, home: string): string {
+  const t = p.trim();
+  const m = /^(~|\$HOME)(\/|$)/.exec(t);
+  return m && home ? home + t.slice(m[1]!.length) : t;
+}
+
+/** Paths go to Rust absolute: `home` expands `~/…` (empty = no expansion). */
+export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
   const tc = toolchains.find((t) => t.id === d.toolchainId);
-  const project = d.projectDir.trim().replace(/\/+$/, '');
+  const abs = (p: string) => expandHome(p, home);
+  const project = abs(d.projectDir).replace(/\/+$/, '');
   return {
     kind: d.kind,
     jobName: d.jobName.trim(),
     projectDir: project,
-    entry: d.kind === 'gpu_smoke_test' ? '' : d.entry.trim(),
+    entry: d.kind === 'gpu_smoke_test' ? '' : abs(d.entry),
     args: d.kind === 'train' ? lines(d.args) : [],
-    interpreter: d.interpreter.trim(),
+    interpreter: abs(d.interpreter),
     toolchain: tc ? tc.spec : { kind: 'none' },
-    datasets: d.datasets
-      .filter((x) => x.archive.trim())
-      .map((x) => ({ archive: x.archive.trim(), into: x.into.trim() })),
+    datasets: d.datasets.filter((x) => x.archive.trim()).map((x) => ({ archive: abs(x.archive), into: x.into.trim() })),
     scratchRoot: d.scratchRoot,
     hfCache:
       d.hfMode === 'home'
-        ? { mode: 'home', path: d.hfPath.trim() }
+        ? { mode: 'home', path: abs(d.hfPath) }
         : d.hfMode === 'staged'
-          ? { mode: 'staged', archive: d.hfArchive.trim(), offline: d.hfOffline }
+          ? { mode: 'staged', archive: abs(d.hfArchive), offline: d.hfOffline }
           : { mode: d.hfMode },
-    resultsRoot: d.resultsRoot.trim().replace(/\/+$/, '') || `${project}/runs`,
+    resultsRoot: abs(d.resultsRoot).replace(/\/+$/, '') || `${project}/runs`,
     checkpointMode: d.checkpointMode,
     checkpointSyncMinutes: d.checkpointSyncMinutes,
-    resumeFrom: d.resumeFrom.trim() || null,
+    resumeFrom: abs(d.resumeFrom) || null,
     env: lines(d.env).map((l) => {
       const i = l.indexOf('=');
       return i < 0 ? { name: l, value: '' } : { name: l.slice(0, i).trim(), value: l.slice(i + 1) };
@@ -133,6 +155,7 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[]): WorkflowConf
       memoryMib: Math.round(d.memoryGb * 1024),
       timeLimitSeconds: d.hours * 3600 + d.minutes * 60,
     },
+    mailUser: d.mail ? d.mailUser.trim() : null,
   };
 }
 
@@ -167,7 +190,56 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
     memoryGb: Math.round(c.resources.memoryMib / 1024),
     hours: Math.floor(c.resources.timeLimitSeconds / 3600),
     minutes: Math.floor((c.resources.timeLimitSeconds % 3600) / 60),
+    mail: c.mailUser !== null,
+    mailUser: c.mailUser ?? '',
   };
+}
+
+const IMPORT_BADGE = {
+  ok: { tone: 'ok', glyph: '✓' },
+  failed: { tone: 'bad', glyph: '✕' },
+  not_checked: { tone: 'warn', glyph: '?' },
+} as const;
+
+function ImportReport({ interpreter, results }: { interpreter: string; results: ImportResult[] }) {
+  const failed = results.filter((r) => r.status === 'failed').length;
+  const unchecked = results.filter((r) => r.status === 'not_checked').length;
+  return (
+    <Notice
+      tone={failed ? 'bad' : unchecked ? 'warn' : 'ok'}
+      title={
+        failed
+          ? `${failed} of ${results.length} imports failed`
+          : unchecked
+            ? `${unchecked} of ${results.length} imports were not checked`
+            : `All ${results.length} imports work`
+      }
+    >
+      <span className="small">
+        With <code>{interpreter}</code> on the login node:
+      </span>
+      <ul className="import-report">
+        {results.map((r) => (
+          <li key={r.module}>
+            <Badge tone={IMPORT_BADGE[r.status].tone} glyph={IMPORT_BADGE[r.status].glyph}>
+              {r.module}
+            </Badge>{' '}
+            <span className="mono small">{r.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </Notice>
+  );
+}
+
+/** The absolute path a `~/…` value is sent as, shown under its field. */
+function Resolved({ value, home }: { value: string; home: string }) {
+  const abs = expandHome(value, home);
+  return abs === value.trim() ? null : (
+    <small className="muted">
+      Resolves to <code>{abs}</code>
+    </small>
+  );
 }
 
 function Field({
@@ -267,6 +339,9 @@ export function TrainingWizard({
   }>(null);
   const [upload, setUpload] = useState<Transfer | null>(null);
   const [presetLabel, setPresetLabel] = useState('');
+  const [envCheck, setEnvCheck] = useState<{ interpreter: string; results?: ImportResult[]; error?: string } | null>(
+    null,
+  );
   const submitting = useRef(false);
 
   // Live progress of an archive being uploaded from the wizard (local list call, no network).
@@ -323,7 +398,8 @@ export function TrainingWizard({
   const gres = gpuTypes.some((t) => t.gresName === draft.gres) ? draft.gres : (gpuTypes[0]?.gresName ?? '');
   const effective: Draft = { ...draft, partition: partition?.name ?? '', gres };
   const tcList = toolchains.data ?? [];
-  const project = effective.projectDir.trim().replace(/\/+$/, '');
+  const home = status.capabilities?.home ?? '';
+  const project = expandHome(effective.projectDir, home).replace(/\/+$/, '');
 
   const review = async (e: FormEvent) => {
     e.preventDefault();
@@ -331,7 +407,7 @@ export function TrainingWizard({
     setError(null);
     setAck(false);
     try {
-      const p = await api.workflowPreview(toConfig(effective, tcList));
+      const p = await api.workflowPreview(toConfig(effective, tcList, home));
       setIssues(p.errors);
       if (p.errors.length) {
         setPreview(null);
@@ -367,6 +443,19 @@ export function TrainingWizard({
     }
   };
 
+  const interpreter = expandHome(draft.interpreter, home);
+  const checkModules = draft.checkModules || CHECK_MODULES[draft.kind];
+  const checkEnv = async () => {
+    setEnvCheck({ interpreter });
+    try {
+      const modules = checkModules.split(/[\s,]+/).filter(Boolean);
+      setEnvCheck({ interpreter, results: await api.pythonCheckImports(interpreter, modules) });
+    } catch (err) {
+      setEnvCheck({ interpreter, error: errorMessage(err) });
+    }
+  };
+  const checking = !!envCheck && !envCheck.results && !envCheck.error;
+
   const uploadArchive = async () => {
     setError(null);
     try {
@@ -399,7 +488,7 @@ export function TrainingWizard({
               SLURM queued the workflow. It runs on a compute node; this app only monitors it (closing the app does not
               stop it). Results go to{' '}
               <code>
-                {toConfig(effective, tcList).resultsRoot}/{effective.jobName}-{result.jobId}
+                {toConfig(effective, tcList, home).resultsRoot}/{effective.jobName}-{result.jobId}
               </code>
               .
             </p>
@@ -567,6 +656,7 @@ export function TrainingWizard({
                   Choose…
                 </button>
               </div>
+              <Resolved value={draft.projectDir} home={home} />
             </Field>
             <Field label="Job name" field="jobName" issues={issues} help="Letters, digits, . _ -">
               <input
@@ -626,7 +716,7 @@ export function TrainingWizard({
               label="Python interpreter on ICF"
               field="interpreter"
               issues={issues}
-              help="Full path, e.g. /home/<you>/projects/icf-env/bin/python (~ is not expanded) — or choose one in Projects → Python environment"
+              help="Full path or ~/…, e.g. ~/projects/icf-env/bin/python — or choose one in Projects → Python environment"
             >
               <input
                 id="w-interpreter"
@@ -636,6 +726,7 @@ export function TrainingWizard({
                 autoCapitalize="off"
                 spellCheck={false}
               />
+              <Resolved value={draft.interpreter} home={home} />
             </Field>
             <Field
               label="CUDA toolchain"
@@ -653,6 +744,30 @@ export function TrainingWizard({
               </select>
             </Field>
           </div>
+          <Field
+            label="Modules to check"
+            field="checkModules"
+            issues={[]}
+            help="Imports each one with this Python on the login node, without the CUDA toolchain. Read-only; nothing is installed."
+          >
+            <div className="input-row">
+              <input
+                id="w-checkModules"
+                className="mono"
+                value={checkModules}
+                onChange={(e) => set('checkModules', e.target.value)}
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+              <button type="button" className="btn" disabled={checking || !interpreter} onClick={() => void checkEnv()}>
+                {checking ? 'Checking…' : 'Check environment'}
+              </button>
+            </div>
+          </Field>
+          {envCheck?.interpreter === interpreter && envCheck.error && <Notice tone="bad">{envCheck.error}</Notice>}
+          {envCheck?.interpreter === interpreter && envCheck.results && (
+            <ImportReport interpreter={interpreter} results={envCheck.results} />
+          )}
 
           <h3>Data and scratch</h3>
           <p className="muted small">
@@ -663,43 +778,46 @@ export function TrainingWizard({
           <Field label="Dataset archives" field="datasets" issues={issues}>
             <div className="dataset-list">
               {draft.datasets.map((d, i) => (
-                <div key={i} className="input-row">
-                  <input
-                    aria-label={`Archive ${i + 1}`}
-                    className="mono"
-                    value={d.archive}
-                    onChange={(e) =>
-                      set(
-                        'datasets',
-                        draft.datasets.map((x, j) => (j === i ? { ...x, archive: e.target.value } : x)),
-                      )
-                    }
-                  />
-                  <span className="muted">→ data/</span>
-                  <input
-                    aria-label={`Folder name for archive ${i + 1}`}
-                    className="mono short"
-                    value={d.into}
-                    onChange={(e) =>
-                      set(
-                        'datasets',
-                        draft.datasets.map((x, j) => (j === i ? { ...x, into: e.target.value } : x)),
-                      )
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="btn ghost icon-btn"
-                    aria-label={`Remove archive ${i + 1}`}
-                    onClick={() =>
-                      set(
-                        'datasets',
-                        draft.datasets.filter((_, j) => j !== i),
-                      )
-                    }
-                  >
-                    <Icon name="close" size={14} />
-                  </button>
+                <div key={i}>
+                  <div className="input-row">
+                    <input
+                      aria-label={`Archive ${i + 1}`}
+                      className="mono"
+                      value={d.archive}
+                      onChange={(e) =>
+                        set(
+                          'datasets',
+                          draft.datasets.map((x, j) => (j === i ? { ...x, archive: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <span className="muted">→ data/</span>
+                    <input
+                      aria-label={`Folder name for archive ${i + 1}`}
+                      className="mono short"
+                      value={d.into}
+                      onChange={(e) =>
+                        set(
+                          'datasets',
+                          draft.datasets.map((x, j) => (j === i ? { ...x, into: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="btn ghost icon-btn"
+                      aria-label={`Remove archive ${i + 1}`}
+                      onClick={() =>
+                        set(
+                          'datasets',
+                          draft.datasets.filter((_, j) => j !== i),
+                        )
+                      }
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                  <Resolved value={d.archive} home={home} />
                 </div>
               ))}
               <div className="actions start">
@@ -781,11 +899,13 @@ export function TrainingWizard({
                   onChange={(e) => set('hfPath', e.target.value)}
                   placeholder={`${project}/hf-cache`}
                 />
+                <Resolved value={draft.hfPath} home={home} />
               </Field>
             )}
             {draft.hfMode === 'staged' && (
               <Field label="Cache archive" field="hfCache" issues={[]}>
                 <input className="mono" value={draft.hfArchive} onChange={(e) => set('hfArchive', e.target.value)} />
+                <Resolved value={draft.hfArchive} home={home} />
                 <label className="check">
                   <input
                     type="checkbox"
@@ -813,6 +933,7 @@ export function TrainingWizard({
                 placeholder={project ? `${project}/runs` : ''}
                 onChange={(e) => set('resultsRoot', e.target.value)}
               />
+              <Resolved value={draft.resultsRoot} home={home} />
             </Field>
             <Field label="Checkpoints" field="checkpointMode" issues={issues}>
               <select
@@ -867,6 +988,7 @@ export function TrainingWizard({
               value={draft.resumeFrom}
               onChange={(e) => set('resumeFrom', e.target.value)}
             />
+            <Resolved value={draft.resumeFrom} home={home} />
           </Field>
           <Notice tone="info">
             Checkpoints and outputs survive only if they reach /home: the job copies them back at the end, on failure,
@@ -965,6 +1087,7 @@ export function TrainingWizard({
               </div>
             </Field>
           </div>
+          <MailOption draft={draft} issues={issues} set={set} id="w-mailUser" />
           {issues.some((i) => !i.field) && (
             <Notice tone="bad">
               {issues
@@ -990,7 +1113,7 @@ export function TrainingWizard({
                 disabled={!presetLabel.trim()}
                 onClick={() =>
                   api
-                    .savePreset(null, presetLabel.trim(), toConfig(effective, tcList))
+                    .savePreset(null, presetLabel.trim(), toConfig(effective, tcList, home))
                     .then(() => {
                       setPresetLabel('');
                       void qc.invalidateQueries({ queryKey: ['presets'] });

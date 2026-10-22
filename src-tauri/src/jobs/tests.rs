@@ -25,6 +25,7 @@ fn req() -> JobRequest {
         program_args: vec!["--epochs".into(), "3".into()],
         python_env: Some("/home/demo/projects/icf-env".into()),
         setup_source: None,
+        mail_user: None,
     }
 }
 
@@ -129,6 +130,33 @@ fn injection_attempts_in_paths_and_names_are_rejected_locally() {
     let mut r = req();
     r.python_env = Some("/opt/shared/env".into());
     assert!(fields(&check(&r)).contains(&"pythonEnv".to_string()), "venv must be under home");
+    for bad in [
+        "",
+        "s1234567",
+        "s1@ed",
+        "a b@ed.ac.uk",
+        "s1@ed.ac.uk\n#SBATCH --wrap=evil",
+        "s1@ed.ac.uk --wrap=evil",
+        "'s1'@ed.ac.uk",
+        "s1@ed.ac.uk;id",
+        "%u@ed.ac.uk",
+        "$USER@ed.ac.uk",
+        "-s1@ed.ac.uk",
+        ".s1@ed.ac.uk",
+        "s1..x@ed.ac.uk",
+        "s1@@ed.ac.uk",
+        "s1@-ed.ac.uk",
+        "s1@ed..ac.uk",
+        "s1@ed.ac.uk.",
+        "s1,s2@ed.ac.uk",
+    ] {
+        let mut r = req();
+        r.mail_user = Some(bad.into());
+        assert_eq!(fields(&check(&r)), ["mailUser"], "{bad:?}");
+    }
+    for ok in ["s1234567@ed.ac.uk", "first.last+icf@sms.ed.ac.uk", "A_b-c@x-y.example.org"] {
+        assert!(valid_mail(ok), "{ok}");
+    }
 }
 
 #[test]
@@ -172,6 +200,9 @@ exec python '/home/demo/projects/semeval/train.py' '--epochs' '3'\n"
     r.program = "run.sh".into();
     let s = render_script(&r, "t");
     assert!(s.contains("#SBATCH --gres=gpu:1\n") && s.contains("exec bash '/home/demo/projects/semeval/run.sh'"));
+    assert!(!s.contains("--mail"), "no e-mail unless asked for");
+    r.mail_user = Some("s1234567@ed.ac.uk".into());
+    assert!(render_script(&r, "t").contains("#SBATCH --comment=icfcc-t\n#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=s1234567@ed.ac.uk\n# Generated"));
     assert_eq!(format_time_limit(2 * 86_400 + 3723), "2-01:02:03");
     assert_eq!(checksum("a"), checksum("a"));
     assert_ne!(checksum("a"), checksum("b"));

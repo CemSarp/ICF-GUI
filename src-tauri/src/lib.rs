@@ -66,6 +66,7 @@ pub fn run() {
             projects::commands::projects_set_prefs,
             projects::commands::projects_forget,
             projects::commands::python_discover,
+            projects::commands::python_check_imports,
             projects::commands::toolchains_list,
             projects::commands::toolchains_save,
             projects::commands::toolchains_delete,

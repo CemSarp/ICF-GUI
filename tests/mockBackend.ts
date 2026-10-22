@@ -43,6 +43,7 @@ export const connectedLive: ConnectionStatus = {
   capabilities: {
     remoteUser: 's1',
     remoteHost: 'hastings',
+    home: '/home/s1',
     commands: [],
     missingCommands: [],
     slurmVersion: 'slurm 25.05.3',

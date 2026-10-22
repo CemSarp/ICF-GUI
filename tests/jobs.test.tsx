@@ -2,7 +2,7 @@ import { focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PreviewResponse } from '../src/types';
+import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 
@@ -114,6 +114,37 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     act(() => release());
     expect(await screen.findByText('Job 4242')).toBeInTheDocument();
     expect(screen.getByText(/It is/)).toHaveTextContent(/queued/);
+  });
+
+  it('adds the SLURM end/fail e-mail only when asked, and shows errors for the address', async () => {
+    backend.reset(connectedLive, {
+      jobs_preview: (a) => {
+        const r = a.request as JobRequest;
+        return r.mailUser === 'not an address'
+          ? okPreview({
+              previewId: null,
+              script: '',
+              errors: [{ field: 'mailUser', message: 'Enter one plain e-mail address.' }],
+            })
+          : okPreview({ script: `#!/bin/bash\n#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=${r.mailUser}\n` });
+      },
+    });
+    await openWizard();
+    expect(screen.queryByLabelText('E-mail address')).toBeNull();
+    await userEvent.click(screen.getByLabelText('E-mail me when the job ends or fails'));
+    const mail = screen.getByLabelText('E-mail address');
+    expect(mail).toHaveValue('');
+    await userEvent.type(mail, 'not an address');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    expect(await screen.findByText('Enter one plain e-mail address.')).toBeInTheDocument();
+    await userEvent.clear(mail);
+    await userEvent.type(mail, 's1234567@ed.ac.uk');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    expect(await screen.findByLabelText('Batch script')).toHaveTextContent('#SBATCH --mail-user=s1234567@ed.ac.uk');
+    const sent = backend.calls
+      .filter((c) => c.cmd === 'jobs_preview')
+      .map((c) => (c.args.request as JobRequest).mailUser);
+    expect(sent).toEqual(['not an address', 's1234567@ed.ac.uk']);
   });
 
   it('an uncertain outcome is never retried and offers reconciliation', async () => {

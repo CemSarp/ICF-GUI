@@ -15,6 +15,7 @@ const status = () => ({
       ? {
           remoteUser: 's1234567',
           remoteHost: 'hastings',
+          home: v3.HOME,
           commands: [],
           missingCommands: [],
           slurmVersion: 'slurm 25.05.3',
@@ -221,7 +222,9 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         r.workingDir +
         '/slurm-%j.out\n#SBATCH --error=' +
         r.workingDir +
-        "/slurm-%j.err\n#SBATCH --comment=icfcc-0a1b2c3d4e5f\nset -e\nexec python3 '" +
+        '/slurm-%j.err\n#SBATCH --comment=icfcc-0a1b2c3d4e5f\n' +
+        (r.mailUser ? `#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=${r.mailUser}\n` : '') +
+        "set -e\nexec python3 '" +
         r.workingDir +
         '/' +
         r.program +
@@ -235,6 +238,12 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   projects_set_prefs: (a) => ({ ...v3.project(), ...(a.prefs as object) }),
   projects_forget: () => null,
   python_discover: () => v3.envReport,
+  python_check_imports: (a) =>
+    (a.modules as string[]).map((module) =>
+      module === 'transformers' || module === 'peft'
+        ? { module, status: 'failed', detail: 'RuntimeError: operator torchvision::nms does not exist' }
+        : { module, status: 'ok', detail: module === 'torch' ? '2.8.0a0+gitunknown' : '7.16.6' },
+    ),
   toolchains_list: () => v3.toolchains,
   presets_list: () => [],
   presets_save: () => [],
@@ -285,6 +294,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   workflow_runs: () => v3.runs().runs,
   workflow_list_files: (a) => v3.listing(`${v3.PROJECT}/runs/train-4242/${a.which}`),
   workflow_metrics: () => v3.metrics,
+  jobs_cancel: () => ({ outcome: 'requested' }),
   jobs_submit: () => ({
     outcome: 'accepted',
     jobId: '4243',

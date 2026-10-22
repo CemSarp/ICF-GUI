@@ -56,6 +56,8 @@ export interface Hop {
 export interface Capabilities {
   remoteUser: string;
   remoteHost: string;
+  /** Remote $HOME; used to show `~/…` paths resolved. */
+  home: string;
   commands: string[];
   missingCommands: string[];
   slurmVersion: string | null;
@@ -283,6 +285,8 @@ export interface JobRequest {
   programArgs: string[];
   pythonEnv: string | null;
   setupSource: string | null;
+  /** SLURM e-mails this address when the job ends or fails. */
+  mailUser: string | null;
 }
 
 export interface Issue {
@@ -435,6 +439,13 @@ export interface EnvReport {
   checkedAt: string;
 }
 
+export interface ImportResult {
+  module: string;
+  status: 'ok' | 'failed' | 'not_checked';
+  /** Version when ok, the error's last line when failed, the reason when not checked. */
+  detail: string;
+}
+
 export type Toolchain = { kind: 'none' } | { kind: 'rc'; path: string } | { kind: 'modules'; names: string[] };
 
 export interface ToolchainProfile {
@@ -567,6 +578,8 @@ export interface WorkflowConfig {
     memoryMib: number;
     timeLimitSeconds: number;
   };
+  /** SLURM e-mails this address when the job ends or fails. */
+  mailUser: string | null;
 }
 
 export interface WorkflowPreview {
