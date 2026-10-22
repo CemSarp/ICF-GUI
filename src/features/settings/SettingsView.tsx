@@ -159,8 +159,8 @@ export function SettingsView({
       <section className="card" aria-labelledby="jupyter-title">
         <h2 id="jupyter-title">Jupyter</h2>
         <p>
-          <strong>Batch notebooks</strong> are supported: Training → New workflow → "Notebook, batch execution" runs a
-          notebook top to bottom on a GPU node and saves the executed copy with the results.
+          <strong>Batch notebooks</strong> are supported: New job → Training workflow → "Notebook, batch execution" runs
+          a notebook top to bottom on a GPU node and saves the executed copy with the results.
         </p>
         <Notice tone="info" title="Interactive Jupyter is disabled">
           A safe interactive session needs Jupyter bound to 127.0.0.1 on the allocated compute node and an SSH tunnel to

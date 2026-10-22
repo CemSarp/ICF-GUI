@@ -153,3 +153,23 @@ These come from the first real overnight run (SemEval notebook, dry run → LR p
 2. **Then:** #4 and #7 (chains and *Run again*). They turn the four-stage overnight flow into one confirmed plan.
 3. **Then:** #5, #11 and #12 (seeing what a notebook is doing and what it produced).
 4. **After that:** the rest, as real use asks for them.
+
+---
+
+## Addendum (2026-10-22) — one *New job* screen
+
+*Request GPU* and *Training → New workflow* both submitted a SLURM job, so they are now one sidebar item, **New job**, with a *Kind of job* selector:
+
+- **Script job:** the former Request GPU form. Runs any bash or Python script in a folder on `/home`.
+- **Training workflow:** the former workflow wizard. It keeps its own *Type* choice: training script, batch notebook or GPU smoke test.
+
+Nothing changed underneath:
+- Both forms keep their own engine, preview, confirmation and single-submission guarantee.
+- Both keep their own saved draft, so switching between them loses nothing.
+
+Navigation changes:
+- **Runs** (formerly *Training → Runs*) is its own item in the *Jobs* group.
+- *New job* on a partition card opens the script form with that partition selected.
+- *New training workflow…* on a project, and *Resume from this…* on a checkpoint, open the workflow form.
+
+Tests: two new UI tests cover switching without losing a draft and the partition shortcut. 61/61 pass.

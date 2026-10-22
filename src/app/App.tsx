@@ -11,11 +11,11 @@ import { LoginView } from '../features/connection/LoginView';
 import { isLive, useConnection } from '../features/connection/useConnection';
 import { JobDetailView } from '../features/jobs/JobDetailView';
 import { ProjectsView } from '../features/projects/ProjectsView';
-import { TrainingView, type TrainingTab } from '../features/training/TrainingView';
+import { RunsView } from '../features/training/RunsView';
 import type { WizardInit } from '../features/training/TrainingWizard';
 import { TransfersView } from '../features/transfers/TransfersView';
 import { MyJobsView } from '../features/jobs/MyJobsView';
-import { RequestGpuView } from '../features/jobs/RequestGpuView';
+import { NewJobView, type JobMode } from '../features/jobs/NewJobView';
 import { SettingsView, type Theme } from '../features/settings/SettingsView';
 import { api, errorMessage } from '../lib/api';
 import { CONN_STATE, formatTime } from '../lib/format';
@@ -37,15 +37,16 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Jobs',
     items: [
-      { id: 'request', label: 'Request GPU', icon: 'request' },
+      // 'request' and 'training' keep their ids so saved navigation state stays valid.
+      { id: 'request', label: 'New job', icon: 'request' },
       { id: 'jobs', label: 'My Jobs', icon: 'jobs' },
+      { id: 'training', label: 'Runs', icon: 'training' },
     ],
   },
   {
     heading: 'Workspace',
     items: [
       { id: 'projects', label: 'Projects', icon: 'folder' },
-      { id: 'training', label: 'Training', icon: 'training' },
       { id: 'transfers', label: 'Transfers', icon: 'transfers' },
     ],
   },
@@ -65,7 +66,7 @@ export function App() {
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const [requestPartition, setRequestPartition] = useState<string | null>(null);
   const [project, setProject] = usePersistentState<string | null>('project.selected', null);
-  const [trainingTab, setTrainingTab] = usePersistentState<TrainingTab>('training.tab', 'new');
+  const [jobMode, setJobMode] = usePersistentState<JobMode>('newjob.mode', 'script');
   const [wizardInit, setWizardInit] = useState<{ init: WizardInit | null; key: number }>({ init: null, key: 0 });
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [uploadDir, setUploadDir] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export function App() {
   }, [theme]);
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
-  }, [view, selectedNode, selectedJob, project, selectedRun, trainingTab]);
+  }, [view, selectedNode, selectedJob, project, selectedRun]);
 
   const go = (v: View) => {
     setSelectedNode(null);
@@ -97,8 +98,8 @@ export function App() {
   };
   const startTraining = (init: WizardInit) => {
     setWizardInit((w) => ({ init, key: w.key + 1 }));
-    setTrainingTab('new');
-    go('training');
+    setJobMode('workflow');
+    go('request');
   };
   const snapshot = snap.data?.snapshot ?? null;
   const challenge = challenges[0];
@@ -237,16 +238,30 @@ export function App() {
                 }}
               />
             ) : view === 'training' ? (
-              <TrainingView
+              <RunsView
+                status={status}
+                selected={selectedRun}
+                onSelect={setSelectedRun}
+                onResume={(config) => startTraining({ config })}
+              />
+            ) : view === 'request' ? (
+              <NewJobView
+                mode={jobMode}
+                setMode={setJobMode}
                 status={status}
                 snapshot={snapshot}
-                tab={trainingTab}
-                setTab={setTrainingTab}
-                init={wizardInit.init}
+                snapshotLoading={snap.loading}
+                requestPartition={requestPartition}
+                wizardInit={wizardInit.init}
                 wizardKey={wizardInit.key}
-                selectedRun={selectedRun}
-                onSelectRun={setSelectedRun}
-                onResume={(config) => startTraining({ config })}
+                onOpenJobs={(jobId) => {
+                  go('jobs');
+                  if (jobId) setSelectedJob(jobId);
+                }}
+                onOpenRun={(tag) => {
+                  go('training');
+                  setSelectedRun(tag);
+                }}
                 onRefreshCluster={snap.refreshNow}
               />
             ) : view === 'transfers' ? (
@@ -275,17 +290,6 @@ export function App() {
               <EmptyState title="Data unavailable">
                 {err ? 'The scheduler could not be queried. Try Refresh in a moment.' : 'No snapshot yet.'}
               </EmptyState>
-            ) : view === 'request' ? (
-              <RequestGpuView
-                key={requestPartition ?? 'draft'}
-                snapshot={snapshot}
-                status={status}
-                initialPartition={requestPartition}
-                onOpenJobs={(jobId) => {
-                  go('jobs');
-                  if (jobId) setSelectedJob(jobId);
-                }}
-              />
             ) : selectedNode ? (
               <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
             ) : view === 'overview' ? (
@@ -305,6 +309,7 @@ export function App() {
                 }}
                 onRequest={(p) => {
                   go('request');
+                  setJobMode('script');
                   setRequestPartition(p);
                 }}
               />

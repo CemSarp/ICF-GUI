@@ -556,7 +556,7 @@ export function TrainingWizard({
         ),
       )
     : 1;
-  // Same two steps as Request GPU; uploading and checking show their own notices.
+  // Same two steps as the script job form; uploading and checking show their own notices.
   const reviewing = phase === 'READY' || phase === 'SUBMITTING';
 
   return (

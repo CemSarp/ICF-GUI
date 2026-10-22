@@ -122,9 +122,10 @@ export function Partitions({
                 <button
                   className="btn"
                   onClick={() => onRequest(p.name)}
+                  aria-label={`New job on ${p.name}`}
                   disabled={p.gpuTotals.length === 0 || p.eligibility === 'not_permitted'}
                 >
-                  Request GPU
+                  New job
                 </button>
               </div>
             </article>

@@ -810,9 +810,6 @@ pre.log {
   box-shadow: var(--shadow-seg);
   font-weight: 600;
 }
-.page-tabs {
-  margin-bottom: var(--s5);
-}
 
 /* ---------- Stepper (wizard steps and run timeline) ---------- */
 .steps {

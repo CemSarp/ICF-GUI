@@ -22,6 +22,12 @@ const RECEIPT_LABEL: Record<JobReceipt['status'], { label: string; tone: string 
   not_found: { label: 'Not found', tone: 'muted' },
 };
 
+/** Most recently ended first. Times are sortable cluster-local ISO strings; job IDs break ties. */
+export function newestFirst<T extends { endedAt: string | null; jobId: string }>(jobs: T[]): T[] {
+  const id = (j: T) => parseInt(j.jobId, 10) || 0;
+  return [...jobs].sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? '') || id(b) - id(a));
+}
+
 export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpen: (jobId: string) => void }) {
   const jobs = useJobs(status);
   const qc = useQueryClient();
@@ -99,7 +105,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
         ) : !list ? (
           <EmptyState title="Jobs unavailable">The scheduler could not be queried. Try Refresh in a moment.</EmptyState>
         ) : list.active.length === 0 ? (
-          <EmptyState title="No queued or running jobs">Use Request GPU to submit a batch job.</EmptyState>
+          <EmptyState title="No queued or running jobs">Use New job to submit a batch job.</EmptyState>
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -211,7 +217,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
                 </tr>
               </thead>
               <tbody>
-                {list.history.map((j) => (
+                {newestFirst(list.history).map((j) => (
                   <tr key={j.jobId}>
                     <th scope="row">{jobLink(j)}</th>
                     <td>{j.name}</td>

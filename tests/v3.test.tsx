@@ -181,7 +181,8 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
       acknowledged: true,
     });
     await userEvent.click(screen.getByRole('button', { name: 'Monitor this run' }));
-    expect(await screen.findByRole('tab', { name: 'Runs', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Runs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Runs' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('offers the GPU smoke test as a short SLURM job, never on the login node', async () => {
@@ -265,8 +266,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
   beforeEach(() => backend.reset(connectedLive));
 
   it('separates workflow state from scheduler state and survives restarts via the local run list', async () => {
-    await nav('Training');
-    await userEvent.click(await screen.findByRole('tab', { name: 'Runs' }));
+    await nav('Runs');
     expect(await screen.findByText('gpu-smoke')).toBeInTheDocument();
     const failed = screen.getByText('long-run').closest('li')!;
     expect(within(failed).getByText('Node failure', { selector: '.badge' })).toBeInTheDocument();
@@ -276,8 +276,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
   });
 
   it('labels what is recoverable after a node failure and offers resume from a checkpoint', async () => {
-    await nav('Training');
-    await userEvent.click(await screen.findByRole('tab', { name: 'Runs' }));
+    await nav('Runs');
     await userEvent.click(await screen.findByText('long-run'));
     expect(await screen.findByText('What can be recovered')).toBeInTheDocument();
     expect(screen.getByText(/resume from it/)).toBeInTheDocument();
@@ -291,8 +290,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     const detail = backend.handlers.jobs_get_detail!;
     backend.handlers.jobs_get_detail = (a) => ({ ...(detail(a) as object), cancelToken: 'tok' });
     backend.handlers.jobs_cancel = () => ({ outcome: 'requested' });
-    await nav('Training');
-    await userEvent.click(await screen.findByRole('tab', { name: 'Runs' }));
+    await nav('Runs');
     await userEvent.click(await screen.findByText('train'));
     await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
     expect(screen.queryByText('Cancel in My Jobs…')).toBeNull();
@@ -320,8 +318,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
       ],
     });
     backend.handlers.workflow_reconcile = () => v3.run();
-    await nav('Training');
-    await userEvent.click(await screen.findByRole('tab', { name: 'Runs' }));
+    await nav('Runs');
     await userEvent.click(await screen.findByText('train'));
     await userEvent.click(await screen.findByRole('button', { name: 'Check my jobs for this submission' }));
     await waitFor(() => expect(backend.count('workflow_reconcile')).toBe(1));

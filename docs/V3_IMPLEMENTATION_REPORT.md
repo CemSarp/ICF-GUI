@@ -173,7 +173,7 @@ In the app, connected to ICF:
    (creates `~/projects/icfcc-smoke/data/` and uploads one small verified file).
 4. **Submit** — type *GPU smoke test*; partition Teaching, smallest GPU type, 1 GPU, 2 CPUs, 8 GB,
    0 h 10 m; *Review workflow* → check the script → acknowledge → *Submit workflow…* → confirm.
-5. **Watch** — Training → Runs: Queued → Node allocated → Staging data → Training → Copying results →
+5. **Watch** — Runs: Queued → Node allocated → Staging data → Training → Copying results →
    Completed; the node, GPU model and Python version appear.
 6. **Result synchronisation** — the run's *Outputs* tab lists `smoke.json`; *Results: Copied back and
    verified*; the standard output log contains `@@icfcc-smoke {… "cuda_available": true, "matmul_ok": true …}`.

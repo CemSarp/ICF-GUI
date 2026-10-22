@@ -12,7 +12,7 @@ below uses **Teaching, 1 GPU of the smallest type, 2 CPUs, 8 GB RAM, 10–15 min
 Upload `train_tiny.py` and `smoke_notebook.ipynb` into the project folder (Transfers, or drag them into
 VS Code), and the archive into `<project>/data` (the wizard's *Upload an archive from this Mac…* does it).
 
-| Test | Workflow type | Arguments (one per line) | Other settings | Expected in Training → Runs |
+| Test | Workflow type | Arguments (one per line) | Other settings | Expected in Runs |
 |---|---|---|---|---|
 | 1. GPU check | GPU smoke test | — | dataset `tiny_dataset.tar.gz` | Completed; `smoke.json` in Outputs; log line `@@icfcc-smoke {… "cuda_available": true, "matmul_ok": true …}` |
 | 2. Training | Training script `train_tiny.py` | `--data={data}/tiny_dataset` `--require-gpu` | same dataset | Completed; metrics chart; `summary.json`, `model.pt` in Outputs; `latest.pt` in Checkpoints |

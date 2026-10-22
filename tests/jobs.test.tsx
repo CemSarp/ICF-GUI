@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
+import { newestFirst } from '../src/features/jobs/MyJobsView';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
   previewId: 'pv1',
@@ -43,8 +44,8 @@ const receipt = {
 
 async function openWizard() {
   renderApp();
-  await userEvent.click(await screen.findByRole('button', { name: 'Request GPU' }));
-  await screen.findByRole('heading', { name: 'Request GPU' });
+  await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+  await screen.findByRole('heading', { name: 'New job' });
 }
 
 async function reviewAndConfirm() {
@@ -206,6 +207,34 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     expect(screen.getByText(/submission is disabled/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
     expect(await screen.findByRole('button', { name: 'Submit job…' })).toBeDisabled();
+  });
+});
+
+describe('New job: one screen for script jobs and training workflows', () => {
+  beforeEach(() => backend.reset(connectedLive, { jobs_preview: () => okPreview() }));
+
+  it('switches between the two forms without losing either draft or submitting anything', async () => {
+    await openWizard();
+    const name = screen.getByLabelText('Job name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'mine');
+    await userEvent.click(screen.getByLabelText('Training workflow'));
+    await screen.findByRole('heading', { name: 'Workflow' });
+    expect(screen.queryByRole('button', { name: 'Review script' })).toBeNull();
+    await userEvent.click(screen.getByLabelText('Script job'));
+    expect(await screen.findByLabelText('Job name')).toHaveValue('mine');
+    expect(screen.queryByRole('heading', { name: 'Workflow' })).toBeNull();
+    expect(backend.count('jobs_submit')).toBe(0);
+  });
+
+  it('opens the script form with the partition chosen from a partition card', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Training workflow'));
+    await userEvent.click(screen.getByRole('button', { name: 'Partitions' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job on Interactive' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Script job')).toBeChecked();
+    expect(screen.getByLabelText('Partition')).toHaveValue('Interactive'); // not the default (Teaching)
   });
 });
 
@@ -379,5 +408,17 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
         ),
       ).toBe(1),
     );
+  });
+});
+
+describe('My Jobs history order', () => {
+  it('shows the most recently finished job first, ties by newer job ID', () => {
+    const jobs = [
+      { jobId: '3678745', endedAt: '2026-10-15T16:20:00' },
+      { jobId: '3683913', endedAt: '2026-10-22T12:05:00' },
+      { jobId: '3682082', endedAt: '2026-10-20T02:40:00' },
+      { jobId: '3682083', endedAt: '2026-10-20T02:40:00' },
+    ];
+    expect(newestFirst(jobs).map((j) => j.jobId)).toEqual(['3683913', '3682083', '3682082', '3678745']);
   });
 });

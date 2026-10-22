@@ -42,7 +42,7 @@ a jump host typed under *Advanced* always takes precedence.
 
 ## Requesting a GPU (batch jobs)
 
-1. **Request GPU** (sidebar, or the button on a partition card).
+1. **New job** (sidebar, or *New job* on a partition card), kind **Script job**.
 2. Choose a partition and GPU type. The numbers show *potential* availability at the last snapshot;
    they are not a reservation. Set GPUs (default 1), CPUs, RAM and wall time (within the partition limit).
 3. Enter the **working directory** (relative paths start in your home, e.g. `projects/semeval`) and **script** on ICF (inside your home), an optional virtualenv
@@ -131,7 +131,7 @@ already have (no second login), one file at a time.
 
 ## Training workflows
 
-**Training → New workflow** (or *New training workflow…* on a project) builds one batch job that:
+**New job → Training workflow** (or *New training workflow…* on a project) builds one batch job that:
 
 1. starts only on the GPU node SLURM allocates (never on the login node),
 2. sets up your environment (toolchain, virtualenv) and checks Python,
@@ -176,7 +176,7 @@ builder, a tiny PyTorch training script and a notebook, with a test table).
 
 ### Runs
 
-**Training → Runs** lists workflows submitted from this Mac, also after you restart the app (the jobs
+**Runs** lists workflows submitted from this Mac, also after you restart the app (the jobs
 keep running while the app is closed; nothing is resubmitted). Each run shows two states: the
 **workflow state** (Queued, Node allocated, Staging data, Training, Saving checkpoints, Copying
 results, Completed, Failed, Cancelled, Timed out, Node failure, Needs your check) and the

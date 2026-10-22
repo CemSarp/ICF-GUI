@@ -134,7 +134,7 @@ export function RunsView({
         />
       ) : list.length === 0 ? (
         <EmptyState title="No workflow runs yet">
-          Configure one in the New workflow tab. Runs submitted from this Mac appear here, also after a restart.
+          Start one from New job → Training workflow. Runs submitted from this Mac appear here, also after a restart.
         </EmptyState>
       ) : (
         <ul className="run-list">

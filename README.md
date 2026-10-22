@@ -76,7 +76,7 @@ flowchart LR
     A[Open the app] --> B[Enter UUN + password]
     B --> C[Verify host keys<br/>first time only]
     C --> D[📊 Overview]
-    D --> E[🚀 Request GPU]
+    D --> E[🚀 New job]
     E --> F[Review script<br/>and Submit]
     F --> G[📋 My Jobs<br/>logs · cancel]
 ```
@@ -97,8 +97,8 @@ flowchart LR
 
 7. **Train with your data (V3).** In **Projects**, open your project folder, pick its Python
    environment and *Open in VS Code* to edit. Upload a dataset archive in **Transfers**, then
-   **Training → New workflow**: the job copies the archive to the GPU node's local scratch disk, trains,
-   syncs checkpoints to `/home` and copies results back. Follow it in **Training → Runs**.
+   **New job → Training workflow**: the job copies the archive to the GPU node's local scratch disk, trains,
+   syncs checkpoints to `/home` and copies results back. Follow it in **Runs**.
 
 👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md).
 Want to look around first? Click **Explore demo data** on the login screen.
