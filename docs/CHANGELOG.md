@@ -2,11 +2,22 @@
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-23 · Housekeeping
+
+No new features: the app behaves exactly like 0.4.0 apart from the fix below.
+
+### Fixed
+- The sidebar said "Version 0.3.0" in 0.4.0. It now shows the version of the build you are running,
+  read from `package.json` at build time.
+
 ### Changed (internal; no change in behaviour)
 - Repository split into `frontend/`, `backend/` and `docs/`; generated permission files and local
   agent notes are no longer tracked.
 - Frontend split into components (`src/ui`) and logic (`src/logic`), enforced by lint (ADR-030).
+- Releases are built by GitHub Actions: pushing a `v*` tag builds the `.app` on macOS and creates a
+  draft release with the zip and its SHA-256.
 - New reference: [`ICF_COMMANDS.md`](ICF_COMMANDS.md) lists every IPC call and command run on ICF.
+- README rewritten for 0.4 with new screenshots.
 
 ## [0.4.0] — 2026-10-22 · Edit on ICF
 

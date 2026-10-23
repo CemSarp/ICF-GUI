@@ -45,3 +45,16 @@
 - [ ] Open a real project in VS Code from the app
 - [ ] Approved cancel test (still open from V2)
 - [ ] Built `.app` clicked through by a person
+
+## v0.4.1 (housekeeping: repository layout, ui/logic split, version label)
+
+- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 71 UI tests, production build
+- [x] Rust gates on macos-14 CI: fmt, clippy `-D warnings`, tests (backend logic unchanged since 0.4.0; only paths moved)
+- [x] Behaviour unchanged: 26 preview screens and 38 interaction screenshots pixel-identical to 0.4.0
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [ ] Merge PR #2, then tag `v0.4.1` on `main` and push the tag
+- [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
+      zip + SHA-256 attached to the draft release
+- [ ] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.4.1**; demo data and a
+      real sign-in still work
+- [ ] Publish the draft release
