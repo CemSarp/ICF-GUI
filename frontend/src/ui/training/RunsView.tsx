@@ -1,72 +1,30 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { BackButton, Badge, EmptyState, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
-import { bytes, clusterTime, FAILURE_LABEL, formatTime, formatUnix, JOB_STATE, WORKFLOW_STATE } from '../../logic/format';
-import type {
-  CancelOutcome,
-  ConnectionStatus,
-  Listing,
-  MetricsResponse,
-  RunsResponse,
-  WorkflowConfig,
-  WorkflowRun,
-  WorkflowState,
-} from '../../types';
+import { errorMessage } from '../../logic/api';
+import {
+  bytes,
+  clusterTime,
+  FAILURE_LABEL,
+  formatTime,
+  formatUnix,
+  JOB_STATE,
+  WORKFLOW_STATE,
+} from '../../logic/format';
+import { isDir } from '../../logic/projects/paths';
+import {
+  FLOW,
+  isTerminal,
+  metricSeries,
+  timelineProgress,
+  useRunDetail,
+  useRunFiles,
+  useRuns,
+  wfState,
+  type RunFolder,
+} from '../../logic/training/runs';
+import type { ConnectionStatus, MetricsResponse, WorkflowConfig, WorkflowRun } from '../../types';
 import { CancelJobDialog, CancelNotice } from '../jobs/JobDetailView';
 import { LogViewer } from '../jobs/LogViewer';
-import { jobsKey } from '../../logic/jobs/useJobs';
-
-const RUNS_POLL_MS = 60_000;
-const MANUAL_DEBOUNCE_MS = 10_000;
-const TERMINAL: WorkflowState[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'NODE_FAILURE'];
-
-export const runsKey = (s: ConnectionStatus) => ['runs', s.profileId, s.connectedAt];
-
-function wfState(r: WorkflowRun): WorkflowState {
-  return (
-    r.observed.state ??
-    (r.submission === 'accepted' ? 'PENDING' : r.submission === 'submitting' ? 'SUBMITTING' : 'RECOVERY_REQUIRED')
-  );
-}
-
-/**
- * Runs from this Mac, reconciled with SLURM. Polls every 60 s only while this screen is visible
- * and some run is still active; the backend single-flights and rate-limits regardless.
- */
-export function useRuns(status: ConnectionStatus) {
-  const qc = useQueryClient();
-  const key = runsKey(status);
-  const q = useQuery<RunsResponse>({
-    queryKey: key,
-    queryFn: () => api.workflowRefresh(false),
-    retry: false,
-    refetchInterval: (query) =>
-      (query.state.data?.runs ?? []).some((r) => !r.finalized && !!r.jobId) ? RUNS_POLL_MS : false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
-  const [cooling, setCooling] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const manual = useMutation({
-    mutationFn: () => api.workflowRefresh(true),
-    onSuccess: (d) => qc.setQueryData(key, d),
-  });
-  return {
-    data: q.data,
-    error: q.error ?? manual.error,
-    refreshing: q.isFetching || manual.isPending,
-    refreshDisabled: manual.isPending || cooling,
-    refreshNow: () => {
-      if (manual.isPending || cooling) return;
-      setCooling(true);
-      timer.current = setTimeout(() => setCooling(false), MANUAL_DEBOUNCE_MS);
-      manual.mutate();
-    },
-  };
-}
 
 function StateBadges({ r }: { r: WorkflowRun }) {
   const w = WORKFLOW_STATE[wfState(r)];
@@ -158,24 +116,8 @@ export function RunsView({
   );
 }
 
-const FLOW: WorkflowState[] = ['PENDING', 'ALLOCATED', 'STAGING', 'TRAINING', 'COPYING_RESULTS', 'COMPLETED'];
-
 function Timeline({ r }: { r: WorkflowRun }) {
-  const s = wfState(r);
-  const stages = r.events.filter((e) => e.name === 'STAGE').map((e) => e.args[0]);
-  const reached = Math.max(
-    FLOW.indexOf(s === 'SAVING_CHECKPOINTS' ? 'TRAINING' : s),
-    stages.includes('COPYING_RESULTS')
-      ? 4
-      : stages.includes('TRAINING')
-        ? 3
-        : stages.includes('STAGING') || stages.includes('ENV')
-          ? 2
-          : r.events.some((e) => e.name === 'ALLOCATED')
-            ? 1
-            : 0,
-  );
-  const failed = TERMINAL.includes(s) && s !== 'COMPLETED';
+  const { s, reached, failed } = timelineProgress(r);
   return (
     <ol className="steps timeline" aria-label="Run progress">
       {FLOW.map((f, i) => (
@@ -206,33 +148,24 @@ function RunDetail({
   onRefreshRuns: () => void;
   refreshDisabled: boolean;
 }) {
-  const qc = useQueryClient();
   const o = run.observed;
-  const runDir = run.jobId ? `${run.config.resultsRoot}/${run.name}-${run.jobId}` : null;
-  const detail = useQuery({
-    queryKey: ['job', run.jobId, status.connectedAt],
-    queryFn: () => api.jobDetail(run.jobId ?? ''),
-    enabled: !!run.jobId,
-    retry: false,
-    staleTime: Infinity,
-  });
-  const [note, setNote] = useState<{ tone: 'ok' | 'bad' | 'info'; text: string } | null>(null);
-  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
-  const [tab, setTab] = useState<'outputs' | '.outputs.partial' | 'checkpoints'>('outputs');
+  const {
+    detail,
+    j,
+    runDir,
+    note,
+    metrics,
+    cancelResult,
+    openInVsCode,
+    dismiss,
+    reconcile,
+    loadMetrics,
+    download,
+    onCancelResult,
+  } = useRunDetail(status, run);
+  const [tab, setTab] = useState<RunFolder>('outputs');
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [cancelResult, setCancelResult] = useState<CancelOutcome | null>(null);
   const s = wfState(run);
-  const j = detail.data?.job;
-
-  const act = async (f: () => Promise<unknown>, ok?: string) => {
-    setNote(null);
-    try {
-      await f();
-      if (ok) setNote({ tone: 'ok', text: ok });
-    } catch (e) {
-      setNote({ tone: 'bad', text: errorMessage(e) });
-    }
-  };
 
   return (
     <section aria-labelledby="run-title">
@@ -255,30 +188,17 @@ function RunDetail({
             {detail.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
           {runDir && (
-            <button
-              className="btn"
-              onClick={() =>
-                void act(
-                  () => api.vscodeOpen(runDir),
-                  'VS Code was asked to open the run folder (it uses its own SSH session).',
-                )
-              }
-            >
+            <button className="btn" onClick={openInVsCode}>
               Open run folder in VS Code
             </button>
           )}
-          {detail.data?.cancelToken && !TERMINAL.includes(s) && !cancelResult && (
+          {detail.data?.cancelToken && !isTerminal(s) && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirmCancel(true)}>
               Cancel job…
             </button>
           )}
-          {TERMINAL.includes(s) && (
-            <button
-              className="btn ghost"
-              onClick={() =>
-                void act(() => api.workflowDismiss(run.tag).then(() => qc.invalidateQueries({ queryKey: ['runs'] })))
-              }
-            >
+          {isTerminal(s) && (
+            <button className="btn ghost" onClick={dismiss}>
               Hide from list
             </button>
           )}
@@ -293,10 +213,7 @@ function RunDetail({
           stateLabel={WORKFLOW_STATE[s].label}
           token={detail.data.cancelToken}
           onClose={() => setConfirmCancel(false)}
-          onResult={(r) => {
-            setCancelResult(r);
-            void qc.invalidateQueries({ queryKey: jobsKey(status) });
-          }}
+          onResult={onCancelResult}
         />
       )}
       <Timeline r={run} />
@@ -368,7 +285,7 @@ function RunDetail({
                 ? 'Copy-back failed (partial copy kept as .outputs.partial).'
                 : o.results === 'no_outputs'
                   ? 'The program wrote no outputs.'
-                  : TERMINAL.includes(s)
+                  : isTerminal(s)
                     ? 'Unknown'
                     : 'Copied when the run ends.'}
           </dd>
@@ -387,12 +304,7 @@ function RunDetail({
         )}
         {s === 'RECOVERY_REQUIRED' && run.submission !== 'accepted' && (
           <div className="actions start">
-            <button
-              className="btn primary"
-              onClick={() =>
-                void act(() => api.workflowReconcile(run.tag).then(() => qc.invalidateQueries({ queryKey: ['runs'] })))
-              }
-            >
+            <button className="btn primary" onClick={reconcile}>
               Check my jobs for this submission
             </button>
           </div>
@@ -401,7 +313,7 @@ function RunDetail({
       </div>
 
       {run.jobId && detail.data && (
-        <LogViewer jobId={run.jobId} active={!TERMINAL.includes(s)} stderrMerged={!!detail.data.stderrMerged} />
+        <LogViewer jobId={run.jobId} active={!isTerminal(s)} stderrMerged={!!detail.data.stderrMerged} />
       )}
       {detail.error && <Notice tone="warn">Job details: {errorMessage(detail.error)}</Notice>}
 
@@ -409,10 +321,7 @@ function RunDetail({
         <section className="card" aria-labelledby="metrics-title">
           <div className="card-head">
             <h3 id="metrics-title">Metrics</h3>
-            <button
-              className="btn"
-              onClick={() => void act(async () => setMetrics(await api.workflowMetrics(run.tag)))}
-            >
+            <button className="btn" onClick={loadMetrics}>
               {metrics ? 'Reload metrics' : 'Load metrics'}
             </button>
           </div>
@@ -448,7 +357,7 @@ function RunDetail({
             key={tab}
             run={run}
             which={tab}
-            onDownload={(p) => void act(() => api.download(p))}
+            onDownload={download}
             onResume={(p) => onResume({ ...run.config, resumeFrom: p })}
           />
         </section>
@@ -477,16 +386,11 @@ function RunFiles({
   onResume,
 }: {
   run: WorkflowRun;
-  which: 'outputs' | '.outputs.partial' | 'checkpoints';
+  which: RunFolder;
   onDownload: (p: string) => void;
   onResume: (p: string) => void;
 }) {
-  const q = useQuery<Listing>({
-    queryKey: ['run-files', run.tag, which],
-    queryFn: () => api.workflowFiles(run.tag, which),
-    retry: false,
-    staleTime: 30_000,
-  });
+  const q = useRunFiles(run, which);
   if (q.isLoading) return <div className="skeleton">Listing…</div>;
   if (q.error)
     return (
@@ -505,7 +409,7 @@ function RunFiles({
       <ul className="file-rows">
         {l.entries.map((e) => {
           const p = `${l.path}/${e.name}`;
-          const dir = e.kind === 'dir' || e.targetKind === 'dir';
+          const dir = isDir(e);
           return (
             <li key={e.name}>
               <span className="mono">
@@ -538,7 +442,6 @@ function RunFiles({
 /** Latest value and a small trend line per metric. Plain SVG, no chart library. */
 function Metrics({ m }: { m: MetricsResponse }) {
   if (m.points.length === 0) return <p className="muted">{m.note ?? 'No metrics yet.'}</p>;
-  const keys = [...new Set(m.points.flatMap((p) => p.values.map(([k]) => k)))];
   return (
     <>
       {m.note && <p className="muted small">{m.note}</p>}
@@ -553,11 +456,7 @@ function Metrics({ m }: { m: MetricsResponse }) {
           </tr>
         </thead>
         <tbody>
-          {keys.map((k) => {
-            const ys = m.points
-              .map((p) => p.values.find(([n]) => n === k)?.[1])
-              .filter((v): v is number => v !== undefined);
-            const last = ys[ys.length - 1];
+          {metricSeries(m).map(({ key: k, ys, last }) => {
             const [lo, hi] = [Math.min(...ys), Math.max(...ys)];
             const pts = ys
               .map(
