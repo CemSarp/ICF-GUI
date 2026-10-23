@@ -460,7 +460,7 @@ export const shareStatus = (enabled: boolean, inUse = false): ShareStatus => ({
   alias: enabled ? 'icfcc-icf' : null,
   active: enabled,
   inUse: enabled && inUse,
-  configFile: '/Users/me/Library/Application Support/uk.ac.ed.icfcc/vscode_ssh_config',
+  configFile: '/Users/me/Library/Application Support/local.icf-control-center/vscode_ssh_config',
   settingsFile: '/Users/me/Library/Application Support/Code/User/settings.json',
 });
 
