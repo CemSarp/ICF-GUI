@@ -13,8 +13,9 @@ the text lives.
 ## 1. The path of one request
 
 ```text
-React screen
-  └─ frontend/src/lib/api.ts          the only place that calls invoke()
+React component (frontend/src/ui/)
+  └─ logic hook (frontend/src/logic/<feature>/)   state, validation, flows
+       └─ frontend/src/logic/api.ts   the only place that calls invoke()
        └─ Tauri IPC                   checked against backend/capabilities/*.json
             └─ #[tauri::command]      backend/src/**  (validates every argument in Rust)
                  └─ /usr/bin/ssh …  -T -- <alias> sh -s      multiplexed over the app's own master
@@ -24,7 +25,7 @@ React screen
             ◀─ Rust parser → typed JSON (serde camelCase, mirrored in frontend/src/types/index.ts)
 ```
 
-Backend → frontend events (`frontend/src/lib/api.ts` → `events`):
+Backend → frontend events (`frontend/src/logic/api.ts` → `events`):
 
 | Event | Payload | When |
 |---|---|---|

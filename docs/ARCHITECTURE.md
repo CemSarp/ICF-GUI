@@ -2,28 +2,54 @@
 
 Every IPC command, SSH invocation and remote script is listed in [ICF_COMMANDS.md](ICF_COMMANDS.md).
 
+## Frontend: components vs logic
+
 ```text
-React (frontend/src/)                      Rust (backend/src/)
-───────────────────────────────            ──────────────────────────────────────────────
-app/App.tsx  shell, banner, nav            commands.rs   typed Tauri commands, AppState,
-features/connection  login, prompts   ⇄            connection state machine, idle watch
-features/cluster  overview/partitions/     ssh/mod.rs    forced config, `ssh -G` hop resolution,
-            nodes/detail, useSnapshot                   bounded process runner, error mapping
-features/settings  poll rate, diag         ssh/askpass.rs  helper mode + IPC server + prompt classifier
-lib/api.ts  the only invoke() wrapper      ssh/session.rs  connect (master), probe, mux run, close
-types/      mirrors Rust serde models      auth/keychain.rs  Security.framework generic passwords
-                                           slurm/        parsers (kv, hostlist, GRES, TRES, time)
-                                                         + normalization into ClusterSnapshot
-                                           state.rs      snapshot cache + refresh budget
-                                           profiles.rs   profiles/settings JSON (0600), validation
-features/jobs  wizard, My Jobs, detail,    jobs/request.rs  JobRequest validation + sbatch script render
-            log viewer, useJobs            jobs/remote.rs   fixed remote scripts + outcome classifiers
-                                           jobs/parse.rs    squeue/sacct/scontrol job/receipt/log parsers
-                                           jobs/store.rs    local submission receipts (jobs.json, 0600)
-                                           jobs/commands.rs jobs_* Tauri commands (mutations: separate capability)
+frontend/src/
+ui/       .tsx components only: rendering and view state (dialogs, tabs, toggles)
+  App.tsx            shell, connection banner, sidebar
+  components/ui.tsx  shared widgets (Badge, Dialog, Notice, icons)
+  cluster/ connection/ jobs/ editor/ projects/ training/ transfers/ settings/   one folder per screen
+logic/    .ts only: what each screen knows and does
+  api.ts             the only invoke()/listen() wrapper (typed IPC to the backend)
+  format.ts          display formatting and state labels
+  persist.ts         remembered UI preferences (localStorage, never secrets)
+  app/               useAppShell: connection, settings, snapshot, navigation, guarded disconnect
+  cluster/           useSnapshot (polling budget), node/partition filters, fleet totals, GPU limits
+  connection/        useConnection (status + SSH prompts), useLogin, useChallenge
+  jobs/              useJobs, script-job draft + preview/submit, My Jobs, job detail + cancel, log stream
+  editor/            file editor (hash-checked save), notebook parse/serialize/cells, languages
+  projects/          remote browser, recent projects, VS Code status/sharing, Python environment
+  training/          workflow draft ↔ WorkflowConfig, wizard flow, run monitoring
+  transfers/         transfer queue and actions
+  settings/          poll interval, toolchains, transfer cap, theme
+types/    mirrors the Rust serde models (by hand)
 ```
 
-V3 adds (backend → frontend):
+A screen is a pair: `ui/<feature>/<Screen>.tsx` renders what a hook in `logic/<feature>/` returns
+(data, flags, actions). Only `logic/api.ts` talks to the backend. `pnpm lint` enforces the direction
+`ui → logic → api.ts → Tauri` (ADR-030).
+
+## Backend
+
+```text
+backend/src/
+commands.rs   typed Tauri commands, AppState, connection state machine, idle watch
+ssh/mod.rs    forced config, `ssh -G` hop resolution, bounded process runner, error mapping
+ssh/askpass.rs  helper mode + IPC server + prompt classifier
+ssh/session.rs  connect (master), probe, mux run, close
+auth/keychain.rs  Security.framework generic passwords
+slurm/        parsers (kv, hostlist, GRES, TRES, time) + normalization into ClusterSnapshot
+state.rs      snapshot cache + refresh budget
+profiles.rs   profiles/settings JSON (0600), validation
+jobs/request.rs  JobRequest validation + sbatch script render
+jobs/remote.rs   fixed remote scripts + outcome classifiers
+jobs/parse.rs    squeue/sacct/scontrol job/receipt/log parsers
+jobs/store.rs    local submission receipts (jobs.json, 0600)
+jobs/commands.rs jobs_* Tauri commands (mutations: separate capability)
+```
+
+V3 adds (backend → frontend logic → views):
 
 ```text
 projects/remote.rs      browse / mkdir / resolve / env-probe / settings.json scripts + parsers
@@ -37,10 +63,11 @@ workflow/script.rs      the reviewed wrapper script, compute-node archive stager
 workflow/status.rs      stage markers → workflow state, failure classification, bounded status read
 workflow/store.rs       runs.json (submitted runs, last observation; never resubmits)
 workflow/commands.rs    workflow_preview / refresh / runs / reconcile / files / metrics
-        ⇅
-features/projects   ProjectsView (recent, browser, VS Code, Python env), RemoteBrowser (+ picker)
-features/training   TrainingWizard (DRAFT→UPLOADING→VALIDATING→READY→SUBMITTING), RunsView (+ detail)
-features/transfers  TransfersView (pick/pack/upload/download, progress, cancel/retry/discard)
+        ⇅  logic/api.ts
+logic/projects   useProjects, useRemoteBrowser, env (Python), vscode (status, sharing)  →  ui/projects
+logic/training   wizardDraft + useTrainingWizard (DRAFT→UPLOADING→VALIDATING→READY→SUBMITTING),
+                 runs (useRuns, useRunDetail, timeline)                                  →  ui/training
+logic/transfers  useTransfers (pick/pack/upload/download, progress, cancel/retry/discard) →  ui/transfers
 ```
 
 ## Training workflow (V3)

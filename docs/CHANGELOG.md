@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed (internal; no change in behaviour)
+- Repository split into `frontend/`, `backend/` and `docs/`; generated permission files and local
+  agent notes are no longer tracked.
+- Frontend split into components (`src/ui`) and logic (`src/logic`), enforced by lint (ADR-030).
+- New reference: [`ICF_COMMANDS.md`](ICF_COMMANDS.md) lists every IPC call and command run on ICF.
+
 ## [0.4.0] — 2026-10-22 · Edit on ICF
 
 ### Added

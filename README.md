@@ -164,12 +164,13 @@ Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemS
 
 | Folder | What lives there |
 |---|---|
-| [`frontend/`](frontend) | React + TypeScript UI (Vite). `src/` app code, `tests/` Vitest suite, `dev/` browser preview with a mocked backend, `fixtures/` demo data the UI tests load |
+| [`frontend/`](frontend) | React + TypeScript UI (Vite). `src/ui/` components (rendering only), `src/logic/` hooks, IPC client and app logic, `tests/` Vitest suite, `dev/` browser preview with a mocked backend, `fixtures/` demo data the UI tests load |
 | [`backend/`](backend) | Rust/Tauri app: SSH, SLURM, jobs, transfers, workflows. `src/` app logic, `tests/` integration tests, `capabilities/` IPC grants, `fixtures/` demo inventory, `icons/` |
 | [`docs/`](docs) | User guide, architecture, security, decisions, testing, changelog, smoke-test examples |
 
-The UI never runs commands itself; it calls typed Tauri commands (`frontend/src/lib/api.ts`), and the
-backend runs every SSH and SLURM command. [docs/ICF_COMMANDS.md](docs/ICF_COMMANDS.md) lists each call and
+Components never run commands or hold app logic: they render what `frontend/src/logic/` hooks return, those
+hooks call typed Tauri commands through `frontend/src/logic/api.ts`, and the backend runs every SSH and SLURM
+command (`pnpm lint` enforces this layering). [docs/ICF_COMMANDS.md](docs/ICF_COMMANDS.md) lists each call and
 the exact commands it runs on ICF.
 
 ### Run and build

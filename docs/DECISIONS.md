@@ -228,6 +228,21 @@ host-key-changed errors (ADR-003), and a second login.
   constructable stylesheets. The CSP (`style-src 'self'`) blocks the `<style>` tag it would otherwise
   inject. Verified in Chrome with that policy; **open:** confirm in the built app's WebKit.
 
+## ADR-030 — Frontend split into components (`src/ui`) and logic (`src/logic`)
+*Status: accepted (after 0.4.0).*
+- **Rule.** `src/ui/` holds `.tsx` components that render and keep view-only state (dialog open, tab,
+  toggle). Everything else a screen does lives in `src/logic/` as `.ts`: backend calls (only through
+  `logic/api.ts`), React Query, async flows, validation, conversions, derived data, polling, app state.
+  One screen = one view plus one hook that returns data, flags and actions.
+- **Enforced by `pnpm lint`.** In `src/ui`: no `@tanstack/react-query`, no `@tauri-apps/*`, no `api`/`events`
+  from `logic/api` (types and `errorMessage` are fine), no `.ts` files. In `src/logic`: no imports from
+  `src/ui`, no JSX, no `.tsx` files.
+- **Kept in `ui/`:** presentation-only code such as the CodeMirror theme and highlighting, the sidebar
+  definition, focus management, sparkline geometry and display text.
+- **How it was done.** Code moved verbatim from the components into hooks/modules, one feature per
+  commit. Each step passed the 70 UI tests and a pixel comparison of 26 preview screens (demo, live
+  and login) against screenshots taken before the change.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.
