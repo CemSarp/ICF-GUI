@@ -11,7 +11,7 @@
     "lint": "eslint src tests",
     "format": "prettier --write src tests",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "TAURI_APP_PATH=../backend tauri"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",

@@ -1,4 +1,4 @@
-// Mirrors the Rust models in src-tauri/src (serde camelCase). Keep in sync by hand.
+// Mirrors the Rust models in backend/src (serde camelCase). Keep in sync by hand.
 
 export type ErrorCode =
   | 'SSH_AUTH'
@@ -209,7 +209,7 @@ export interface ProfileInput {
   authMode: AuthMode;
 }
 
-// ---- V2 jobs (mirrors src-tauri/src/jobs) ----
+// ---- V2 jobs (mirrors backend/src/jobs) ----
 
 export type JobState =
   | 'pending'
@@ -366,7 +366,7 @@ export interface LogChunk {
   text: string;
 }
 
-// ---- V3 projects, VS Code, environments, transfers, workflows (mirrors src-tauri/src) ----
+// ---- V3 projects, VS Code, environments, transfers, workflows (mirrors backend/src) ----
 
 export type EntryKind = 'dir' | 'file' | 'symlink' | 'other' | 'missing';
 

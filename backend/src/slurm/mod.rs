@@ -483,7 +483,7 @@ pub fn parse_inventory(
 }
 
 /// Synthetic demo data (never live ICF). Topology modelled on the public ICF tutorial; counts invented.
-pub const DEMO_INVENTORY: &str = include_str!("../../../fixtures/slurm/demo_inventory.txt");
+pub const DEMO_INVENTORY: &str = include_str!("../../fixtures/slurm/demo_inventory.txt");
 
 pub fn demo_snapshot(now_ms: u64) -> ClusterSnapshot {
     let groups: BTreeSet<String> = ["students".to_string()].into();

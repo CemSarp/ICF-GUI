@@ -15,7 +15,7 @@ scratch staging and checkpoints, and follow everything — without remembering a
 [**⬇️ Download**](https://github.com/CemSarp/ICF-GUI/releases/latest) ·
 [User guide](docs/USER_GUIDE.md) ·
 [Security](docs/SECURITY.md) ·
-[Changelog](CHANGELOG.md)
+[Changelog](docs/CHANGELOG.md)
 
 ![Overview of GPUs by type (demo data)](docs/screenshots/overview-demo.jpg)
 
@@ -160,9 +160,23 @@ Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemS
 | Node 20+ and pnpm 10 | frontend build | `node -v && pnpm -v` |
 | macOS OpenSSH (`/usr/bin/ssh`) | all cluster access | `ssh -V` |
 
+### Repository layout
+
+| Folder | What lives there |
+|---|---|
+| [`frontend/`](frontend) | React + TypeScript UI (Vite). `src/` app code, `tests/` Vitest suite, `dev/` browser preview with a mocked backend, `fixtures/` demo data the UI tests load |
+| [`backend/`](backend) | Rust/Tauri app: SSH, SLURM, jobs, transfers, workflows. `src/` app logic, `tests/` integration tests, `capabilities/` IPC grants, `fixtures/` demo inventory, `icons/` |
+| [`docs/`](docs) | User guide, architecture, security, decisions, testing, changelog, smoke-test examples |
+
+The UI never runs commands itself; it calls typed Tauri commands (`frontend/src/lib/api.ts`), and the
+backend runs every SSH and SLURM command.
+
 ### Run and build
 
+All `pnpm` commands run from `frontend/`; all `cargo` commands from `backend/`.
+
 ```bash
+cd frontend
 pnpm install
 ```
 
@@ -174,7 +188,7 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-The `.app` lands in `src-tauri/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
+The `.app` lands in `backend/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
 For UI work without SSH, run `pnpm dev` and open <http://localhost:1420/dev/preview.html?state=demo>
 (or `?state=live` for the V3 screens with synthetic data).
 
@@ -185,17 +199,17 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 ```bash
-cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+cd backend && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
 Opt-in tests that touch local machine state (never the cluster):
 
 ```bash
-cd src-tauri && cargo test --test real_openssh -- --ignored
+cd backend && cargo test --test real_openssh -- --ignored
 ```
 
 ```bash
-cd src-tauri && cargo test --lib keychain_roundtrip -- --ignored
+cd backend && cargo test --lib keychain_roundtrip -- --ignored
 ```
 
 Automated tests never contact ICF or submit real jobs; scheduler commands run against a scripted ssh and
@@ -204,8 +218,7 @@ stub `sbatch`/`squeue`/`scancel`.
 ### Project docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
-[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) · [V3 report](docs/V3_IMPLEMENTATION_REPORT.md) ·
-[Release checklist](docs/RELEASE_CHECKLIST.md) ·
-[Agent rules](AGENTS.md)
+[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) ·
+[Release checklist](docs/RELEASE_CHECKLIST.md) · [Changelog](docs/CHANGELOG.md)
 
 </details>

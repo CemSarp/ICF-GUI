@@ -4,10 +4,10 @@
   "version": "0.4.0",
   "identifier": "local.icf-control-center",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": { "script": "pnpm dev", "cwd": "../frontend" },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../dist"
+    "beforeBuildCommand": { "script": "pnpm build", "cwd": "../frontend" },
+    "frontendDist": "../frontend/dist"
   },
   "app": {
     "withGlobalTauri": false,

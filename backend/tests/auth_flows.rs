@@ -70,7 +70,7 @@ fn fixture(scenario: &[&str]) -> Fixture {
     std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fake_ssh.sh"), &ssh).unwrap();
     std::fs::set_permissions(&ssh, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     std::fs::write(dir.join("scenario"), scenario.join("\n") + "\n").unwrap();
-    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/slurm/demo_inventory.txt"), dir.join("inventory")).unwrap();
+    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/slurm/demo_inventory.txt"), dir.join("inventory")).unwrap();
     Fixture {
         env: ConnectEnv {
             ssh_bin: ssh,

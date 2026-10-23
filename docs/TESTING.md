@@ -6,12 +6,14 @@ and the job wrapper run in a real `sh`/`bash` against throwaway sandbox folders.
 
 ## Gates (all must pass before a release)
 
+Run the `pnpm` commands from `frontend/` and the `cargo` commands from `backend/`.
+
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 ```bash
-cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+cd backend && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
 ```bash
@@ -21,11 +23,11 @@ pnpm tauri build
 Opt-in tests (local machine only; never the cluster):
 
 ```bash
-cd src-tauri && cargo test --test real_openssh -- --ignored --nocapture
+cd backend && cargo test --test real_openssh -- --ignored --nocapture
 ```
 
 ```bash
-cd src-tauri && cargo test --lib keychain_roundtrip -- --ignored
+cd backend && cargo test --lib keychain_roundtrip -- --ignored
 ```
 
 `real_openssh` starts a throwaway unprivileged `sshd` on 127.0.0.1 and drives the real
@@ -81,7 +83,6 @@ Notes:
 
 ## Live ICF smoke tests (manual, need explicit approval)
 
-See `docs/V3_IMPLEMENTATION_REPORT.md` → *Manual cluster verification* and the test table in
-`examples/workflow-smoke/README.md`. `make_dataset.py` output was checked locally against the
+See the test table in `docs/examples/workflow-smoke/README.md`. `make_dataset.py` output was checked locally against the
 compute-node stager (good archive extracted, unsafe one rejected); `train_tiny.py` and the notebook
 need PyTorch and run only on ICF.

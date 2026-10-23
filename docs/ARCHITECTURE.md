@@ -1,7 +1,7 @@
 # Architecture (V1–V3)
 
 ```text
-React (src/)                               Rust (src-tauri/src/)
+React (frontend/src/)                      Rust (backend/src/)
 ───────────────────────────────            ──────────────────────────────────────────────
 app/App.tsx  shell, banner, nav            commands.rs   typed Tauri commands, AppState,
 features/connection  login, prompts   ⇄            connection state machine, idle watch

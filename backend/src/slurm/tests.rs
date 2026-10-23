@@ -203,7 +203,7 @@ fn property_no_double_counting_or_negative_free() {
 #[test]
 fn export_demo_snapshot_json_for_ui_tests() {
     let json = serde_json::to_string_pretty(&demo()).unwrap() + "\n";
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/slurm/demo_snapshot.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../frontend/fixtures/slurm/demo_snapshot.json");
     if std::fs::read_to_string(path).ok().as_deref() != Some(json.as_str()) {
         std::fs::write(path, json).unwrap();
     }
