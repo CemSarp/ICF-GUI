@@ -1,7 +1,9 @@
 import { Badge, EmptyState, Notice } from '../components/ui';
+import { granularityLabel } from '../../logic/cluster/gpu';
+import { fleetSummary, partitionSummary } from '../../logic/cluster/overview';
 import { formatDuration, nominalVram } from '../../logic/format';
 import type { ClusterSnapshot } from '../../types';
-import { GpuBar, granularityLabel, Legend } from './GpuBar';
+import { GpuBar, Legend } from './GpuBar';
 
 export function Overview({
   snapshot,
@@ -10,12 +12,8 @@ export function Overview({
   snapshot: ClusterSnapshot;
   onOpenPartition: (name: string) => void;
 }) {
-  const nodes = Object.values(snapshot.nodesById);
-  const gpuNodes = nodes.filter((n) => n.resources.length > 0);
-  const physical = snapshot.gpuTotals.filter((t) => t.granularity !== 'mig');
-  const sum = (k: 'configured' | 'potentiallyFree' | 'unknown') => physical.reduce((a, t) => a + t[k], 0);
-  const mig = snapshot.gpuTotals.filter((t) => t.granularity === 'mig');
-  const free = sum('potentiallyFree');
+  const fleet = fleetSummary(snapshot);
+  const free = fleet.free;
 
   return (
     <>
@@ -26,31 +24,31 @@ export function Overview({
         </div>
         <div className="stat">
           <span className="stat-label">GPU nodes</span>
-          <span className="stat-value">{gpuNodes.length}</span>
-          <span className="muted small">{nodes.length} nodes total</span>
+          <span className="stat-value">{fleet.gpuNodes}</span>
+          <span className="muted small">{fleet.nodes} nodes total</span>
         </div>
         <div className="stat">
           <span className="stat-label">GPUs configured</span>
-          <span className="stat-value">{sum('configured')}</span>
+          <span className="stat-value">{fleet.configured}</span>
           <span className="muted small">physical + untyped, each node counted once</span>
         </div>
         <div className="stat">
           <span className="stat-label">Potentially free</span>
           <span className="stat-value">{free}</span>
           <span className="muted small">
-            {sum('unknown') > 0 ? `${sum('unknown')} with unknown allocation` : 'scheduler estimate'}
+            {fleet.unknown > 0 ? `${fleet.unknown} with unknown allocation` : 'scheduler estimate'}
           </span>
         </div>
-        {mig.length > 0 && (
+        {fleet.hasMig && (
           <div className="stat">
             <span className="stat-label">MIG slices</span>
-            <span className="stat-value">{mig.reduce((a, t) => a + t.configured, 0)}</span>
+            <span className="stat-value">{fleet.migSlices}</span>
             <span className="muted small">not added to physical count</span>
           </div>
         )}
       </section>
 
-      {free === 0 && sum('unknown') === 0 && sum('configured') > 0 && (
+      {free === 0 && fleet.unknown === 0 && fleet.configured > 0 && (
         <Notice tone="info" title="No GPUs are potentially free right now">
           Every known GPU is allocated or unavailable. You can still submit a job: it waits in the queue until the
           scheduler starts it.
@@ -106,8 +104,7 @@ export function Overview({
         <h2>Partitions</h2>
         <ul className="partition-list">
           {snapshot.partitions.map((p) => {
-            const f = p.gpuTotals.reduce((a, t) => a + (t.granularity === 'mig' ? 0 : t.potentiallyFree), 0);
-            const u = p.gpuTotals.reduce((a, t) => a + t.unknown, 0);
+            const { free: f, unknown: u } = partitionSummary(p);
             return (
               <li key={p.name}>
                 <button className="row-button" onClick={() => onOpenPartition(p.name)}>

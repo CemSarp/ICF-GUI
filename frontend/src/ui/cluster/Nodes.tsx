@@ -1,14 +1,7 @@
-import { useMemo } from 'react';
 import { Badge, EmptyState } from '../components/ui';
+import { freeLabel, useNodeTable, type SortKey } from '../../logic/cluster/nodes';
 import { count, memory, NODE_STATE } from '../../logic/format';
-import { usePersistentState } from '../../logic/persist';
-import type { ClusterSnapshot, ComputeNode, GpuResource, NodeState } from '../../types';
-
-type SortKey = 'id' | 'state' | 'free' | 'gpus';
-
-function freeOf(n: ComputeNode) {
-  return n.resources.reduce((a, r) => a + (r.potentiallyFree ?? 0), 0);
-}
+import type { ClusterSnapshot, GpuResource, NodeState } from '../../types';
 
 export function ResourceLine({ r }: { r: GpuResource }) {
   return (
@@ -39,37 +32,22 @@ export function Nodes({
   setPartitionFilter: (p: string) => void;
   onSelect: (id: string) => void;
 }) {
-  const [query, setQuery] = usePersistentState('nodes.query', '');
-  const [state, setState] = usePersistentState<NodeState | ''>('nodes.state', '');
-  const [model, setModel] = usePersistentState('nodes.model', '');
-  const [gpuOnly, setGpuOnly] = usePersistentState('nodes.gpuOnly', true);
-  const [sort, setSort] = usePersistentState<{ key: SortKey; dir: 1 | -1 }>('nodes.sort', { key: 'id', dir: 1 });
-
-  const all = useMemo(() => Object.values(snapshot.nodesById), [snapshot]);
-  const models = useMemo(() => [...new Set(all.flatMap((n) => n.resources.map((r) => r.gresName)))].sort(), [all]);
-  const rows = all
-    .filter((n) => !gpuOnly || n.resources.length > 0)
-    .filter((n) => !partitionFilter || n.partitions.includes(partitionFilter))
-    .filter((n) => !state || n.state === state)
-    .filter((n) => !model || n.resources.some((r) => r.gresName === model))
-    .filter(
-      (n) =>
-        !query ||
-        n.id.includes(query.toLowerCase()) ||
-        n.resources.some((r) => r.modelLabel.toLowerCase().includes(query.toLowerCase())),
-    )
-    .sort((a, b) => {
-      const v =
-        sort.key === 'id'
-          ? a.id.localeCompare(b.id, undefined, { numeric: true })
-          : sort.key === 'state'
-            ? a.state.localeCompare(b.state)
-            : sort.key === 'free'
-              ? freeOf(a) - freeOf(b)
-              : a.resources.reduce((x, r) => x + (r.configured ?? 0), 0) -
-                b.resources.reduce((x, r) => x + (r.configured ?? 0), 0);
-      return v * sort.dir;
-    });
+  const {
+    query,
+    setQuery,
+    state,
+    setState,
+    model,
+    setModel,
+    gpuOnly,
+    setGpuOnly,
+    sort,
+    toggleSort,
+    clear,
+    all,
+    models,
+    rows,
+  } = useNodeTable(snapshot, partitionFilter, setPartitionFilter);
 
   const header = (key: SortKey, label: string, num = false) => (
     <th
@@ -77,18 +55,12 @@ export function Nodes({
       className={num ? 'num' : undefined}
       aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
     >
-      <button className="sort" onClick={() => setSort({ key, dir: sort.key === key ? (-sort.dir as 1 | -1) : 1 })}>
+      <button className="sort" onClick={() => toggleSort(key)}>
         {label}
         <span aria-hidden="true">{sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</span>
       </button>
     </th>
   );
-  const clear = () => {
-    setQuery('');
-    setState('');
-    setModel('');
-    setPartitionFilter('');
-  };
 
   return (
     <>
@@ -163,7 +135,6 @@ export function Nodes({
             <tbody>
               {rows.map((n) => {
                 const s = NODE_STATE[n.state];
-                const unknown = n.resources.some((r) => r.potentiallyFree === null);
                 return (
                   <tr key={n.id}>
                     <th scope="row">
@@ -194,9 +165,7 @@ export function Nodes({
                         ))
                       )}
                     </td>
-                    <td className="num">
-                      {unknown && freeOf(n) === 0 ? 'Unknown' : freeOf(n) + (unknown ? '+?' : '')}
-                    </td>
+                    <td className="num">{freeLabel(n)}</td>
                     <td className="num">
                       {count(n.cpuAllocated)} / {count(n.cpuTotal)}
                     </td>

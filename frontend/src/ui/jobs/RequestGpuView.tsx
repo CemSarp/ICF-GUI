@@ -13,7 +13,7 @@ import type {
   PreviewResponse,
   SubmitResponse,
 } from '../../types';
-import { granularityLabel } from '../cluster/GpuBar';
+import { granularityLabel } from '../../logic/cluster/gpu';
 import { jobsKey } from '../../logic/jobs/useJobs';
 
 interface Draft {

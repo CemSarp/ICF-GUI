@@ -1,8 +1,9 @@
 import { Badge, EmptyState } from '../components/ui';
+import { granularityLabel } from '../../logic/cluster/gpu';
+import { usePartitionList } from '../../logic/cluster/partitions';
 import { formatDuration } from '../../logic/format';
-import { usePersistentState } from '../../logic/persist';
 import type { ClusterSnapshot } from '../../types';
-import { GpuBar, granularityLabel, Legend } from './GpuBar';
+import { GpuBar, Legend } from './GpuBar';
 
 export function Partitions({
   snapshot,
@@ -13,16 +14,7 @@ export function Partitions({
   onOpenNodes: (partition: string) => void;
   onRequest: (partition: string) => void;
 }) {
-  const [query, setQuery] = usePersistentState('partitions.query', '');
-  const [eligibleOnly, setEligibleOnly] = usePersistentState('partitions.eligibleOnly', false);
-  const [sort, setSort] = usePersistentState<'name' | 'free'>('partitions.sort', 'name');
-
-  const free = (name: string) =>
-    snapshot.partitions.find((p) => p.name === name)?.gpuTotals.reduce((a, t) => a + t.potentiallyFree, 0) ?? 0;
-  const list = snapshot.partitions
-    .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
-    .filter((p) => !eligibleOnly || p.eligibility !== 'not_permitted')
-    .sort((a, b) => (sort === 'name' ? 0 : free(b.name) - free(a.name)));
+  const { query, setQuery, eligibleOnly, setEligibleOnly, sort, setSort, list } = usePartitionList(snapshot);
 
   if (snapshot.partitions.length === 0) {
     return (

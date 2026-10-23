@@ -43,7 +43,3 @@ export function GpuBar({ t }: { t: GpuTotals }) {
     </div>
   );
 }
-
-export function granularityLabel(g: GpuTotals['granularity']) {
-  return g === 'mig' ? 'MIG slice' : g === 'physical' ? 'Physical GPU' : 'Untyped';
-}

@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { BackButton, Badge, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
+import { errorMessage } from '../../logic/api';
+import { useNodeDetail } from '../../logic/cluster/useNodeDetail';
 import { count, formatTime, memory, NODE_STATE } from '../../logic/format';
 
 export function NodeDetail({ nodeId, version, onBack }: { nodeId: string; version: number; onBack: () => void }) {
-  const q = useQuery({ queryKey: ['node', nodeId, version], queryFn: () => api.nodeDetail(nodeId), retry: false });
+  const q = useNodeDetail(nodeId, version);
   const n = q.data;
   return (
     <section aria-labelledby="node-title">
