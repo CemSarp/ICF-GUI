@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DISCONNECTED } from '../src/features/connection/useConnection';
+import { DISCONNECTED } from '../src/logic/connection/useConnection';
 import type { Challenge } from '../src/types';
 import { backend, profile } from './mockBackend';
 import { renderApp } from './render';

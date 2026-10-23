@@ -2,7 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { parseNotebook, serializeNotebook } from '../src/features/editor/NotebookEditor';
+import { parseNotebook, serializeNotebook } from '../src/ui/editor/NotebookEditor';
 import { backend, connectedLive } from './mockBackend';
 import { renderApp } from './render';
 import * as v3 from './v3Fixtures';

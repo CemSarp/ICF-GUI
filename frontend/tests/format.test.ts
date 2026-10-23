@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { learnedPartitions, resolveWorkingDir } from '../src/features/jobs/RequestGpuView';
-import { clusterTime, displayTime, formatTime } from '../src/lib/format';
+import { learnedPartitions, resolveWorkingDir } from '../src/ui/jobs/RequestGpuView';
+import { clusterTime, displayTime, formatTime } from '../src/logic/format';
 import type { JobReceipt } from '../src/types';
 
 describe('one time format', () => {
