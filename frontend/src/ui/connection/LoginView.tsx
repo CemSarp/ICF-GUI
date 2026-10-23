@@ -1,9 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Dialog, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
+import { useLogin } from '../../logic/connection/useLogin';
 import { formatTime } from '../../logic/format';
-import { useNow } from '../../logic/persist';
-import type { AuthMode, ConnectionProfile, ConnectionStatus } from '../../types';
+import type { ConnectionStatus } from '../../types';
 
 const SSH_EXAMPLE = `Host edinburgh-jump
     HostName student.ssh.inf.ed.ac.uk
@@ -17,101 +16,48 @@ Host icf
     ServerAliveCountMax 3`;
 
 export function LoginView({ status }: { status: ConnectionStatus }) {
-  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
-  const [profile, setProfile] = useState<ConnectionProfile | null>(null);
-  const [username, setUsername] = useState('');
-  const [authMode, setAuthMode] = useState<AuthMode>('password');
-  const [password, setPassword] = useState('');
-  const [gatewayPassword, setGatewayPassword] = useState('');
+  const {
+    profiles,
+    profile,
+    selectProfile,
+    username,
+    setUsername,
+    authMode,
+    setAuthMode,
+    password,
+    setPassword,
+    gatewayPassword,
+    setGatewayPassword,
+    remember,
+    setRemember,
+    sameForBoth,
+    setSameForBoth,
+    alias,
+    setAlias,
+    jumpHost,
+    setJumpHost,
+    error,
+    connecting,
+    saved,
+    locked,
+    connect,
+    forget,
+    cancel,
+    openDemo,
+  } = useLogin(status);
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
-  const [sameForBoth, setSameForBoth] = useState(false);
-  const [alias, setAlias] = useState('icf');
-  const [jumpHost, setJumpHost] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmForget, setConfirmForget] = useState(false);
-
-  const load = (ps: ConnectionProfile[], keep?: string) => {
-    setProfiles(ps);
-    const p = ps.find((x) => x.id === keep) ?? ps[0] ?? null;
-    setProfile(p);
-    if (p) {
-      setUsername(p.username.toLowerCase());
-      setAuthMode(p.authMode);
-      setAlias(p.sshAlias);
-      setJumpHost(p.jumpHost);
-    }
-  };
-  useEffect(() => {
-    api
-      .profiles()
-      .then((ps) => load(ps))
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
-
-  const connecting = busy || status.state === 'connecting' || status.state === 'auth_required';
-  const saved = profile?.savedCredentials ?? [];
-  const now = useNow(1000);
-  const locked = status.lockedUntil !== null && new Date(status.lockedUntil).getTime() > now;
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!profile || connecting) return;
-    setBusy(true);
-    setError(null);
-    // Hand secrets to the backend and drop them from UI state immediately.
-    const pw = password;
-    const gw = gatewayPassword;
-    setPassword('');
-    setGatewayPassword('');
-    try {
-      if (alias !== profile.sshAlias || jumpHost !== profile.jumpHost) {
-        const updated = await api.saveProfile({
-          ...profile,
-          sshAlias: alias.trim(),
-          jumpHost: jumpHost.trim(),
-          username: username.trim(),
-          authMode,
-        });
-        setProfile(updated);
-      }
-      await api.login({
-        profileId: profile.id,
-        username: username.trim(),
-        authMode,
-        password: authMode === 'password' && pw ? pw : undefined,
-        gatewayPassword: authMode === 'password' && gw ? gw : undefined,
-        sameForBoth: authMode === 'password' && sameForBoth,
-        remember: authMode === 'password' && remember,
-        useSaved: authMode === 'password' && saved.length > 0,
-      });
-    } catch (err) {
-      setError(errorMessage(err));
-      api
-        .profiles()
-        .then((ps) => load(ps, profile.id))
-        .catch(() => undefined);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const forget = async () => {
-    setConfirmForget(false);
-    if (!profile) return;
-    try {
-      const p = await api.forgetCredentials(profile.id);
-      setProfile(p);
-      setProfiles((ps) => ps.map((x) => (x.id === p.id ? p : x)));
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
 
   return (
     <main className="login" id="main">
-      <form className="card login-card" onSubmit={submit} aria-labelledby="login-title">
+      <form
+        className="card login-card"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void connect();
+        }}
+        aria-labelledby="login-title"
+      >
         <h1 id="login-title">Connect to ICF</h1>
         <p className="muted">
           Signs in with macOS OpenSSH through your SSH config (alias <code>{profile?.sshAlias ?? 'icf'}</code>). Nothing
@@ -121,7 +67,7 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
         {profiles.length > 1 && (
           <label className="field">
             <span>Profile</span>
-            <select value={profile?.id} onChange={(e) => load(profiles, e.target.value)} disabled={connecting}>
+            <select value={profile?.id} onChange={(e) => selectProfile(e.target.value)} disabled={connecting}>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -280,15 +226,11 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
 
         <div className="actions">
           {connecting ? (
-            <button type="button" className="btn" onClick={() => void api.cancel()}>
+            <button type="button" className="btn" onClick={cancel}>
               Cancel
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => void api.openDemo().catch((e) => setError(errorMessage(e)))}
-            >
+            <button type="button" className="btn ghost" onClick={openDemo}>
               Explore demo data
             </button>
           )}
@@ -308,7 +250,13 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
             <button className="btn" onClick={() => setConfirmForget(false)} data-autofocus>
               Keep
             </button>
-            <button className="btn danger" onClick={() => void forget()}>
+            <button
+              className="btn danger"
+              onClick={() => {
+                setConfirmForget(false);
+                void forget();
+              }}
+            >
               Delete from Keychain
             </button>
           </div>

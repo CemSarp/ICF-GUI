@@ -1,20 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { type FormEvent } from 'react';
 import { Dialog, Notice } from '../components/ui';
-import { api } from '../../logic/api';
+import { useChallenge } from '../../logic/connection/useChallenge';
 import type { Challenge } from '../../types';
 
 /** One SSH prompt routed from the askpass helper. Typed values go straight to the backend and are cleared. */
 export function ChallengeDialog({ challenge, onDone }: { challenge: Challenge; onDone: (id: string) => void }) {
-  const [value, setValue] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const answer = async (accept: boolean) => {
-    setBusy(true);
-    const v = value;
-    setValue('');
-    await api.answerChallenge(challenge.id, accept, accept ? v : undefined).catch(() => undefined);
-    onDone(challenge.id);
-  };
+  const { value, setValue, busy, answer } = useChallenge(challenge, onDone);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     void answer(true);
