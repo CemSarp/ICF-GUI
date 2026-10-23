@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_DRAFT, expandHome, fromConfig, toConfig } from '../src/ui/training/TrainingWizard';
+import { DEFAULT_DRAFT, expandHome, fromConfig, toConfig } from '../src/logic/training/wizardDraft';
 import { safeName } from '../src/logic/transfers/transfers';
 import type { WorkflowConfig } from '../src/types';
 import { backend, connectedDemo, connectedLive } from './mockBackend';

@@ -12,7 +12,7 @@ import { isLive, useConnection } from '../logic/connection/useConnection';
 import { JobDetailView } from './jobs/JobDetailView';
 import { ProjectsView } from './projects/ProjectsView';
 import { RunsView } from './training/RunsView';
-import type { WizardInit } from './training/TrainingWizard';
+import type { WizardInit } from '../logic/training/wizardDraft';
 import { TransfersView } from './transfers/TransfersView';
 import { MyJobsView } from './jobs/MyJobsView';
 import type { JobMode } from '../logic/jobs/newJob';

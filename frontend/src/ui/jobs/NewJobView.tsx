@@ -1,7 +1,8 @@
 import { EmptyState } from '../components/ui';
 import type { JobMode } from '../../logic/jobs/newJob';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
-import { TrainingWizard, type WizardInit } from '../training/TrainingWizard';
+import type { WizardInit } from '../../logic/training/wizardDraft';
+import { TrainingWizard } from '../training/TrainingWizard';
 import { RequestGpuView } from './RequestGpuView';
 
 const MODES: { id: JobMode; label: string; help: string }[] = [

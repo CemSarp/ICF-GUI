@@ -1,199 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge, Dialog, EmptyState, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
 import { bytes, formatTime, nominalVram } from '../../logic/format';
-import { usePersistentState } from '../../logic/persist';
-import type {
-  CheckpointMode,
-  ClusterSnapshot,
-  ConnectionStatus,
-  ImportResult,
-  Issue,
-  SubmitResponse,
-  ToolchainProfile,
-  Transfer,
-  WorkflowConfig,
-  WorkflowKind,
-  WorkflowPreview,
-  WorkflowState,
-} from '../../types';
+import { useTrainingWizard } from '../../logic/training/useTrainingWizard';
+import { expandHome, importCounts, isArchiveName, type Draft, type WizardInit } from '../../logic/training/wizardDraft';
+import type { CheckpointMode, ClusterSnapshot, ConnectionStatus, ImportResult, Issue } from '../../types';
 import { MailOption } from '../jobs/RequestGpuView';
 import { PickRemote } from '../projects/RemoteBrowser';
-import { safeName } from '../../logic/transfers/transfers';
-
-export interface Draft {
-  kind: WorkflowKind;
-  jobName: string;
-  projectDir: string;
-  entry: string;
-  args: string;
-  interpreter: string;
-  toolchainId: string;
-  datasets: { archive: string; into: string }[];
-  scratchRoot: 'disk_scratch' | 'slurm_tmpdir';
-  hfMode: 'off' | 'scratch' | 'home' | 'staged';
-  hfPath: string;
-  hfArchive: string;
-  hfOffline: boolean;
-  resultsRoot: string;
-  checkpointMode: CheckpointMode;
-  checkpointSyncMinutes: number;
-  resumeFrom: string;
-  env: string;
-  expectedOutputGib: number;
-  signalGraceSeconds: number;
-  partition: string;
-  gres: string;
-  gpuCount: number;
-  cpus: number;
-  memoryGb: number;
-  hours: number;
-  minutes: number;
-  /** Modules for "Check environment"; empty = the defaults for the workflow type. */
-  checkModules: string;
-  mail: boolean;
-  mailUser: string;
-}
-
-export interface WizardInit {
-  projectDir?: string;
-  kind?: WorkflowKind;
-  interpreter?: string | null;
-  toolchainId?: string | null;
-  config?: WorkflowConfig;
-}
-
-export const DEFAULT_DRAFT: Draft = {
-  kind: 'train',
-  jobName: 'train',
-  projectDir: '',
-  entry: 'train.py',
-  args: '',
-  interpreter: '',
-  toolchainId: '',
-  datasets: [],
-  scratchRoot: 'disk_scratch',
-  hfMode: 'scratch',
-  hfPath: '',
-  hfArchive: '',
-  hfOffline: false,
-  resultsRoot: '',
-  checkpointMode: 'scratch_sync',
-  checkpointSyncMinutes: 30,
-  resumeFrom: '',
-  env: '',
-  expectedOutputGib: 5,
-  signalGraceSeconds: 300,
-  partition: '',
-  gres: '',
-  gpuCount: 1,
-  cpus: 4,
-  memoryGb: 16,
-  hours: 4,
-  minutes: 0,
-  checkModules: '',
-  mail: false,
-  mailUser: '',
-};
-
-const CHECK_MODULES: Record<WorkflowKind, string> = {
-  notebook: 'torch transformers peft nbconvert ipykernel',
-  train: 'torch',
-  gpu_smoke_test: 'torch',
-};
-
-const lines = (s: string) =>
-  s
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-/** A leading `~` or `$HOME` (alone or before `/`) becomes the remote home; anything else is only trimmed. */
-export function expandHome(p: string, home: string): string {
-  const t = p.trim();
-  const m = /^(~|\$HOME)(\/|$)/.exec(t);
-  return m && home ? home + t.slice(m[1]!.length) : t;
-}
-
-/** Paths go to Rust absolute: `home` expands `~/…` (empty = no expansion). */
-export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
-  const tc = toolchains.find((t) => t.id === d.toolchainId);
-  const abs = (p: string) => expandHome(p, home);
-  const project = abs(d.projectDir).replace(/\/+$/, '');
-  return {
-    kind: d.kind,
-    jobName: d.jobName.trim(),
-    projectDir: project,
-    entry: d.kind === 'gpu_smoke_test' ? '' : abs(d.entry),
-    args: d.kind === 'train' ? lines(d.args) : [],
-    interpreter: abs(d.interpreter),
-    toolchain: tc ? tc.spec : { kind: 'none' },
-    datasets: d.datasets.filter((x) => x.archive.trim()).map((x) => ({ archive: abs(x.archive), into: x.into.trim() })),
-    scratchRoot: d.scratchRoot,
-    hfCache:
-      d.hfMode === 'home'
-        ? { mode: 'home', path: abs(d.hfPath) }
-        : d.hfMode === 'staged'
-          ? { mode: 'staged', archive: abs(d.hfArchive), offline: d.hfOffline }
-          : { mode: d.hfMode },
-    resultsRoot: abs(d.resultsRoot).replace(/\/+$/, '') || `${project}/runs`,
-    checkpointMode: d.checkpointMode,
-    checkpointSyncMinutes: d.checkpointSyncMinutes,
-    resumeFrom: abs(d.resumeFrom) || null,
-    env: lines(d.env).map((l) => {
-      const i = l.indexOf('=');
-      return i < 0 ? { name: l, value: '' } : { name: l.slice(0, i).trim(), value: l.slice(i + 1) };
-    }),
-    expectedOutputGib: d.expectedOutputGib,
-    signalGraceSeconds: d.signalGraceSeconds,
-    resources: {
-      partition: d.partition,
-      gresType: d.gres === 'gpu' || d.gres === '' ? null : d.gres.replace(/^gpu:/, ''),
-      gpuCount: d.gpuCount,
-      cpus: d.cpus,
-      memoryMib: Math.round(d.memoryGb * 1024),
-      timeLimitSeconds: d.hours * 3600 + d.minutes * 60,
-    },
-    mailUser: d.mail ? d.mailUser.trim() : null,
-  };
-}
-
-export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): Draft {
-  const tc = toolchains.find((t) => JSON.stringify(t.spec) === JSON.stringify(c.toolchain));
-  return {
-    ...DEFAULT_DRAFT,
-    kind: c.kind,
-    jobName: c.jobName,
-    projectDir: c.projectDir,
-    entry: c.entry || DEFAULT_DRAFT.entry,
-    args: c.args.join('\n'),
-    interpreter: c.interpreter,
-    toolchainId: tc?.id ?? '',
-    datasets: c.datasets,
-    scratchRoot: c.scratchRoot,
-    hfMode: c.hfCache.mode,
-    hfPath: c.hfCache.mode === 'home' ? c.hfCache.path : '',
-    hfArchive: c.hfCache.mode === 'staged' ? c.hfCache.archive : '',
-    hfOffline: c.hfCache.mode === 'staged' ? c.hfCache.offline : false,
-    resultsRoot: c.resultsRoot,
-    checkpointMode: c.checkpointMode,
-    checkpointSyncMinutes: c.checkpointSyncMinutes,
-    resumeFrom: c.resumeFrom ?? '',
-    env: c.env.map((e) => `${e.name}=${e.value}`).join('\n'),
-    expectedOutputGib: c.expectedOutputGib,
-    signalGraceSeconds: c.signalGraceSeconds,
-    partition: c.resources.partition,
-    gres: c.resources.gresType ? `gpu:${c.resources.gresType}` : 'gpu',
-    gpuCount: c.resources.gpuCount,
-    cpus: c.resources.cpus,
-    memoryGb: Math.round(c.resources.memoryMib / 1024),
-    hours: Math.floor(c.resources.timeLimitSeconds / 3600),
-    minutes: Math.floor((c.resources.timeLimitSeconds % 3600) / 60),
-    mail: c.mailUser !== null,
-    mailUser: c.mailUser ?? '',
-  };
-}
 
 const IMPORT_BADGE = {
   ok: { tone: 'ok', glyph: '✓' },
@@ -202,8 +14,7 @@ const IMPORT_BADGE = {
 } as const;
 
 function ImportReport({ interpreter, results }: { interpreter: string; results: ImportResult[] }) {
-  const failed = results.filter((r) => r.status === 'failed').length;
-  const unchecked = results.filter((r) => r.status === 'not_checked').length;
+  const { failed, unchecked } = importCounts(results);
   return (
     <Notice
       tone={failed ? 'bad' : unchecked ? 'warn' : 'ok'}
@@ -283,53 +94,49 @@ export function TrainingWizard({
   onOpenRun: (tag: string) => void;
   onRefreshCluster: () => void;
 }) {
-  const qc = useQueryClient();
-  const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const presets = useQuery({
-    queryKey: ['presets', status.profileId, status.connectedAt],
-    queryFn: api.presets,
-    retry: false,
-  });
-  const [stored, setStored] = usePersistentState<Draft>('workflow.draft', DEFAULT_DRAFT);
-  const [draft, setDraftState] = useState<Draft>(() => {
-    const base = { ...DEFAULT_DRAFT, ...stored };
-    if (init?.config) return fromConfig(init.config, toolchains.data ?? []);
-    if (!init) return base;
-    return {
-      ...base,
-      projectDir: init.projectDir ?? base.projectDir,
-      kind: init.kind ?? (base.kind === 'gpu_smoke_test' ? 'train' : base.kind),
-      jobName: init.kind === 'gpu_smoke_test' ? 'gpu-smoke' : base.jobName,
-      interpreter: init.interpreter ?? base.interpreter,
-      toolchainId: init.toolchainId ?? base.toolchainId,
-      resultsRoot: init.projectDir && init.projectDir !== base.projectDir ? '' : base.resultsRoot,
-      ...(init.kind === 'gpu_smoke_test'
-        ? {
-            datasets: [],
-            hours: 0,
-            minutes: 10,
-            cpus: 2,
-            memoryGb: 8,
-            gpuCount: 1,
-            signalGraceSeconds: 120,
-            checkpointMode: 'none' as const,
-            expectedOutputGib: 0,
-          }
-        : {}),
-    };
-  });
-  const setDraft = (d: Draft) => {
-    setDraftState(d);
-    setStored(d);
-  };
-  const [preview, setPreview] = useState<WorkflowPreview | null>(null);
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [phase, setPhase] = useState<WorkflowState>('DRAFT');
-  const [error, setError] = useState<string | null>(null);
-  const [ack, setAck] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [result, setResult] = useState<SubmitResponse | null>(null);
-  const [reconcileMsg, setReconcileMsg] = useState<string | null>(null);
+  const {
+    draft,
+    set,
+    presets,
+    tcList,
+    home,
+    project,
+    partition,
+    gpuTypes,
+    gres,
+    effective,
+    maxGpus,
+    preview,
+    issues,
+    phase,
+    error,
+    ack,
+    setAck,
+    confirming,
+    setConfirming,
+    result,
+    setResult,
+    reconcileMsg,
+    upload,
+    presetLabel,
+    setPresetLabel,
+    envCheck,
+    interpreter,
+    checkModules,
+    checking,
+    review,
+    submit,
+    backToEdit,
+    reconcile,
+    resultsRoot,
+    checkEnv,
+    uploadArchive,
+    setDataset,
+    removeDataset,
+    addDataset,
+    loadPreset,
+    savePreset,
+  } = useTrainingWizard(status, snapshot, init);
   const [picker, setPicker] = useState<null | {
     kind: 'dir' | 'file';
     title: string;
@@ -337,40 +144,6 @@ export function TrainingWizard({
     onPick: (p: string) => void;
     archives?: boolean;
   }>(null);
-  const [upload, setUpload] = useState<Transfer | null>(null);
-  const [presetLabel, setPresetLabel] = useState('');
-  const [envCheck, setEnvCheck] = useState<{ interpreter: string; results?: ImportResult[]; error?: string } | null>(
-    null,
-  );
-  const submitting = useRef(false);
-
-  // Live progress of an archive being uploaded from the wizard (local list call, no network).
-  useQuery({
-    queryKey: ['wizard-upload', upload?.id],
-    enabled: !!upload && phase === 'UPLOADING',
-    refetchInterval: 1500,
-    queryFn: async () => {
-      const t = (await api.transfers()).find((x) => x.id === upload?.id) ?? null;
-      setUpload(t);
-      if (t && t.phase === 'done') {
-        const into =
-          safeName(t.name.replace(/\.(tar\.gz|tgz|tar\.zst|tar\.zstd|tzst|tar|tar\.xz|tar\.bz2|zip)$/i, '')) || 'data';
-        setDraft({ ...draft, datasets: [...draft.datasets, { archive: t.remotePath, into }] });
-        setPhase('DRAFT');
-      } else if (t && ['failed', 'cancelled', 'interrupted'].includes(t.phase)) {
-        setError(`Upload ${t.phase}: ${t.message ?? ''} You can resume it in Transfers.`);
-        setPhase('DRAFT');
-      }
-      return t;
-    },
-  });
-
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
-    setDraft({ ...draft, [k]: v });
-    setPreview(null);
-    setResult(null);
-    if (phase === 'READY') setPhase('DRAFT');
-  };
 
   if (!snapshot) {
     return (
@@ -390,89 +163,6 @@ export function TrainingWizard({
     );
   }
 
-  const partition =
-    snapshot.partitions.find((p) => p.name === draft.partition) ??
-    snapshot.partitions.find((p) => p.isDefault) ??
-    snapshot.partitions[0];
-  const gpuTypes = partition?.gpuTotals ?? [];
-  const gres = gpuTypes.some((t) => t.gresName === draft.gres) ? draft.gres : (gpuTypes[0]?.gresName ?? '');
-  const effective: Draft = { ...draft, partition: partition?.name ?? '', gres };
-  const tcList = toolchains.data ?? [];
-  const home = status.capabilities?.home ?? '';
-  const project = expandHome(effective.projectDir, home).replace(/\/+$/, '');
-
-  const review = async (e: FormEvent) => {
-    e.preventDefault();
-    setPhase('VALIDATING');
-    setError(null);
-    setAck(false);
-    try {
-      const p = await api.workflowPreview(toConfig(effective, tcList, home));
-      setIssues(p.errors);
-      if (p.errors.length) {
-        setPreview(null);
-        setPhase('DRAFT');
-        setError(`${p.errors.length} problem(s) need fixing before the workflow can be reviewed.`);
-      } else {
-        setPreview(p);
-        setPhase('READY');
-      }
-    } catch (err) {
-      setError(errorMessage(err));
-      setPhase('DRAFT');
-    }
-  };
-
-  const submit = async () => {
-    if (!preview?.previewId || submitting.current) return;
-    submitting.current = true;
-    setPhase('SUBMITTING');
-    setError(null);
-    try {
-      const r = await api.jobsSubmit(preview.previewId, ack, crypto.randomUUID());
-      setResult(r);
-      setPreview(null);
-      void qc.invalidateQueries({ queryKey: ['runs'] });
-    } catch (err) {
-      setError(errorMessage(err));
-      setPreview(null);
-    } finally {
-      setConfirming(false);
-      setPhase('DRAFT');
-      submitting.current = false;
-    }
-  };
-
-  const interpreter = expandHome(draft.interpreter, home);
-  const checkModules = draft.checkModules || CHECK_MODULES[draft.kind];
-  const checkEnv = async () => {
-    setEnvCheck({ interpreter });
-    try {
-      const modules = checkModules.split(/[\s,]+/).filter(Boolean);
-      setEnvCheck({ interpreter, results: await api.pythonCheckImports(interpreter, modules) });
-    } catch (err) {
-      setEnvCheck({ interpreter, error: errorMessage(err) });
-    }
-  };
-  const checking = !!envCheck && !envCheck.results && !envCheck.error;
-
-  const uploadArchive = async () => {
-    setError(null);
-    try {
-      const pick = await api.pickFile();
-      if (!pick) return;
-      if (!pick.isArchive) {
-        setError('Choose an archive (.tar.gz, .tar.zst, .zip, …). Pack folders in Transfers first.');
-        return;
-      }
-      await api.mkdir(project, 'data').catch(() => undefined); // already exists is fine
-      setUpload(await api.upload(pick.token, `${project}/data`, safeName(pick.name)));
-      setPhase('UPLOADING');
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
   if (result) {
     return (
       <section className="card result" aria-live="polite">
@@ -488,7 +178,7 @@ export function TrainingWizard({
               SLURM queued the workflow. It runs on a compute node; this app only monitors it (closing the app does not
               stop it). Results go to{' '}
               <code>
-                {toConfig(effective, tcList, home).resultsRoot}/{effective.jobName}-{result.jobId}
+                {resultsRoot()}/{effective.jobName}-{result.jobId}
               </code>
               .
             </p>
@@ -527,15 +217,7 @@ export function TrainingWizard({
             </Notice>
             {reconcileMsg && <Notice tone="info">{reconcileMsg}</Notice>}
             <div className="actions start">
-              <button
-                className="btn primary"
-                onClick={() =>
-                  api
-                    .workflowReconcile(result.receipt.tag)
-                    .then((r) => setReconcileMsg(r.submissionMessage ?? r.submission))
-                    .catch((e) => setReconcileMsg(errorMessage(e)))
-                }
-              >
+              <button className="btn primary" onClick={() => void reconcile(result.receipt.tag)}>
                 Check my jobs for this submission
               </button>
               <button className="btn" onClick={() => setResult(null)}>
@@ -548,14 +230,6 @@ export function TrainingWizard({
     );
   }
 
-  const maxGpus = partition
-    ? Math.max(
-        1,
-        ...partition.nodeIds.map(
-          (id) => snapshot.nodesById[id]?.resources.find((r) => r.gresName === gres)?.configured ?? 0,
-        ),
-      )
-    : 1;
   // Same two steps as the script job form; uploading and checking show their own notices.
   const reviewing = phase === 'READY' || phase === 'SUBMITTING';
 
@@ -576,21 +250,22 @@ export function TrainingWizard({
       )}
 
       {!preview ? (
-        <form className="card" onSubmit={review} noValidate>
+        <form
+          className="card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void review();
+          }}
+          noValidate
+        >
           <div className="card-head">
             <h2>Workflow</h2>
-            {(presets.data?.length ?? 0) > 0 && (
+            {(presets?.length ?? 0) > 0 && (
               <label className="field inline">
                 <span>Load preset</span>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const p = presets.data?.find((x) => x.id === e.target.value);
-                    if (p) setDraft(fromConfig(p.config, tcList));
-                  }}
-                >
+                <select value="" onChange={(e) => loadPreset(e.target.value)}>
                   <option value="">Choose…</option>
-                  {presets.data?.map((p) => (
+                  {presets?.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label}
                     </option>
@@ -784,35 +459,20 @@ export function TrainingWizard({
                       aria-label={`Archive ${i + 1}`}
                       className="mono"
                       value={d.archive}
-                      onChange={(e) =>
-                        set(
-                          'datasets',
-                          draft.datasets.map((x, j) => (j === i ? { ...x, archive: e.target.value } : x)),
-                        )
-                      }
+                      onChange={(e) => setDataset(i, { archive: e.target.value })}
                     />
                     <span className="muted">→ data/</span>
                     <input
                       aria-label={`Folder name for archive ${i + 1}`}
                       className="mono short"
                       value={d.into}
-                      onChange={(e) =>
-                        set(
-                          'datasets',
-                          draft.datasets.map((x, j) => (j === i ? { ...x, into: e.target.value } : x)),
-                        )
-                      }
+                      onChange={(e) => setDataset(i, { into: e.target.value })}
                     />
                     <button
                       type="button"
                       className="btn ghost icon-btn"
                       aria-label={`Remove archive ${i + 1}`}
-                      onClick={() =>
-                        set(
-                          'datasets',
-                          draft.datasets.filter((_, j) => j !== i),
-                        )
-                      }
+                      onClick={() => removeDataset(i)}
                     >
                       <Icon name="close" size={14} />
                     </button>
@@ -831,11 +491,7 @@ export function TrainingWizard({
                       archives: true,
                       title: 'Choose a dataset archive on ICF',
                       start: project || null,
-                      onPick: (p) =>
-                        set('datasets', [
-                          ...draft.datasets,
-                          { archive: p, into: safeName((p.split('/').pop() ?? 'data').replace(/\..*$/, '')) || 'data' },
-                        ]),
+                      onPick: addDataset,
                     })
                   }
                 >
@@ -1111,15 +767,7 @@ export function TrainingWizard({
                 type="button"
                 className="btn ghost"
                 disabled={!presetLabel.trim()}
-                onClick={() =>
-                  api
-                    .savePreset(null, presetLabel.trim(), toConfig(effective, tcList, home))
-                    .then(() => {
-                      setPresetLabel('');
-                      void qc.invalidateQueries({ queryKey: ['presets'] });
-                    })
-                    .catch((e) => setError(errorMessage(e)))
-                }
+                onClick={() => void savePreset()}
               >
                 Save as preset
               </button>
@@ -1177,13 +825,7 @@ export function TrainingWizard({
             </div>
           )}
           <div className="actions">
-            <button
-              className="btn"
-              onClick={() => {
-                setPreview(null);
-                setPhase('DRAFT');
-              }}
-            >
+            <button className="btn" onClick={backToEdit}>
               Back to edit
             </button>
             <button
@@ -1225,11 +867,7 @@ export function TrainingWizard({
           start={picker.start}
           kind={picker.kind}
           title={picker.title}
-          filter={
-            picker.archives
-              ? (e) => /\.(tar\.gz|tgz|tar\.zst|tar\.zstd|tzst|tar|tar\.xz|tar\.bz2|zip)$/i.test(e.name)
-              : undefined
-          }
+          filter={picker.archives ? (e) => isArchiveName(e.name) : undefined}
           onPick={(p) => {
             picker.onPick(p);
             setPicker(null);
