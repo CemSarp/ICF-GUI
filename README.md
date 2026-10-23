@@ -169,7 +169,8 @@ Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemS
 | [`docs/`](docs) | User guide, architecture, security, decisions, testing, changelog, smoke-test examples |
 
 The UI never runs commands itself; it calls typed Tauri commands (`frontend/src/lib/api.ts`), and the
-backend runs every SSH and SLURM command.
+backend runs every SSH and SLURM command. [docs/ICF_COMMANDS.md](docs/ICF_COMMANDS.md) lists each call and
+the exact commands it runs on ICF.
 
 ### Run and build
 
@@ -217,7 +218,7 @@ stub `sbatch`/`squeue`/`scancel`.
 
 ### Project docs
 
-[Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
+[Architecture](docs/ARCHITECTURE.md) · [ICF commands & IPC](docs/ICF_COMMANDS.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
 [Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) ·
 [Release checklist](docs/RELEASE_CHECKLIST.md) · [Changelog](docs/CHANGELOG.md)
 

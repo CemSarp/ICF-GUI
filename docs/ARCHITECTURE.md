@@ -1,5 +1,7 @@
 # Architecture (V1–V3)
 
+Every IPC command, SSH invocation and remote script is listed in [ICF_COMMANDS.md](ICF_COMMANDS.md).
+
 ```text
 React (frontend/src/)                      Rust (backend/src/)
 ───────────────────────────────            ──────────────────────────────────────────────
