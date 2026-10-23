@@ -56,7 +56,8 @@ describe('dashboard (V1-AC04..AC09)', () => {
     renderApp();
     await screen.findByText(/DEMO MODE/);
     const scheduled = () => backend.count('cluster_get_snapshot', (a) => a.forceRefresh === false);
-    expect(scheduled()).toBe(1);
+    // The banner commits before React Query's subscribe effect starts the first fetch.
+    await waitFor(() => expect(scheduled()).toBe(1));
     await act(() => vi.advanceTimersByTimeAsync(61_000));
     expect(scheduled()).toBe(2);
     act(() => focusManager.setFocused(false)); // window hidden / minimised
