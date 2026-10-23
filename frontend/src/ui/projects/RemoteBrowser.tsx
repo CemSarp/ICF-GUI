@@ -1,80 +1,32 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Dialog, Icon, Notice, type IconName } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
+import { errorMessage } from '../../logic/api';
 import { bytes, formatTime, formatUnix } from '../../logic/format';
+import { crumbTrail, editable, isDir, joinPath, NEW_FILE_TYPES, type NewFileType } from '../../logic/projects/paths';
+import { useRemoteBrowser } from '../../logic/projects/useRemoteBrowser';
 import type { ConnectionStatus, Entry, Listing } from '../../types';
-import { fileKind, sizeLimit } from '../../logic/editor/languages';
-
-export function joinPath(dir: string, name: string): string {
-  return dir === '/' ? `/${name}` : `${dir}/${name}`;
-}
-
-export function parentOf(path: string): string {
-  const i = path.lastIndexOf('/');
-  return i <= 0 ? '/' : path.slice(0, i);
-}
-
-const isDir = (e: Entry) => e.kind === 'dir' || e.targetKind === 'dir';
-/** Regular (not linked) text files the editor supports, within its size limit. */
-const editable = (e: Entry) =>
-  e.kind === 'file' && !e.unsupported && fileKind(e.name) !== null && e.size <= sizeLimit(e.name);
 
 function icon(e: Entry): IconName {
   if (isDir(e)) return 'folder';
   return e.kind === 'symlink' ? 'link' : 'file';
 }
 
-/** Empty notebook (nbformat 4.5) with one code cell and a Python 3 kernel. */
-const NOTEBOOK_TEMPLATE =
-  JSON.stringify(
-    {
-      cells: [{ cell_type: 'code', execution_count: null, id: 'c0ffee01', metadata: {}, outputs: [], source: [] }],
-      metadata: {
-        kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' },
-        language_info: { name: 'python' },
-      },
-      nbformat: 4,
-      nbformat_minor: 5,
-    },
-    null,
-    1,
-  ) + '\n';
-
-const NEW_FILE_TYPES = {
-  python: { label: 'Python', ext: '.py', template: '' },
-  notebook: { label: 'Jupyter notebook', ext: '.ipynb', template: NOTEBOOK_TEMPLATE },
-  cuda: { label: 'CUDA', ext: '.cu', template: '' },
-  cpp: { label: 'C++', ext: '.cpp', template: '' },
-  c: { label: 'C', ext: '.c', template: '' },
-  header: { label: 'C/C++ header', ext: '.h', template: '' },
-  markdown: { label: 'Markdown', ext: '.md', template: '' },
-  text: { label: 'Plain text', ext: '.txt', template: '' },
-} as const;
-type NewFileType = keyof typeof NEW_FILE_TYPES;
-
 /** Clickable path segments from the home folder down; segments above home are plain text. */
 function Crumbs({ path, home, go }: { path: string; home: string; go: (p: string) => void }) {
-  const parts = path.split('/').filter(Boolean);
   return (
     <nav className="crumbs" aria-label="Current folder" title={path}>
-      {parts.map((part, i) => {
-        const p = `/${parts.slice(0, i + 1).join('/')}`;
-        const last = i === parts.length - 1;
-        const inside = p === home || p.startsWith(`${home}/`);
-        return (
-          <span key={p}>
-            <span className="crumb-sep">/</span>
-            {inside ? (
-              <button className="crumb" aria-current={last ? 'location' : undefined} onClick={() => !last && go(p)}>
-                {part}
-              </button>
-            ) : (
-              <span className="muted">{part}</span>
-            )}
-          </span>
-        );
-      })}
+      {crumbTrail(path, home).map(({ part, path: p, last, inside }) => (
+        <span key={p}>
+          <span className="crumb-sep">/</span>
+          {inside ? (
+            <button className="crumb" aria-current={last ? 'location' : undefined} onClick={() => !last && go(p)}>
+              {part}
+            </button>
+          ) : (
+            <span className="muted">{part}</span>
+          )}
+        </span>
+      ))}
     </nav>
   );
 }
@@ -106,65 +58,33 @@ export function RemoteBrowser({
   onOpenFile?: (path: string) => void;
   title?: ReactNode;
 }) {
-  const [history, setHistory] = useState<(string | null)[]>([start]);
-  const [pos, setPos] = useState(0);
-  const [showHidden, setShowHidden] = useState(false);
-  const [typed, setTyped] = useState('');
-  const [mkdirOpen, setMkdirOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [mkdirError, setMkdirError] = useState<string | null>(null);
-  const [newFile, setNewFile] = useState<{ name: string; type: NewFileType; error: string | null } | null>(null);
-  const qc = useQueryClient();
-  const current = history[pos] ?? null;
-  const key = ['browse', current, status.connectedAt];
-  const q = useQuery({ queryKey: key, queryFn: () => api.browse(current), retry: false, staleTime: 30_000 });
-  const listing = q.data;
-
-  const go = (path: string | null) => {
-    setHistory((h) => [...h.slice(0, pos + 1), path]);
-    setPos((p) => p + 1);
-  };
-  const submitPath = (e: FormEvent) => {
-    e.preventDefault();
-    const p = typed.trim().replace(/\/+$/, '');
-    if (!p) return;
-    go(p.startsWith('/') ? p : listing ? joinPath(listing.home, p.replace(/^~\//, '')) : p);
-    setTyped('');
-  };
-  const mkdir = async () => {
-    if (!listing) return;
-    setMkdirError(null);
-    try {
-      const made = await api.mkdir(listing.path, newName.trim());
-      setMkdirOpen(false);
-      setNewName('');
-      void qc.invalidateQueries({ queryKey: ['browse', listing.path] });
-      void qc.invalidateQueries({ queryKey: key });
-      go(made);
-    } catch (e) {
-      setMkdirError(errorMessage(e));
-    }
-  };
-
-  const createFile = async () => {
-    if (!listing || !newFile || !onOpenFile) return;
-    const t = NEW_FILE_TYPES[newFile.type];
-    const base = newFile.name.trim();
-    const name = base.toLowerCase().endsWith(t.ext) ? base : `${base}${t.ext}`;
-    try {
-      const made = await api.filesCreate(listing.path, name, t.template);
-      setNewFile(null);
-      void qc.invalidateQueries({ queryKey: key });
-      onOpenFile(made.path);
-    } catch (e) {
-      setNewFile({ ...newFile, error: errorMessage(e) });
-    }
-  };
-
-  const entries = (listing?.entries ?? []).filter(
-    (e) => (showHidden || !e.name.startsWith('.')) && (!fileFilter || isDir(e) || fileFilter(e)),
-  );
-  const atHome = listing && listing.path === listing.home;
+  const {
+    q,
+    listing,
+    current,
+    entries,
+    atHome,
+    canBack,
+    canForward,
+    go,
+    back,
+    forward,
+    up,
+    showHidden,
+    setShowHidden,
+    typed,
+    setTyped,
+    submitPath,
+    mkdirOpen,
+    setMkdirOpen,
+    newName,
+    setNewName,
+    mkdirError,
+    mkdir,
+    newFile,
+    setNewFile,
+    createFile,
+  } = useRemoteBrowser({ status, start, fileFilter, onOpenFile });
 
   return (
     <section className="card browser" aria-label="Remote folder browser">
@@ -173,19 +93,13 @@ export function RemoteBrowser({
         <span className="muted small">{listing ? `Listed ${formatTime(listing.fetchedAt)}` : ''}</span>
       </div>
       <div className="toolbar browser-bar">
-        <button
-          className="btn ghost icon-btn"
-          onClick={() => setPos((p) => p - 1)}
-          disabled={pos === 0}
-          aria-label="Back"
-          title="Back"
-        >
+        <button className="btn ghost icon-btn" onClick={back} disabled={!canBack} aria-label="Back" title="Back">
           <Icon name="back" />
         </button>
         <button
           className="btn ghost icon-btn"
-          onClick={() => setPos((p) => p + 1)}
-          disabled={pos >= history.length - 1}
+          onClick={forward}
+          disabled={!canForward}
           aria-label="Forward"
           title="Forward"
         >
@@ -193,7 +107,7 @@ export function RemoteBrowser({
         </button>
         <button
           className="btn ghost icon-btn"
-          onClick={() => listing && go(parentOf(listing.path))}
+          onClick={up}
           disabled={!listing || !!atHome}
           aria-label="Up one folder"
           title="Up one folder"
@@ -212,7 +126,13 @@ export function RemoteBrowser({
         >
           <Icon name="refresh" />
         </button>
-        <form onSubmit={submitPath} className="path-form">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitPath();
+          }}
+          className="path-form"
+        >
           <label className="sr-only" htmlFor="browse-path">
             Go to folder
           </label>
@@ -260,8 +180,8 @@ export function RemoteBrowser({
       {q.error && (
         <Notice tone="bad">
           {errorMessage(q.error)}{' '}
-          {pos > 0 && (
-            <button className="link" onClick={() => setPos((p) => p - 1)}>
+          {canBack && (
+            <button className="link" onClick={back}>
               Go back
             </button>
           )}

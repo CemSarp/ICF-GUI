@@ -1,18 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { BackButton, Badge, Dialog, EmptyState, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
+import { errorMessage } from '../../logic/api';
 import { formatTime } from '../../logic/format';
-import type {
-  ConnectionStatus,
-  EnvReport,
-  Interpreter,
-  LaunchResult,
-  ProjectRecord,
-  SettingsPreview,
-  SharePreview,
-  ToolchainProfile,
-} from '../../types';
+import { homePrefix, useEnvPanel } from '../../logic/projects/env';
+import { useProjectDetail, useProjects } from '../../logic/projects/useProjects';
+import { useVsCodeShare, useVsCodeStatus } from '../../logic/projects/vscode';
+import type { ConnectionStatus, Interpreter, ProjectRecord } from '../../types';
 import { RemoteBrowser } from './RemoteBrowser';
 
 export interface ProjectNav {
@@ -26,8 +18,6 @@ export interface ProjectNav {
   onEditFile: (remotePath: string) => void;
 }
 
-const recentKey = (s: ConnectionStatus) => ['projects', s.profileId, s.connectedAt];
-
 export function ProjectsView({
   status,
   selected,
@@ -39,21 +29,7 @@ export function ProjectsView({
   onSelect: (path: string | null) => void;
   nav: ProjectNav;
 }) {
-  const qc = useQueryClient();
-  const recent = useQuery({ queryKey: recentKey(status), queryFn: api.projectsRecent, retry: false });
-  const [error, setError] = useState<string | null>(null);
-  const project = recent.data?.find((p) => p.path === selected) ?? null;
-
-  const open = async (path: string) => {
-    setError(null);
-    try {
-      const rec = await api.openProject(path);
-      await qc.invalidateQueries({ queryKey: recentKey(status) });
-      onSelect(rec.path);
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
+  const { recent, error, project, open, forget } = useProjects(status, selected, onSelect);
 
   if (status.demo) {
     return (
@@ -74,12 +50,7 @@ export function ProjectsView({
         <div className="card-head">
           <h2 id="recent-title">Recent projects</h2>
           {(recent.data?.length ?? 0) > 0 && (
-            <button
-              className="btn ghost"
-              onClick={() =>
-                void api.forgetProject(null).then(() => qc.invalidateQueries({ queryKey: recentKey(status) }))
-              }
-            >
+            <button className="btn ghost" onClick={() => forget(null)}>
               Clear history
             </button>
           )}
@@ -106,13 +77,7 @@ export function ProjectsView({
                   </span>
                   <Icon name="forward" />
                 </button>
-                <button
-                  className="btn ghost small-btn"
-                  aria-label={`Forget ${p.path}`}
-                  onClick={() =>
-                    void api.forgetProject(p.path).then(() => qc.invalidateQueries({ queryKey: recentKey(status) }))
-                  }
-                >
+                <button className="btn ghost small-btn" aria-label={`Forget ${p.path}`} onClick={() => forget(p.path)}>
                   Forget
                 </button>
               </li>
@@ -144,32 +109,7 @@ function ProjectDetail({
   onBack: () => void;
   nav: ProjectNav;
 }) {
-  const qc = useQueryClient();
-  const [launch, setLaunch] = useState<LaunchResult | null>(null);
-  const [launchError, setLaunchError] = useState<string | null>(null);
-  const [launching, setLaunching] = useState(false);
-
-  const openInVsCode = async () => {
-    setLaunching(true);
-    setLaunchError(null);
-    setLaunch(null);
-    try {
-      setLaunch(await api.vscodeOpen(project.path));
-      void qc.invalidateQueries({ queryKey: ['vscode-share'] }); // the app now keeps the connection for VS Code
-    } catch (e) {
-      setLaunchError(errorMessage(e));
-    } finally {
-      setLaunching(false);
-    }
-  };
-
-  const download = async (path: string) => {
-    try {
-      await api.download(path);
-    } catch (e) {
-      setLaunchError(errorMessage(e));
-    }
-  };
+  const { launch, launchError, launching, openInVsCode, download, refresh } = useProjectDetail(status, project);
 
   return (
     <section aria-labelledby="project-title" className="project-detail">
@@ -210,7 +150,7 @@ function ProjectDetail({
       <VsCodePanel status={status} />
       <EnvPanel
         project={project}
-        onChanged={() => void qc.invalidateQueries({ queryKey: recentKey(status) })}
+        onChanged={refresh}
         onSmokeTest={() =>
           nav.onStartTraining({
             projectDir: project.path,
@@ -235,20 +175,13 @@ function ProjectDetail({
 }
 
 export function VsCodePanel({ status }: { status: ConnectionStatus }) {
-  const [refresh, setRefresh] = useState(0);
-  const q = useQuery({
-    queryKey: ['vscode', status.profileId, refresh],
-    queryFn: () => api.vscodeStatus(refresh > 0),
-    retry: false,
-    staleTime: 5 * 60_000,
-  });
-  const [copied, setCopied] = useState(false);
+  const { q, recheck, copied, copySnippet, openGuide } = useVsCodeStatus(status);
   const v = q.data;
   return (
     <section className="card" aria-labelledby="vscode-title">
       <div className="card-head">
         <h3 id="vscode-title">VS Code</h3>
-        <button className="btn ghost" onClick={() => setRefresh((n) => n + 1)} disabled={q.isFetching}>
+        <button className="btn ghost" onClick={recheck} disabled={q.isFetching}>
           {q.isFetching ? 'Checking…' : 'Check again'}
         </button>
       </div>
@@ -297,18 +230,10 @@ export function VsCodePanel({ status }: { status: ConnectionStatus }) {
                 {v.sshConfigSnippet}
               </pre>
               <div className="actions start">
-                <button
-                  className="btn"
-                  onClick={() =>
-                    void navigator.clipboard
-                      .writeText(v.sshConfigSnippet ?? '')
-                      .then(() => setCopied(true))
-                      .catch(() => setCopied(false))
-                  }
-                >
+                <button className="btn" onClick={copySnippet}>
                   {copied ? 'Copied' : 'Copy block'}
                 </button>
-                <button className="btn ghost" onClick={() => void api.openExternal('vscode_remote_ssh')}>
+                <button className="btn ghost" onClick={openGuide}>
                   Remote - SSH guide
                   <Icon name="external" size={14} />
                 </button>
@@ -356,74 +281,27 @@ function EnvPanel({
   onChanged: () => void;
   onSmokeTest: () => void;
 }) {
-  const [report, setReport] = useState<EnvReport | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [extra, setExtra] = useState('');
-  const [preview, setPreview] = useState<SettingsPreview | null>(null);
-  const [applied, setApplied] = useState<string | null>(null);
-  const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const tc: ToolchainProfile | undefined = toolchains.data?.find((t) => t.id === project.toolchainId);
-
-  const discover = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setReport(await api.pythonDiscover(project.path, extra.trim() || null));
-      onChanged();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const save = async (prefs: Partial<{ interpreter: string | null; toolchainId: string | null }>) => {
-    setError(null);
-    try {
-      await api.setProjectPrefs(project.path, {
-        interpreter: project.interpreter,
-        toolchainId: project.toolchainId,
-        partition: project.partition,
-        gresType: project.gresType,
-        ...prefs,
-      });
-      onChanged();
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-  const previewSettings = async () => {
-    if (!project.interpreter) return;
-    setError(null);
-    setApplied(null);
-    try {
-      setPreview(await api.vscodeSettingsPreview(project.path, project.interpreter));
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-  const apply = async () => {
-    if (!preview?.previewId) return;
-    try {
-      const r = await api.vscodeSettingsApply(preview.previewId);
-      setApplied(r.backup ? `Written. The previous file was backed up as ${r.backup}.` : `Created ${r.file}.`);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setPreview(null);
-    }
-  };
-  const selected = report?.interpreters.find((i) => i.path === project.interpreter);
-  // The project's own .venv/venv/env are always probed; list them only when they exist.
-  const isDefault = (p: string) => ['.venv', 'venv', 'env'].some((d) => p === `${project.path}/${d}/bin/python`);
-  const shown = report?.interpreters.filter((i) => !(i.status === 'missing' && isDefault(i.path))) ?? [];
-  const noProjectEnv = !!report && shown.every((i) => !isDefault(i.path));
-  const info = selected ?? project.interpreterInfo;
-  const torchCuda = selected?.torchCuda ?? project.interpreterInfo?.torchCuda ?? null;
-  const rcStatus =
-    tc?.spec.kind === 'rc'
-      ? report?.toolchains.find((t) => tc.spec.kind === 'rc' && t.path === tc.spec.path)?.status
-      : undefined;
+  const {
+    report,
+    busy,
+    error,
+    extra,
+    setExtra,
+    preview,
+    setPreview,
+    applied,
+    toolchains,
+    tc,
+    discover,
+    save,
+    previewSettings,
+    apply,
+    shown,
+    noProjectEnv,
+    info,
+    torchCuda,
+    rcStatus,
+  } = useEnvPanel(project, onChanged);
 
   return (
     <section className="card" aria-labelledby="env-title">
@@ -451,7 +329,7 @@ function EnvPanel({
         <input
           id="extra-interp"
           className="mono"
-          placeholder={`Add another, e.g. ${project.path.split('/').slice(0, 3).join('/')}/projects/icf-env/bin/python`}
+          placeholder={`Add another, e.g. ${homePrefix(project.path)}/projects/icf-env/bin/python`}
           value={extra}
           onChange={(e) => setExtra(e.target.value)}
           autoCapitalize="off"
@@ -618,28 +496,7 @@ function EnvPanel({
 
 /** "Sign VS Code in through this app": VS Code reuses the app's connection (ADR-028). */
 function VsCodeShare({ status }: { status: ConnectionStatus }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ['vscode-share', status.connectedAt],
-    queryFn: api.vscodeShareStatus,
-    retry: false,
-  });
-  const [preview, setPreview] = useState<SharePreview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const s = q.data;
-  const run = async (f: () => Promise<unknown>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await f();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const done = () => qc.invalidateQueries({ queryKey: ['vscode-share'] });
+  const { s, preview, setPreview, busy, error, toggle, turnOn } = useVsCodeShare(status);
 
   return (
     <div className="share">
@@ -648,15 +505,7 @@ function VsCodeShare({ status }: { status: ConnectionStatus }) {
           type="checkbox"
           checked={!!s?.enabled}
           disabled={!s || busy}
-          onChange={(e) =>
-            void run(async () => {
-              if (e.target.checked) setPreview(await api.vscodeSharePreview());
-              else {
-                await api.vscodeShareDisable();
-                await done();
-              }
-            })
-          }
+          onChange={(e) => toggle(e.target.checked)}
         />
         Sign VS Code in through this app (no password prompts)
       </label>
@@ -699,17 +548,7 @@ function VsCodeShare({ status }: { status: ConnectionStatus }) {
             <button className="btn" onClick={() => setPreview(null)} data-autofocus>
               Cancel
             </button>
-            <button
-              className="btn primary"
-              disabled={!preview.previewId || busy}
-              onClick={() =>
-                void run(async () => {
-                  await api.vscodeShareApply(preview.previewId ?? '');
-                  setPreview(null);
-                  await done();
-                })
-              }
-            >
+            <button className="btn primary" disabled={!preview.previewId || busy} onClick={turnOn}>
               Turn on
             </button>
           </div>
