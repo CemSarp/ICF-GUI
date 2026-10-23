@@ -1,34 +1,24 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Badge, Dialog, EmptyState, Icon, Notice, type IconName } from './components/ui';
 import { Nodes } from './cluster/Nodes';
 import { NodeDetail } from './cluster/NodeDetail';
 import { Overview } from './cluster/Overview';
 import { Partitions } from './cluster/Partitions';
-import { useSnapshot } from '../logic/cluster/useSnapshot';
 import { ChallengeDialog } from './connection/ChallengeDialog';
 import { LoginView } from './connection/LoginView';
-import { isLive, useConnection } from '../logic/connection/useConnection';
 import { JobDetailView } from './jobs/JobDetailView';
-import { ProjectsView } from './projects/ProjectsView';
-import { RunsView } from './training/RunsView';
-import type { WizardInit } from '../logic/training/wizardDraft';
-import { TransfersView } from './transfers/TransfersView';
 import { MyJobsView } from './jobs/MyJobsView';
-import type { JobMode } from '../logic/jobs/newJob';
 import { NewJobView } from './jobs/NewJobView';
-import type { Theme } from '../logic/settings/theme';
+import { ProjectsView } from './projects/ProjectsView';
 import { SettingsView } from './settings/SettingsView';
-import { api, errorMessage } from '../logic/api';
+import { RunsView } from './training/RunsView';
+import { TransfersView } from './transfers/TransfersView';
+import { useAppShell, type View } from '../logic/app/useAppShell';
 import { CONN_STATE, formatTime } from '../logic/format';
-import { usePersistentState } from '../logic/persist';
-import type { Settings } from '../types';
 
 // CodeMirror is only needed once a file is opened: keep it out of the startup bundle.
 const EditorView = lazy(() => import('./editor/EditorView').then((m) => ({ default: m.EditorView })));
 
-type View =
-  'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'projects' | 'training' | 'transfers' | 'settings';
 type NavItem = { id: View; label: string; icon: IconName };
 const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
@@ -62,71 +52,58 @@ const NAV = NAV_GROUPS.flatMap((g) => g.items);
 const USES_SNAPSHOT: View[] = ['overview', 'partitions', 'nodes', 'request'];
 
 export function App() {
-  const { status, challenges, setChallenges } = useConnection();
-  const [settings, setSettings] = useState<Settings>({ pollIntervalSecs: 60 });
-  const [view, setView] = usePersistentState<View>('view', 'overview');
-  const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
-  const [partitionFilter, setPartitionFilter] = usePersistentState('nodes.partition', '');
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [selectedJob, setSelectedJob] = useState<string | null>(null);
-  const [requestPartition, setRequestPartition] = useState<string | null>(null);
-  const [project, setProject] = usePersistentState<string | null>('project.selected', null);
-  const [jobMode, setJobMode] = usePersistentState<JobMode>('newjob.mode', 'script');
-  const [wizardInit, setWizardInit] = useState<{ init: WizardInit | null; key: number }>({ init: null, key: 0 });
-  const [selectedRun, setSelectedRun] = useState<string | null>(null);
-  const [uploadDir, setUploadDir] = useState<string | null>(null);
-  const [editingFile, setEditingFile] = useState<string | null>(null);
-  const [editorDirty, setEditorDirty] = useState(false);
-  /** Navigation (or disconnect) held back while the editor has unsaved changes. */
-  const [pendingLeave, setPendingLeave] = useState<View | 'disconnect' | null>(null);
-  const qc = useQueryClient();
-  const live = isLive(status);
-  const snap = useSnapshot(status, settings.pollIntervalSecs);
-  const share = useQuery({
-    queryKey: ['vscode-share', status.connectedAt],
-    queryFn: api.vscodeShareStatus,
-    enabled: live && !status.demo,
-    retry: false,
-  });
-  const vscodeInUse = !!share.data?.inUse;
+  const {
+    status,
+    live,
+    settings,
+    setSettings,
+    theme,
+    setTheme,
+    view,
+    snap,
+    snapshot,
+    err,
+    shareActive,
+    vscodeInUse,
+    challenge,
+    dismissChallenge,
+    partitionFilter,
+    setPartitionFilter,
+    selectedNode,
+    setSelectedNode,
+    selectedJob,
+    setSelectedJob,
+    requestPartition,
+    project,
+    setProject,
+    jobMode,
+    setJobMode,
+    wizardInit,
+    selectedRun,
+    setSelectedRun,
+    uploadDir,
+    editingFile,
+    setEditingFile,
+    editorDirty,
+    setEditorDirty,
+    pendingLeave,
+    setPendingLeave,
+    startTraining,
+    navigate,
+    requestDisconnect,
+    confirmLeave,
+    openNodes,
+    requestOn,
+    openJobs,
+    openRun,
+    uploadTo,
+    onCacheCleared,
+  } = useAppShell();
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    api
-      .settings()
-      .then(setSettings)
-      .catch(() => undefined);
-  }, []);
-  useEffect(() => {
-    if (theme === 'system') delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = theme;
-  }, [theme]);
-  useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
   }, [view, selectedNode, selectedJob, project, selectedRun, editingFile]);
-
-  const go = (v: View) => {
-    setEditingFile(null);
-    setEditorDirty(false);
-    setSelectedNode(null);
-    setSelectedJob(null);
-    setRequestPartition(null);
-    if (v !== 'training') setSelectedRun(null);
-    setView(v);
-  };
-  const startTraining = (init: WizardInit) => {
-    setWizardInit((w) => ({ init, key: w.key + 1 }));
-    setJobMode('workflow');
-    go('request');
-  };
-  const disconnect = () => {
-    setEditingFile(null);
-    setEditorDirty(false);
-    void api.disconnect().then(() => qc.clear());
-  };
-  const snapshot = snap.data?.snapshot ?? null;
-  const challenge = challenges[0];
-  const dismissChallenge = (id: string) => setChallenges((q) => q.filter((c) => c.id !== id));
 
   if (!live) {
     return (
@@ -138,7 +115,6 @@ export function App() {
   }
 
   const conn = CONN_STATE[status.state];
-  const err = snap.data?.lastError ?? (snap.error ? { message: errorMessage(snap.error) } : null);
 
   return (
     <div className="shell">
@@ -165,7 +141,7 @@ export function App() {
                   <button
                     className="nav"
                     aria-current={view === n.id ? 'page' : undefined}
-                    onClick={() => (editorDirty ? setPendingLeave(n.id) : go(n.id))}
+                    onClick={() => navigate(n.id)}
                   >
                     <Icon name={n.icon} />
                     {n.label}
@@ -236,15 +212,12 @@ export function App() {
                 </button>
               </>
             )}
-            {share.data?.active && (
+            {shareActive && (
               <Badge tone="info" glyph="⇄">
                 Shared with VS Code
               </Badge>
             )}
-            <button
-              className="btn ghost"
-              onClick={() => (editorDirty || vscodeInUse ? setPendingLeave('disconnect') : disconnect())}
-            >
+            <button className="btn ghost" onClick={requestDisconnect}>
               Disconnect
             </button>
           </div>
@@ -276,10 +249,7 @@ export function App() {
                 onSelect={setProject}
                 nav={{
                   onStartTraining: (init) => startTraining(init),
-                  onUpload: (dir) => {
-                    setUploadDir(dir);
-                    go('transfers');
-                  },
+                  onUpload: uploadTo,
                   onEditFile: setEditingFile,
                 }}
               />
@@ -300,14 +270,8 @@ export function App() {
                 requestPartition={requestPartition}
                 wizardInit={wizardInit.init}
                 wizardKey={wizardInit.key}
-                onOpenJobs={(jobId) => {
-                  go('jobs');
-                  if (jobId) setSelectedJob(jobId);
-                }}
-                onOpenRun={(tag) => {
-                  go('training');
-                  setSelectedRun(tag);
-                }}
+                onOpenJobs={openJobs}
+                onOpenRun={openRun}
                 onRefreshCluster={snap.refreshNow}
               />
             ) : view === 'transfers' ? (
@@ -326,7 +290,7 @@ export function App() {
                 setTheme={setTheme}
                 status={status}
                 snapshot={snap.data}
-                onCacheCleared={() => qc.invalidateQueries({ queryKey: ['node'] })}
+                onCacheCleared={onCacheCleared}
               />
             ) : snap.loading ? (
               <div className="skeleton" aria-busy="true">
@@ -339,26 +303,9 @@ export function App() {
             ) : selectedNode ? (
               <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
             ) : view === 'overview' ? (
-              <Overview
-                snapshot={snapshot}
-                onOpenPartition={(p) => {
-                  setPartitionFilter(p);
-                  go('nodes');
-                }}
-              />
+              <Overview snapshot={snapshot} onOpenPartition={openNodes} />
             ) : view === 'partitions' ? (
-              <Partitions
-                snapshot={snapshot}
-                onOpenNodes={(p) => {
-                  setPartitionFilter(p);
-                  go('nodes');
-                }}
-                onRequest={(p) => {
-                  go('request');
-                  setJobMode('script');
-                  setRequestPartition(p);
-                }}
-              />
+              <Partitions snapshot={snapshot} onOpenNodes={openNodes} onRequest={requestOn} />
             ) : (
               <Nodes
                 snapshot={snapshot}
@@ -398,15 +345,7 @@ export function App() {
             <button className="btn" onClick={() => setPendingLeave(null)} data-autofocus>
               {editorDirty ? 'Keep editing' : 'Stay connected'}
             </button>
-            <button
-              className="btn danger"
-              onClick={() => {
-                const target = pendingLeave;
-                setPendingLeave(null);
-                if (target === 'disconnect') disconnect();
-                else go(target);
-              }}
-            >
+            <button className="btn danger" onClick={confirmLeave}>
               {pendingLeave !== 'disconnect'
                 ? 'Discard changes'
                 : editorDirty
