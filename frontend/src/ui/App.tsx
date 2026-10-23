@@ -14,6 +14,7 @@ import { SettingsView } from './settings/SettingsView';
 import { RunsView } from './training/RunsView';
 import { TransfersView } from './transfers/TransfersView';
 import { useAppShell, type View } from '../logic/app/useAppShell';
+import { APP_VERSION } from '../logic/app/version';
 import { CONN_STATE, formatTime } from '../logic/format';
 
 // CodeMirror is only needed once a file is opened: keep it out of the startup bundle.
@@ -151,7 +152,7 @@ export function App() {
             </ul>
           </div>
         ))}
-        <div className="sidebar-foot muted small">Version 0.3.0</div>
+        <div className="sidebar-foot muted small">Version {APP_VERSION}</div>
       </nav>
 
       <div className="content">

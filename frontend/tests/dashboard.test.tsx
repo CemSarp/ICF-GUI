@@ -2,6 +2,7 @@ import { focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import pkg from '../package.json';
 import { connectedDemo, backend, snapshot } from './mockBackend';
 import { renderApp } from './render';
 
@@ -20,6 +21,12 @@ describe('dashboard (V1-AC04..AC09)', () => {
       expect(screen.getByRole('heading', { name: p })).toBeInTheDocument();
     }
     expect(screen.getByText(/Visibility does not imply eligibility/)).toBeInTheDocument();
+  });
+
+  it('shows the released version from package.json in the sidebar', async () => {
+    renderApp();
+    await screen.findByText(/DEMO MODE/);
+    expect(screen.getByText(`Version ${pkg.version}`)).toBeInTheDocument();
   });
 
   it('shows Unknown rather than 0 when allocation cannot be determined', async () => {
