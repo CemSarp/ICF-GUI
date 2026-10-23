@@ -1,13 +1,17 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
 import { formatTime } from '../../logic/format';
-import type { ConnectionStatus, Settings, SnapshotResponse, SshConfigReport, ToolchainProfile } from '../../types';
+import {
+  POLL_CHOICES,
+  redactName,
+  TRANSFER_LIMITS,
+  useSettings,
+  useToolchains,
+  useTransferPrefs,
+} from '../../logic/settings/settings';
+import type { Theme } from '../../logic/settings/theme';
+import type { ConnectionStatus, Settings, SnapshotResponse } from '../../types';
 import { VsCodePanel } from '../projects/ProjectsView';
-
-export type Theme = 'system' | 'light' | 'dark';
-const POLL_CHOICES = [45, 60, 90, 120, 300, 600];
 
 export function SettingsView({
   settings,
@@ -26,10 +30,13 @@ export function SettingsView({
   snapshot: SnapshotResponse | undefined;
   onCacheCleared: () => void;
 }) {
-  const [report, setReport] = useState<SshConfigReport | null>(null);
-  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  const { report, msg, setPollInterval, clearCache, inspect, openLink } = useSettings(
+    status,
+    onSettings,
+    onCacheCleared,
+  );
   const [redact, setRedact] = useState(true);
-  const r = (s: string) => (redact && s ? s.replace(/./g, '•').slice(0, 8) : s);
+  const r = (s: string) => redactName(s, redact);
   const caps = status.capabilities;
 
   return (
@@ -39,15 +46,7 @@ export function SettingsView({
         <h2>Refresh</h2>
         <label className="field inline">
           <span>Automatic refresh every</span>
-          <select
-            value={settings.pollIntervalSecs}
-            onChange={(e) =>
-              api
-                .setPollInterval(Number(e.target.value))
-                .then(onSettings)
-                .catch((err) => setMsg({ tone: 'bad', text: errorMessage(err) }))
-            }
-          >
+          <select value={settings.pollIntervalSecs} onChange={(e) => void setPollInterval(Number(e.target.value))}>
             {POLL_CHOICES.map((s) => (
               <option key={s} value={s}>
                 {s < 120 ? `${s} seconds` : `${s / 60} minutes`}
@@ -60,18 +59,7 @@ export function SettingsView({
           shares any in-flight request. One refresh = one SSH command running two read-only <code>scontrol show</code>{' '}
           queries.
         </p>
-        <button
-          className="btn"
-          onClick={() =>
-            api
-              .clearCache()
-              .then(() => {
-                onCacheCleared();
-                setMsg({ tone: 'ok', text: 'Cached snapshot cleared.' });
-              })
-              .catch((err) => setMsg({ tone: 'bad', text: errorMessage(err) }))
-          }
-        >
+        <button className="btn" onClick={() => void clearCache()}>
           Clear cached snapshot
         </button>
       </section>
@@ -124,15 +112,7 @@ export function SettingsView({
           <dt>Scheduler queries this session</dt>
           <dd>{snapshot?.inventoryRequests ?? 0}</dd>
         </dl>
-        <button
-          className="btn"
-          onClick={() =>
-            api
-              .inspectSshConfig(status.profileId ?? 'default')
-              .then(setReport)
-              .catch((err) => setMsg({ tone: 'bad', text: errorMessage(err) }))
-          }
-        >
+        <button className="btn" onClick={() => void inspect()}>
           Inspect local SSH configuration
         </button>
         {report && (
@@ -175,15 +155,15 @@ export function SettingsView({
         <h2>Links</h2>
         <p className="muted small">Opens in your browser. The app does not read or scrape these pages.</p>
         <div className="actions start">
-          <button className="btn ghost" onClick={() => void api.openExternal('icf_status')}>
+          <button className="btn ghost" onClick={() => openLink('icf_status')}>
             ICF status page
             <Icon name="external" size={14} />
           </button>
-          <button className="btn ghost" onClick={() => void api.openExternal('icf_tutorial')}>
+          <button className="btn ghost" onClick={() => openLink('icf_tutorial')}>
             ICF tutorial
             <Icon name="external" size={14} />
           </button>
-          <button className="btn ghost" onClick={() => void api.openExternal('vscode_remote_ssh')}>
+          <button className="btn ghost" onClick={() => openLink('vscode_remote_ssh')}>
             VS Code Remote - SSH
             <Icon name="external" size={14} />
           </button>
@@ -193,32 +173,8 @@ export function SettingsView({
   );
 }
 
-const slug = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40) || 'toolchain';
-
 function ToolchainsCard() {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const [label, setLabel] = useState('');
-  const [kind, setKind] = useState<'rc' | 'modules'>('rc');
-  const [value, setValue] = useState('');
-  const [cuda, setCuda] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const save = (p: ToolchainProfile) =>
-    api
-      .saveToolchain(p)
-      .then(() => {
-        setLabel('');
-        setValue('');
-        setCuda('');
-        setError(null);
-        return qc.invalidateQueries({ queryKey: ['toolchains'] });
-      })
-      .catch((e) => setError(errorMessage(e)));
+  const { q, label, setLabel, kind, setKind, value, setValue, cuda, setCuda, error, add, remove } = useToolchains();
   return (
     <section className="card" aria-labelledby="tc-title">
       <h2 id="tc-title">CUDA toolchain profiles</h2>
@@ -243,16 +199,7 @@ function ToolchainsCard() {
               </span>
               {t.note && <div className="muted small">{t.note}</div>}
             </span>
-            <button
-              className="btn ghost small-btn"
-              aria-label={`Delete ${t.label}`}
-              onClick={() =>
-                void api
-                  .deleteToolchain(t.id)
-                  .then(() => qc.invalidateQueries({ queryKey: ['toolchains'] }))
-                  .catch((e) => setError(errorMessage(e)))
-              }
-            >
+            <button className="btn ghost small-btn" aria-label={`Delete ${t.label}`} onClick={() => remove(t.id)}>
               Delete
             </button>
           </li>
@@ -285,50 +232,23 @@ function ToolchainsCard() {
           <input value={cuda} onChange={(e) => setCuda(e.target.value)} placeholder="12.8" />
         </label>
       </div>
-      <button
-        className="btn"
-        disabled={!label.trim() || !value.trim()}
-        onClick={() =>
-          void save({
-            id: slug(label),
-            label: label.trim(),
-            spec:
-              kind === 'rc'
-                ? { kind: 'rc', path: value.trim() }
-                : { kind: 'modules', names: value.trim().split(/\s+/) },
-            cuda: cuda.trim() || null,
-            note: null,
-          })
-        }
-      >
+      <button className="btn" disabled={!label.trim() || !value.trim()} onClick={add}>
         Add toolchain
       </button>
     </section>
   );
 }
 
-const LIMITS = [0, 50, 100, 200, 500];
-
 function TransfersCard() {
-  const q = useQuery({ queryKey: ['prefs'], queryFn: api.prefs, retry: false });
-  const qc = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const { limit, error, setLimit } = useTransferPrefs();
   return (
     <section className="card" aria-labelledby="xfer-title">
       <h2 id="xfer-title">Transfers</h2>
       {error && <Notice tone="bad">{error}</Notice>}
       <label className="field inline">
         <span>Bandwidth limit</span>
-        <select
-          value={q.data?.transferLimitMbps ?? 0}
-          onChange={(e) =>
-            void api
-              .setPrefs({ transferLimitMbps: Number(e.target.value) })
-              .then((p) => qc.setQueryData(['prefs'], p))
-              .catch((err) => setError(errorMessage(err)))
-          }
-        >
-          {LIMITS.map((l) => (
+        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+          {TRANSFER_LIMITS.map((l) => (
             <option key={l} value={l}>
               {l === 0 ? 'No limit' : `${l} Mbit/s`}
             </option>

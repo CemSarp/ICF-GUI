@@ -20,7 +20,7 @@ import type {
 } from '../../types';
 import { MailOption } from '../jobs/RequestGpuView';
 import { PickRemote } from '../projects/RemoteBrowser';
-import { safeName } from '../transfers/TransfersView';
+import { safeName } from '../../logic/transfers/transfers';
 
 export interface Draft {
   kind: WorkflowKind;

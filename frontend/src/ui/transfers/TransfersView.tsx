@@ -1,52 +1,33 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Badge, EmptyState, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
 import { bytes, formatTime, TRANSFER_PHASE } from '../../logic/format';
-import type { ConnectionStatus, FolderPick, LocalPick, Transfer } from '../../types';
+import { canResume, isActive, progressPct, useTransfers } from '../../logic/transfers/transfers';
+import type { ConnectionStatus, Transfer } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
 
-const ACTIVE = ['queued', 'checking', 'hashing', 'transferring', 'verifying', 'publishing'];
-
-/** Suggest a remote-safe file name (the backend enforces the same rule). */
-export function safeName(name: string): string {
-  const base = name.split('/').pop() ?? '';
-  const s = base.replace(/[^A-Za-z0-9._+\-@=,]/g, '_').replace(/^[^A-Za-z0-9_]+/, '');
-  return s.slice(0, 128) || 'upload';
-}
-
 export function TransfersView({ status, uploadDir }: { status: ConnectionStatus; uploadDir: string | null }) {
-  const qc = useQueryClient();
-  const key = ['transfers', status.profileId, status.connectedAt];
-  const list = useQuery({
-    queryKey: key,
-    queryFn: api.transfers,
-    retry: false,
-    // Local call only (no network): fast while something is moving, otherwise on demand.
-    refetchInterval: (q) => ((q.state.data ?? []).some((t) => ACTIVE.includes(t.phase)) ? 1500 : false),
-    refetchIntervalInBackground: false,
-  });
-  const [pick, setPick] = useState<LocalPick | null>(null);
-  const [folder, setFolder] = useState<FolderPick | null>(null);
-  const [dir, setDir] = useState<string | null>(uploadDir);
-  const [name, setName] = useState('');
+  const {
+    items,
+    pick,
+    setPick,
+    folder,
+    dir,
+    setDir,
+    name,
+    setName,
+    busy,
+    error,
+    refresh,
+    chooseFile,
+    chooseFolder,
+    pack,
+    upload,
+    download,
+    cancel,
+    retry,
+    discard,
+  } = useTransfers(status, uploadDir);
   const [choosing, setChoosing] = useState<'upload-dir' | 'download' | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const refresh = () => void qc.invalidateQueries({ queryKey: key });
-
-  const run = async (label: string, f: () => Promise<unknown>) => {
-    setBusy(label);
-    setError(null);
-    try {
-      await f();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(null);
-      refresh();
-    }
-  };
 
   if (status.demo) {
     return (
@@ -54,7 +35,6 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
     );
   }
 
-  const items = list.data ?? [];
   return (
     <div className="transfers">
       {error && <Notice tone="bad">{error}</Notice>}
@@ -67,35 +47,10 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
           workflow unpack it on the compute node's scratch disk.
         </p>
         <div className="actions start">
-          <button
-            className="btn"
-            disabled={!!busy}
-            onClick={() =>
-              void run('pick', async () => {
-                const p = await api.pickFile();
-                if (p) {
-                  setPick(p);
-                  setFolder(null);
-                  setName(safeName(p.name));
-                }
-              })
-            }
-          >
+          <button className="btn" disabled={!!busy} onClick={chooseFile}>
             Choose a file…
           </button>
-          <button
-            className="btn"
-            disabled={!!busy}
-            onClick={() =>
-              void run('folder', async () => {
-                const f = await api.pickFolder();
-                if (f) {
-                  setFolder(f);
-                  setPick(null);
-                }
-              })
-            }
-          >
+          <button className="btn" disabled={!!busy} onClick={chooseFolder}>
             {busy === 'folder' ? 'Scanning folder…' : 'Choose a folder to pack…'}
           </button>
         </div>
@@ -106,18 +61,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
               <code>.tar.gz</code> on this Mac (no macOS metadata files), uploaded, and the local archive deleted after
               a verified upload.
             </p>
-            <button
-              className="btn primary"
-              disabled={!!busy}
-              onClick={() =>
-                void run('pack', async () => {
-                  const p = await api.packFolder(folder.token);
-                  setPick(p);
-                  setName(safeName(p.name));
-                  setFolder(null);
-                })
-              }
-            >
+            <button className="btn primary" disabled={!!busy} onClick={pack}>
               {busy === 'pack' ? 'Packing…' : 'Pack as archive'}
             </button>
           </div>
@@ -151,17 +95,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
               </div>
             </div>
             <div className="actions start">
-              <button
-                className="btn primary"
-                disabled={!dir || !name.trim() || !!busy}
-                onClick={() =>
-                  void run('upload', async () => {
-                    if (!dir) return;
-                    await api.upload(pick.token, dir, name.trim());
-                    setPick(null);
-                  })
-                }
-              >
+              <button className="btn primary" disabled={!dir || !name.trim() || !!busy} onClick={upload}>
                 Upload
               </button>
               <button className="btn ghost" onClick={() => setPick(null)}>
@@ -196,7 +130,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
         ) : (
           <ul className="transfer-list">
             {items.map((t) => (
-              <TransferRow key={t.id} t={t} onAction={(label, f) => void run(label, f)} />
+              <TransferRow key={t.id} t={t} onCancel={cancel} onRetry={retry} onDiscard={discard} />
             ))}
           </ul>
         )}
@@ -223,7 +157,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
           title="Download which file?"
           onPick={(p) => {
             setChoosing(null);
-            void run('download', () => api.download(p));
+            download(p);
           }}
           onClose={() => setChoosing(null)}
         />
@@ -232,10 +166,20 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
   );
 }
 
-function TransferRow({ t, onAction }: { t: Transfer; onAction: (label: string, f: () => Promise<unknown>) => void }) {
+function TransferRow({
+  t,
+  onCancel,
+  onRetry,
+  onDiscard,
+}: {
+  t: Transfer;
+  onCancel: (id: string) => void;
+  onRetry: (id: string) => void;
+  onDiscard: (id: string) => void;
+}) {
   const ph = TRANSFER_PHASE[t.phase];
-  const active = ACTIVE.includes(t.phase);
-  const pct = t.size > 0 ? Math.min(100, Math.round((t.doneBytes / t.size) * 100)) : t.phase === 'done' ? 100 : 0;
+  const active = isActive(t);
+  const pct = progressPct(t);
   return (
     <li className="transfer">
       <div className="transfer-head">
@@ -269,17 +213,17 @@ function TransferRow({ t, onAction }: { t: Transfer; onAction: (label: string, f
       </div>
       <div className="actions start">
         {active && (
-          <button className="btn small-btn" onClick={() => onAction('cancel', () => api.cancelTransfer(t.id))}>
+          <button className="btn small-btn" onClick={() => onCancel(t.id)}>
             Cancel
           </button>
         )}
-        {['failed', 'cancelled', 'interrupted'].includes(t.phase) && (
-          <button className="btn small-btn" onClick={() => onAction('retry', () => api.retryTransfer(t.id))}>
+        {canResume(t) && (
+          <button className="btn small-btn" onClick={() => onRetry(t.id)}>
             Retry / resume
           </button>
         )}
         {!active && (
-          <button className="btn ghost small-btn" onClick={() => onAction('discard', () => api.discardTransfer(t.id))}>
+          <button className="btn ghost small-btn" onClick={() => onDiscard(t.id)}>
             {t.phase === 'done' ? 'Remove from list' : 'Discard partial file'}
           </button>
         )}
