@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
-import { newestFirst } from '../src/ui/jobs/MyJobsView';
+import { newestFirst } from '../src/logic/jobs/myJobs';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
   previewId: 'pv1',

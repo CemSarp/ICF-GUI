@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { learnedPartitions, resolveWorkingDir } from '../src/ui/jobs/RequestGpuView';
+import { learnedPartitions, resolveWorkingDir } from '../src/logic/jobs/jobRequest';
 import { clusterTime, displayTime, formatTime } from '../src/logic/format';
 import type { JobReceipt } from '../src/types';
 

@@ -1,9 +1,8 @@
 import { EmptyState } from '../components/ui';
+import type { JobMode } from '../../logic/jobs/newJob';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { TrainingWizard, type WizardInit } from '../training/TrainingWizard';
 import { RequestGpuView } from './RequestGpuView';
-
-export type JobMode = 'script' | 'workflow';
 
 const MODES: { id: JobMode; label: string; help: string }[] = [
   {

@@ -1,9 +1,7 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, EmptyState, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
+import { newestFirst, useMyJobs } from '../../logic/jobs/myJobs';
 import type { ConnectionStatus, JobReceipt, JobRow } from '../../types';
-import { useJobs } from '../../logic/jobs/useJobs';
 
 function StateBadge({ j }: { j: JobRow }) {
   const s = JOB_STATE[j.state];
@@ -22,25 +20,8 @@ const RECEIPT_LABEL: Record<JobReceipt['status'], { label: string; tone: string 
   not_found: { label: 'Not found', tone: 'muted' },
 };
 
-/** Most recently ended first. Times are sortable cluster-local ISO strings; job IDs break ties. */
-export function newestFirst<T extends { endedAt: string | null; jobId: string }>(jobs: T[]): T[] {
-  const id = (j: T) => parseInt(j.jobId, 10) || 0;
-  return [...jobs].sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? '') || id(b) - id(a));
-}
-
 export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpen: (jobId: string) => void }) {
-  const jobs = useJobs(status);
-  const qc = useQueryClient();
-  const receipts = useQuery({ queryKey: ['receipts', status.connectedAt], queryFn: api.jobsReceipts, retry: false });
-  const list = jobs.data?.list;
-  const err = jobs.data?.lastError ?? (jobs.error ? { message: errorMessage(jobs.error) } : null);
-  const shown = (receipts.data ?? []).filter((r) => !r.dismissed);
-  const dismiss = (tag: string) =>
-    api
-      .jobsDismissReceipt(tag)
-      .then(() => qc.invalidateQueries({ queryKey: ['receipts'] }))
-      .catch(() => undefined);
-  const unresolved = shown.filter((r) => r.status === 'uncertain' || r.status === 'submitting').slice(0, 5);
+  const { jobs, list, err, shown, unresolved, dismiss, reconcile } = useMyJobs(status);
 
   const jobLink = (j: JobRow) => (
     <button className="link" onClick={() => onOpen(j.jobId)}>
@@ -82,15 +63,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
           title={`Submission "${r.name}" (${formatTime(r.submittedAt)}): outcome unknown`}
         >
           {r.message} It is never resubmitted automatically.{' '}
-          <button
-            className="btn ghost"
-            onClick={() =>
-              api
-                .jobsReconcile(r.tag)
-                .then(() => qc.invalidateQueries({ queryKey: ['receipts'] }))
-                .catch(() => undefined)
-            }
-          >
+          <button className="btn ghost" onClick={() => void reconcile(r.tag)}>
             Check now
           </button>
         </Notice>

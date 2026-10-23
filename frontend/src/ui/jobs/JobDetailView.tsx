@@ -1,26 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
-import { api, errorMessage } from '../../logic/api';
+import { errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
-import type { CancelOutcome, ConnectionStatus, JobRow } from '../../types';
+import { isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
+import type { CancelOutcome, ConnectionStatus } from '../../types';
 import { LogViewer } from './LogViewer';
-import { jobsKey } from '../../logic/jobs/useJobs';
-
-function failureHint(j: JobRow): string | null {
-  switch (j.state) {
-    case 'timeout':
-      return 'The job reached its wall-time limit. Request more time (within the partition limit) or checkpoint more often.';
-    case 'out_of_memory':
-      return 'The job ran out of host RAM. Request more memory.';
-    case 'node_fail':
-      return 'The compute node failed. This is usually not caused by your code; you may resubmit.';
-    case 'failed':
-      return `The program exited with an error${j.exitCode ? ` (exit code ${j.exitCode})` : ''}. Check the standard error log.`;
-    default:
-      return null;
-  }
-}
 
 /** The one confirmation before `jobs_cancel`; the token comes from the job's detail and is used once. */
 export function CancelJobDialog({
@@ -38,19 +22,7 @@ export function CancelJobDialog({
   onClose: () => void;
   onResult: (r: CancelOutcome) => void;
 }) {
-  const [cancelling, setCancelling] = useState(false);
-  const cancel = async () => {
-    if (cancelling) return;
-    setCancelling(true);
-    try {
-      onResult(await api.jobsCancel(jobId, token));
-    } catch (e) {
-      onResult({ outcome: 'refused', code: 'INTERNAL', message: errorMessage(e) });
-    } finally {
-      setCancelling(false);
-      onClose();
-    }
-  };
+  const { cancelling, cancel } = useCancelJob(jobId, token, onClose, onResult);
   return (
     <Dialog title={`Cancel job ${jobId}?`} onClose={() => !cancelling && onClose()}>
       <p>
@@ -89,19 +61,9 @@ export function JobDetailView({
   status: ConnectionStatus;
   onBack: () => void;
 }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ['job', jobId, status.connectedAt],
-    queryFn: () => api.jobDetail(jobId),
-    retry: false,
-    staleTime: Infinity,
-  });
+  const { q, d, j, hint, cancelResult, onCancelResult } = useJobDetail(jobId, status);
   const [confirm, setConfirm] = useState(false);
-  const [cancelResult, setCancelResult] = useState<CancelOutcome | null>(null);
-  const d = q.data;
-  const j = d?.job;
   const s = j ? JOB_STATE[j.state] : null;
-  const hint = j ? failureHint(j) : null;
 
   return (
     <section aria-labelledby="job-title">
@@ -177,11 +139,7 @@ export function JobDetailView({
             )}
             {d?.logPathNote && <p className="muted small">{d.logPathNote}</p>}
           </div>
-          <LogViewer
-            jobId={jobId}
-            active={['pending', 'running', 'configuring', 'completing'].includes(j.state)}
-            stderrMerged={!!d?.stderrMerged}
-          />
+          <LogViewer jobId={jobId} active={isActiveJob(j)} stderrMerged={!!d?.stderrMerged} />
           {d && d.fields.length > 0 && (
             <details className="card">
               <summary>All scheduler fields</summary>
@@ -204,10 +162,7 @@ export function JobDetailView({
           stateLabel={s.label}
           token={d.cancelToken}
           onClose={() => setConfirm(false)}
-          onResult={(r) => {
-            setCancelResult(r);
-            void qc.invalidateQueries({ queryKey: jobsKey(status) });
-          }}
+          onResult={onCancelResult}
         />
       )}
     </section>
