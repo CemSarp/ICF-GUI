@@ -54,9 +54,11 @@
       (before the Projects/Settings redesign, which changes only the Python environment, VS Code and
       CUDA toolchain sections)
 - [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
-- [ ] Merge PR #2, then tag `v0.4.1` on `main` and push the tag
-- [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
+- [x] Merge PR #2, then tag `v0.4.1` on `main` and push the tag (re-cut on d713bc0 with the
+      Projects/Settings redesign; the first draft was never published)
+- [x] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
       zip + SHA-256 attached to the draft release
-- [ ] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.4.1**; demo data and a
-      real sign-in still work
-- [ ] Publish the draft release
+- [x] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.4.1**; demo data works
+      (Overview, New job, Settings incl. VS Code/toolchains, light and dark)
+- [ ] A real sign-in still works with the 0.4.1 build
+- [x] Publish the draft release
