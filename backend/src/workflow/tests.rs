@@ -211,6 +211,21 @@ fn smoke_test_and_notebook_variants() {
     assert!(s.contains("nbconvert_missing"));
 }
 
+#[test]
+fn toolchain_lines_are_rendered_exactly() {
+    let mut c = cfg(HOME);
+    c.toolchain = Toolchain::Rc { path: "/home/htang2/toolchain-20251006/toolchain.rc".into() };
+    let s = render(&c, "t4");
+    assert!(s.contains(
+        "set +u\n[ -r '/home/htang2/toolchain-20251006/toolchain.rc' ] || fail ENV_SETUP toolchain_missing\nsource '/home/htang2/toolchain-20251006/toolchain.rc' || fail ENV_SETUP toolchain_failed\nPY="
+    ));
+    c.toolchain = Toolchain::Modules { names: vec!["cuda/12.8".into(), "cudnn".into()] };
+    let s = render(&c, "t5");
+    assert!(s.contains(
+        "command -v module >/dev/null 2>&1 || fail ENV_SETUP module_command_missing\nmodule load 'cuda/12.8' 'cudnn' || fail ENV_SETUP module_load_failed\nPY="
+    ));
+}
+
 // ---------- executed wrapper ----------
 
 fn python3() -> Option<PathBuf> {

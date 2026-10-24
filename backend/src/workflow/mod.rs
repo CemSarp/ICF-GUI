@@ -303,38 +303,7 @@ pub fn plan(c: &WorkflowConfig, cx: &Context) -> (Validation, Vec<Precheck>) {
         }
     }
 
-    match check_abs_path(&c.interpreter) {
-        Err(m) => v.errors.push(issue("interpreter", format!("Interpreter {m}."))),
-        Ok(()) => {
-            if !c.interpreter.rsplit('/').next().is_some_and(|b| b.starts_with("python")) {
-                v.warnings.push(issue("interpreter", "The interpreter's file name does not start with 'python'."));
-            }
-            if !under(&c.interpreter, home) {
-                v.acknowledgements.push(format!("The job uses the interpreter {}, which is outside your home directory.", c.interpreter));
-            }
-            checks.push(Precheck::Exec(c.interpreter.clone(), "interpreter"));
-        }
-    }
-
-    match &c.toolchain {
-        Toolchain::None => {}
-        Toolchain::Rc { path } => match check_abs_path(path) {
-            Err(m) => v.errors.push(issue("toolchain", format!("Toolchain file {m}."))),
-            Ok(()) => {
-                if !under(path, home) {
-                    v.acknowledgements.push(format!(
-                        "The job will `source {path}`, which is outside your home and owned by someone else. It runs with your account's permissions."
-                    ));
-                }
-                checks.push(Precheck::Readable(path.clone(), "toolchain"));
-            }
-        },
-        Toolchain::Modules { names } => {
-            if names.is_empty() || names.len() > MAX_MODULES || !names.iter().all(|n| valid_module(n)) {
-                v.errors.push(issue("toolchain", format!("1–{MAX_MODULES} module names; letters, digits, '.', '_', '/', '+', '-'.")));
-            }
-        }
-    }
+    check_env(&c.interpreter, &c.toolchain, home, &mut v, &mut checks);
 
     if c.datasets.len() > MAX_DATASETS {
         v.errors.push(issue("datasets", format!("At most {MAX_DATASETS} dataset archives.")));
@@ -421,4 +390,40 @@ pub fn plan(c: &WorkflowConfig, cx: &Context) -> (Validation, Vec<Precheck>) {
         "Results are copied back when the job ends, fails or reaches its time limit, as long as the node and NFS stay up. A node failure loses everything on scratch that was not synced before.",
     ));
     (v, checks)
+}
+
+/// Interpreter and toolchain checks plus their on-ICF prechecks. Shared with interactive kernels (ADR-031).
+pub(crate) fn check_env(interpreter: &str, toolchain: &Toolchain, home: &str, v: &mut Validation, checks: &mut Vec<Precheck>) {
+    match check_abs_path(interpreter) {
+        Err(m) => v.errors.push(issue("interpreter", format!("Interpreter {m}."))),
+        Ok(()) => {
+            if !interpreter.rsplit('/').next().is_some_and(|b| b.starts_with("python")) {
+                v.warnings.push(issue("interpreter", "The interpreter's file name does not start with 'python'."));
+            }
+            if !under(interpreter, home) {
+                v.acknowledgements.push(format!("The job uses the interpreter {}, which is outside your home directory.", interpreter));
+            }
+            checks.push(Precheck::Exec(interpreter.to_string(), "interpreter"));
+        }
+    }
+
+    match toolchain {
+        Toolchain::None => {}
+        Toolchain::Rc { path } => match check_abs_path(path) {
+            Err(m) => v.errors.push(issue("toolchain", format!("Toolchain file {m}."))),
+            Ok(()) => {
+                if !under(path, home) {
+                    v.acknowledgements.push(format!(
+                        "The job will `source {path}`, which is outside your home and owned by someone else. It runs with your account's permissions."
+                    ));
+                }
+                checks.push(Precheck::Readable(path.clone(), "toolchain"));
+            }
+        },
+        Toolchain::Modules { names } => {
+            if names.is_empty() || names.len() > MAX_MODULES || !names.iter().all(|n| valid_module(n)) {
+                v.errors.push(issue("toolchain", format!("1–{MAX_MODULES} module names; letters, digits, '.', '_', '/', '+', '-'.")));
+            }
+        }
+    }
 }
