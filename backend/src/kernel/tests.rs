@@ -363,6 +363,13 @@ async fn real_driver_runs_cells_interrupts_restarts_and_stops() {
         let o8 = outputs(&events, "c8");
         assert!(o8.iter().any(|o| o["text"] == "from c\n"), "{o8:?}");
         assert!(o8.iter().any(|o| o["traceback"] == json!(["The program exited with code 3."])), "{o8:?}");
+
+        // A library flag links although it comes before the source (GNU ld order).
+        let libm = "%%c -lm -- 1\n#include <math.h>\n#include <stdio.h>\n#include <stdlib.h>\nint main(int c, char** v) { printf(\"%.2f\\n\", cos(atof(v[1]))); return 0; }";
+        send(&k, json!({"t": "exec", "id": "c8m", "code": libm})).await.unwrap();
+        let d8m = wait_for(&events, "c8m done", |v| v["event"] == "done" && v["id"] == "c8m").await;
+        assert_eq!(d8m["status"], "ok", "{:?}", outputs(&events, "c8m"));
+        assert!(outputs(&events, "c8m").iter().any(|o| o["text"] == "0.54\n"), "{:?}", outputs(&events, "c8m"));
     }
     if !has("nvcc") {
         send(&k, json!({"t": "exec", "id": "c9", "code": "%%cuda\nint main() { return 0; }"})).await.unwrap();

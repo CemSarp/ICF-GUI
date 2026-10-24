@@ -109,6 +109,9 @@ def _icfcc_setup():
             raise IcfccError(tool + " was not found on this node." + hint)
         if lang == "cuda" and not any(f.startswith(ARCH) for f in flags):
             defaults = defaults + ["-arch=native"]  # the GPU of this allocation
+        # GNU ld resolves a library only for objects before it, so -l flags go after the source.
+        libs = [f for f in flags if f.startswith("-l")]
+        flags = [f for f in flags if not f.startswith("-l")]
         cwd = os.getcwd()
         build = tempfile.mkdtemp(prefix="icfcc-build-")
         try:
@@ -116,7 +119,7 @@ def _icfcc_setup():
             with open(src, "w") as f:
                 f.write(cell)
             binary = os.path.join(build, "main")
-            r = subprocess.run([found, *defaults, *flags, "-I", cwd, src, "-o", binary], cwd=cwd,
+            r = subprocess.run([found, *defaults, *flags, "-I", cwd, src, "-o", binary, *libs], cwd=cwd,
                                stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace")
             if r.stdout:
                 sys.stdout.write(r.stdout)
