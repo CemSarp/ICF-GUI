@@ -97,6 +97,19 @@ const fakeKernelRun = (id: string, code: string) => {
     .map((l) => l.trim())
     .filter(Boolean);
   const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
+  const magic = /^%%(cuda|cpp|c)\b/.exec(code)?.[1];
+  if (magic) {
+    const n = /--\s*(\d+)/.exec(code.slice(0, code.indexOf('\n')))?.[1] ?? '1048576';
+    const text = code.includes('saxpy')
+      ? `saxpy on ${n} elements, max error 0.000000\n`
+      : `Hello from ${magic === 'cuda' ? 'the GPU' : 'the node'}\n`;
+    setTimeout(() => {
+      send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text } });
+      send({ event: 'done', id, count: n, status: 'ok' });
+    }, 900);
+    return;
+  }
+  if (code.startsWith('%%icfcc_script')) code = code.slice(code.indexOf('\n') + 1);
   const stored = replay.get(code);
   if (stored) {
     setTimeout(() => {
@@ -365,7 +378,8 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
     setTimeout(() => send({ event: 'starting' }), 100);
     setTimeout(() => send({ event: 'queued', jobId: '5150' }), 500);
     setTimeout(
-      () => send({ event: 'ready', jobId: '5150', node: 'landonia01', python: '3.11.9', endsAtMs: Date.now() + 3_600_000 }),
+      () => send({ event: 'ready', jobId: '5150', node: 'landonia01', python: '3.11.9',
+            tools: 'nvcc 12.8 · g++ 11.4.0 · gcc 11.4.0', endsAtMs: Date.now() + 3_600_000 }),
       1500,
     );
     return { kernelId: 'k1' };

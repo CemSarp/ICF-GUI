@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNotebookPage, type NotebookGuard } from '../../logic/notebooks/useNotebookPage';
+import type { PageGuard } from '../../logic/app/guard';
+import { useNotebookPage } from '../../logic/notebooks/useNotebookPage';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { ConflictDialog } from '../editor/ConflictDialog';
@@ -26,7 +27,7 @@ export function NotebookPage({
   focus: boolean;
   onToggleFocus: () => void;
   onClose: () => void;
-  onGuard: (g: NotebookGuard | null) => void;
+  onGuard: (g: PageGuard | null) => void;
 }) {
   const p = useNotebookPage(path, onGuard);
   const { kernel } = p;

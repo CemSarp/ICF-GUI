@@ -53,7 +53,7 @@ export function KernelControls({ kernel, onStart }: { kernel: Kernel; onStart: (
           {chip(
             s.busy ? 'busy' : 'ok',
             `${s.busy ? 'Busy' : 'Python'} ${s.python} · ${s.node || 'node'} · ${left(s.endsAtMs, now)}`,
-            `Job ${s.jobId} on ${s.node}. Stopping releases the GPU.`,
+            `Job ${s.jobId} on ${s.node}. Compilers: ${s.tools || 'none found'}. Stopping releases the GPU.`,
             s.busy,
           )}
           <button className="btn small danger" onClick={() => void kernel.stop()}>

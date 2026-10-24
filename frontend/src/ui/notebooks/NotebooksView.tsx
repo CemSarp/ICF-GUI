@@ -1,5 +1,5 @@
 import { isNotebook, useRecentNotebooks } from '../../logic/notebooks/recent';
-import type { NotebookGuard } from '../../logic/notebooks/useNotebookPage';
+import type { PageGuard } from '../../logic/app/guard';
 import { formatTime } from '../../logic/format';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { EmptyState, Icon } from '../components/ui';
@@ -27,7 +27,7 @@ export function NotebooksView({
   onToggleFocus: () => void;
   onOpen: (path: string) => void;
   onClose: () => void;
-  onGuard: (g: NotebookGuard | null) => void;
+  onGuard: (g: PageGuard | null) => void;
 }) {
   const { recent, forget } = useRecentNotebooks();
   if (path)

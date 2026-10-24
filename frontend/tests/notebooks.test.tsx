@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { collapseCR, parseAnsi } from '../src/logic/notebooks/ansi';
 import { commandKey } from '../src/logic/notebooks/keys';
 import { renderMarkdown } from '../src/logic/notebooks/markdown';
-import { parseNotebook, serializeNotebook } from '../src/logic/notebooks/notebook';
+import { cellFlavor, parseNotebook, serializeNotebook, withFlavor } from '../src/logic/notebooks/notebook';
 import { appendOutput, displayItem } from '../src/logic/notebooks/outputs';
 import { richText, sanitizeHtml, type RichNode } from '../src/logic/notebooks/rich';
 import { backend, connectedLive } from './mockBackend';
@@ -106,6 +106,20 @@ describe('Notebook rendering (pure)', () => {
     expect(commandKey(key('b', { metaKey: true }), null)).toBeNull();
   });
 
+  it("reads and switches a code cell's language from its first-line magic", () => {
+    expect(cellFlavor('import torch')).toBe('python');
+    expect(cellFlavor('%%cuda -arch=sm_80 -- 1024\n__global__ void k() {}')).toBe('cuda');
+    expect(cellFlavor('%%cu\nint main() {}')).toBe('cuda');
+    expect(cellFlavor('%%cpp')).toBe('cpp');
+    expect(cellFlavor('%%c\nint main(void) {}')).toBe('c');
+    expect(cellFlavor('%%capture\nx = 1')).toBe('python'); // another magic, not C
+    expect(cellFlavor('  %%cuda')).toBe('python'); // only a real first-line magic counts
+    expect(withFlavor('int main() {}', 'cuda')).toBe('%%cuda\nint main() {}');
+    expect(withFlavor('%%cpp -O3 -- a\nint main() {}', 'c')).toBe('%%c\nint main() {}');
+    expect(withFlavor('%%cuda\nprint(1)', 'python')).toBe('print(1)');
+    expect(withFlavor('%%cuda', 'python')).toBe('');
+  });
+
   it('serialises an untouched notebook byte-for-byte', () => {
     const text = v3.FILES[NB]!;
     const p = parseNotebook(text);
@@ -180,7 +194,7 @@ describe('Notebooks tab', () => {
     await openNotebook();
     await startKernel();
     expect(backend.calls.find((c) => c.cmd === 'kernel_preview')!.args.request).toEqual({
-      notebookPath: NB,
+      path: NB,
       interpreter: v3.VENV_PY,
       toolchain: v3.toolchains[0]!.spec,
       resources: {
@@ -281,6 +295,22 @@ describe('Notebooks tab', () => {
       { on: true },
       { on: false },
     ]);
+  });
+
+  it('the cell menu turns a code cell into CUDA; it runs on the kernel and saves with its magic', async () => {
+    await openNotebook();
+    await startKernel();
+    const cell = () => cells()[1]!;
+    fireEvent.mouseDown(cell());
+    await userEvent.selectOptions(within(cell()).getByLabelText('Cell 2 type'), 'cuda');
+    await waitFor(() => expect(cell()).toHaveAccessibleName('Cell 2, CUDA'));
+    expect(within(cell()).getByText('CUDA', { selector: '.nb-lang' })).toBeInTheDocument();
+    await userEvent.click(within(cell()).getByRole('button', { name: 'Run cell 2' }));
+    await waitFor(() => expect(within(cell()).getByText('ran the cuda program')).toBeInTheDocument());
+    expect(backend.calls.find((c) => c.cmd === 'kernel_execute')!.args.code).toMatch(/^%%cuda\nfor seed in/);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved to ICF.');
+    expect(JSON.parse(saves()[0]!.args.content as string).cells[1].source[0]).toBe('%%cuda\n');
   });
 
   it('command mode: B inserts below, M makes Markdown, D D deletes, Enter edits', async () => {

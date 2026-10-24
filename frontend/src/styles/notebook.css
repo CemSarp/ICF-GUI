@@ -214,6 +214,7 @@
   background: var(--primary);
 }
 .nb-gutter {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -223,6 +224,23 @@
 .nb-prompt {
   font: 11.5px/22px var(--mono);
   white-space: nowrap;
+}
+/* Language badge of a compiled cell (%%cuda / %%cpp / %%c), under its prompt. */
+.nb-lang {
+  position: absolute;
+  top: 32px;
+  right: 10px;
+  font: 600 10px/16px var(--font);
+  letter-spacing: 0.02em;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--syn-cuda);
+  background: color-mix(in srgb, var(--syn-cuda) 14%, transparent);
+}
+.nb-lang.lang-cpp,
+.nb-lang.lang-c {
+  color: var(--syn-type);
+  background: color-mix(in srgb, var(--syn-type) 14%, transparent);
 }
 .nb-prompt.in {
   color: var(--nb-in-prompt);
@@ -912,4 +930,50 @@ kbd {
 }
 .nb-about p {
   margin: 0;
+}
+
+/* ---------- Editor: Run on GPU ---------- */
+.run-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 0 0 var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.run-args {
+  flex: 1;
+  min-width: 180px;
+  font-size: 12.5px;
+}
+/* With output showing, the editor gives the output panel room below it. */
+.editor.with-output .code-editor {
+  height: calc(62vh - 220px);
+  min-height: 240px;
+}
+.run-output {
+  padding: var(--s3) var(--s4) var(--s4);
+}
+.run-output-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+}
+.run-output-head h3 {
+  margin: 0;
+}
+.run-output-head .nb-status {
+  margin: 0;
+}
+.run-output .nb-output-body {
+  max-height: 38vh;
+  padding-left: 0;
+}
+.run-output .nb-collapse {
+  display: none;
 }

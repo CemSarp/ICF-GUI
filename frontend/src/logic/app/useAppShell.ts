@@ -5,8 +5,8 @@ import { useSnapshot } from '../cluster/useSnapshot';
 import { isLive, useConnection } from '../connection/useConnection';
 import { fileKind } from '../editor/languages';
 import type { JobMode } from '../jobs/newJob';
-import type { NotebookGuard } from '../notebooks/useNotebookPage';
 import { usePersistentState } from '../persist';
+import type { PageGuard } from './guard';
 import { useApplyTheme, type Theme } from '../settings/theme';
 import type { WizardInit } from '../training/wizardDraft';
 import type { Settings } from '../../types';
@@ -43,9 +43,9 @@ export function useAppShell() {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [uploadDir, setUploadDir] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<string | null>(null);
-  const [editorDirty, setEditorDirty] = useState(false);
   const [openNotebook, setOpenNotebook] = usePersistentState<string | null>('notebook.open', null);
-  const [notebookGuard, setNotebookGuard] = useState<NotebookGuard | null>(null);
+  /** The open editor or notebook: unsaved edits and/or a running kernel that leaving would discard. */
+  const [guard, setGuard] = useState<PageGuard | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   /** Navigation (or disconnect) held back while the editor has unsaved changes. */
   const [pendingLeave, setPendingLeave] = useState<View | 'disconnect' | null>(null);
@@ -74,8 +74,7 @@ export function useAppShell() {
   };
   const go = (v: View) => {
     setEditingFile(null);
-    setEditorDirty(false);
-    setNotebookGuard(null);
+    setGuard(null);
     if (focusMode) setFocus(false);
     setSelectedNode(null);
     setSelectedJob(null);
@@ -90,12 +89,11 @@ export function useAppShell() {
   };
   const disconnect = () => {
     setEditingFile(null);
-    setEditorDirty(false);
-    setNotebookGuard(null);
+    setGuard(null);
     if (focusMode) setFocus(false);
     void api.disconnect().then(() => qc.clear());
   };
-  const guarded = editorDirty || !!notebookGuard;
+  const guarded = !!guard;
   /** Sidebar click: asks first while the editor has unsaved changes or a kernel runs. */
   const navigate = (v: View) => (v === view && v === 'notebooks' ? undefined : guarded ? setPendingLeave(v) : go(v));
   const requestDisconnect = () => (guarded || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
@@ -171,12 +169,10 @@ export function useAppShell() {
     uploadDir,
     editingFile,
     setEditingFile,
-    editorDirty,
-    setEditorDirty,
     openNotebook,
     setOpenNotebook,
-    notebookGuard,
-    setNotebookGuard,
+    guard,
+    setGuard,
     focusMode,
     toggleFocus: () => setFocus(!focusMode),
     openFile,

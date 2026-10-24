@@ -30,7 +30,8 @@ export function KernelDialog({
     <Dialog title="Start an interactive kernel" labelledBy="kernel-title" onClose={onClose}>
       <p className="muted">
         The kernel runs on a GPU node through <code>srun</code> on an Interactive partition. It holds the GPU until you
-        stop it, leave this notebook or disconnect, after 30 minutes without running a cell, or at the time limit.
+        stop it, leave this page or disconnect, after 30 minutes without running code, or at the time limit. Cells
+        and files in Python run in the kernel; CUDA, C++ and C are compiled and run on the same node.
       </p>
       {!snapshot && (
         <Notice tone="warn">Cluster data has not loaded yet. Open Overview and refresh, then try again.</Notice>
@@ -124,7 +125,15 @@ export function KernelDialog({
               ? s.project.interpreter
                 ? `From the project ${s.project.path.split('/').pop()} (Projects → Python environment).`
                 : `The project ${s.project.path.split('/').pop()} has no Python environment chosen yet (Projects → Python environment).`
-              : 'Open this notebook’s folder in Projects to pick its Python environment there.'}
+              : 'Open this folder in Projects to pick its Python environment there.'}
+          </span>
+        </div>
+        <div className="field wide">
+          <span>CUDA toolchain</span>
+          <span className="muted small">
+            {s.toolchain
+              ? `${s.toolchain.label} is loaded on the node before the kernel starts (nvcc for CUDA).`
+              : 'None chosen for this project: CUDA code needs one (Projects → Python environment → CUDA toolchain). C, C++ and Python work without.'}
           </span>
         </div>
       </div>

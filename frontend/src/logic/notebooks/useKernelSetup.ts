@@ -30,10 +30,10 @@ export function projectOf(path: string, projects: ProjectRecord[]): ProjectRecor
  * The Start kernel sheet: resources on an Interactive partition (remembered between notebooks),
  * the project's interpreter and toolchain, and the reviewed preview whose id starts the kernel.
  */
-export function useKernelSetup(notebookPath: string, status: ConnectionStatus, snapshot: ClusterSnapshot | null) {
+export function useKernelSetup(path: string, status: ConnectionStatus, snapshot: ClusterSnapshot | null) {
   const projects = useQuery({ queryKey: recentKey(status), queryFn: api.projectsRecent, retry: false });
   const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const project = projectOf(notebookPath, projects.data ?? []);
+  const project = projectOf(path, projects.data ?? []);
   const partitions = (snapshot?.partitions ?? []).filter((p) => isInteractive(p.name));
   const [saved, setSaved] = usePersistentState<Omit<KernelDraft, 'interpreter'> | null>('kernel.resources', null);
   const [draft, setDraftState] = useState<KernelDraft | null>(null);
@@ -76,7 +76,7 @@ export function useKernelSetup(notebookPath: string, status: ConnectionStatus, s
   const request = (): KernelRequest => {
     const tc = toolchains.data?.find((t) => t.id === project?.toolchainId);
     return {
-      notebookPath,
+      path,
       interpreter: d.interpreter.trim(),
       toolchain: tc ? tc.spec : { kind: 'none' },
       resources: {
@@ -122,6 +122,8 @@ export function useKernelSetup(notebookPath: string, status: ConnectionStatus, s
 
   return {
     project,
+    /** The project's CUDA toolchain (sourced on the node before the kernel; gives nvcc), if any. */
+    toolchain: toolchains.data?.find((t) => t.id === project?.toolchainId) ?? null,
     projectsLoading: projects.isLoading,
     partitions,
     partition,

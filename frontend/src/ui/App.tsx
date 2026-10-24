@@ -87,12 +87,10 @@ export function App() {
     uploadDir,
     editingFile,
     setEditingFile,
-    editorDirty,
-    setEditorDirty,
     openNotebook,
     setOpenNotebook,
-    notebookGuard,
-    setNotebookGuard,
+    guard,
+    setGuard,
     focusMode,
     toggleFocus,
     openFile,
@@ -253,7 +251,16 @@ export function App() {
                   </div>
                 }
               >
-                <EditorView path={editingFile} onClose={() => setEditingFile(null)} onDirtyChange={setEditorDirty} />
+                <EditorView
+                  path={editingFile}
+                  status={status}
+                  snapshot={snapshot}
+                  onClose={() => {
+                    setGuard(null);
+                    setEditingFile(null);
+                  }}
+                  onGuard={setGuard}
+                />
               </Suspense>
             ) : view === 'projects' ? (
               <ProjectsView
@@ -283,11 +290,11 @@ export function App() {
                   onToggleFocus={toggleFocus}
                   onOpen={setOpenNotebook}
                   onClose={() => {
-                    setNotebookGuard(null);
+                    setGuard(null);
                     if (focusMode) toggleFocus();
                     setOpenNotebook(null);
                   }}
-                  onGuard={setNotebookGuard}
+                  onGuard={setGuard}
                 />
               </Suspense>
             ) : view === 'training' ? (
@@ -369,26 +376,21 @@ export function App() {
           title={
             pendingLeave === 'disconnect'
               ? 'Disconnect from ICF?'
-              : editorDirty || notebookGuard?.dirty
+              : guard?.dirty
                 ? 'Discard unsaved changes?'
                 : 'Stop the kernel?'
           }
           labelledBy="leave-title"
           onClose={() => setPendingLeave(null)}
         >
-          {editorDirty && (
+          {guard?.dirty && (
             <p>
-              Your edits to <code>{editingFile?.split('/').pop()}</code> have not been saved to ICF and will be lost.
+              Your edits to <code>{guard.name}</code> have not been saved to ICF and will be lost.
             </p>
           )}
-          {notebookGuard?.dirty && (
+          {guard?.kernel && (
             <p>
-              Your edits to <code>{notebookGuard.name}</code> have not been saved to ICF and will be lost.
-            </p>
-          )}
-          {notebookGuard?.kernel && (
-            <p>
-              The kernel of <code>{notebookGuard.name}</code> stops and its GPU is released.
+              The kernel of <code>{guard.name}</code> stops and its GPU is released.
             </p>
           )}
           {pendingLeave === 'disconnect' && vscodeInUse && (
@@ -396,14 +398,14 @@ export function App() {
           )}
           <div className="actions">
             <button className="btn" onClick={() => setPendingLeave(null)} data-autofocus>
-              {editorDirty || notebookGuard?.dirty ? 'Keep editing' : notebookGuard ? 'Stay' : 'Stay connected'}
+              {guard?.dirty ? 'Keep editing' : guard ? 'Stay' : 'Stay connected'}
             </button>
             <button className="btn danger" onClick={confirmLeave}>
               {pendingLeave !== 'disconnect'
-                ? editorDirty || notebookGuard?.dirty
+                ? guard?.dirty
                   ? 'Discard changes'
                   : 'Stop kernel and leave'
-                : editorDirty || notebookGuard?.dirty
+                : guard?.dirty
                   ? 'Discard and disconnect'
                   : 'Disconnect'}
             </button>

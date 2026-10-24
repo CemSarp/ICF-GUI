@@ -73,8 +73,29 @@ export function convertCell(cell: Cell, to: CellType): Cell {
   return to === 'markdown' && attachments ? { ...rest, cell_type: to, attachments } : { ...rest, cell_type: to };
 }
 
+/** Language of a code cell: Python, or a compiled cell run by the kernel's `%%cuda`/`%%cpp`/`%%c`. */
+export type Flavor = 'python' | 'cuda' | 'cpp' | 'c';
+/** What a cell is, as the cell menu offers it. */
+export type CellKind = Flavor | 'markdown' | 'raw';
+const MAGIC: Record<Exclude<Flavor, 'python'>, string> = { cuda: '%%cuda', cpp: '%%cpp', c: '%%c' };
+const FLAVOR_LINE = /^%%(cuda|cu|cpp|c)(?:\s|$)/;
+
+export function cellFlavor(text: string): Flavor {
+  const m = FLAVOR_LINE.exec(text);
+  return !m ? 'python' : m[1] === 'cu' ? 'cuda' : (m[1] as Flavor);
+}
+
+/** The same source with its magic line switched (flags of the old one are dropped). */
+export function withFlavor(text: string, flavor: Flavor): string {
+  const body = cellFlavor(text) === 'python' ? text : text.slice(text.indexOf('\n') + 1 || text.length);
+  return flavor === 'python' ? body : `${MAGIC[flavor]}\n${body}`;
+}
+
+export const flavorLang = (f: Flavor, python: Lang): Lang => (f === 'cuda' ? 'cuda' : f === 'python' ? python : 'cpp');
+
 let nextKey = 0;
-export type Row = { key: number; cell: Cell; text: string };
+/** `rev` changes when the app rewrites the text (cell menu), so the cell's editor reloads it. */
+export type Row = { key: number; cell: Cell; text: string; rev?: number };
 const newCellId = () => Math.random().toString(16).slice(2, 10);
 
 /**
@@ -93,6 +114,8 @@ export function useNotebookCells(
   );
   const [selected, setSelected] = useState<number | null>(() => rows[0]?.key ?? null);
   const [editing, setEditing] = useState<number | null>(null);
+  /** Bumped when typing changes a cell's first-line magic, so its highlighting follows. */
+  const [, setFlavorTick] = useState(0);
   const texts = useRef(new Map<number, string>());
   const rowsRef = useRef(rows);
   /** clear_output(wait=True): the next output for that cell replaces what is there. */
@@ -164,13 +187,32 @@ export function useNotebookCells(
     if (!r || r.cell.cell_type === type) return;
     change((rs) => rs.map((x) => (x.key === key ? { ...x, cell: convertCell(x.cell, type) } : x)));
   };
+  /** Cell menu: Markdown/Raw change the cell type; Python/CUDA/C++/C make a code cell with that magic. */
+  const setKind = (key: number, kind: CellKind) => {
+    if (kind === 'markdown' || kind === 'raw') return setType(key, kind);
+    const text = withFlavor(textOf(key), kind);
+    texts.current.set(key, text);
+    change((rs) =>
+      rs.map((x) =>
+        x.key === key ? { ...x, cell: convertCell(x.cell, 'code'), text, rev: (x.rev ?? 0) + 1 } : x,
+      ),
+    );
+  };
   const setText = (key: number, text: string) => {
+    if (cellFlavor(textOf(key)) !== cellFlavor(text)) setFlavorTick((t) => t + 1);
     texts.current.set(key, text);
     onDirty();
   };
-  const textOf = (key: number) => texts.current.get(key) ?? rowsRef.current.find((r) => r.key === key)?.text ?? '';
+  function textOf(key: number) {
+    return texts.current.get(key) ?? rowsRef.current.find((r) => r.key === key)?.text ?? '';
+  }
+  const kindOf = (r: Row): CellKind => (r.cell.cell_type === 'code' ? cellFlavor(textOf(r.key)) : r.cell.cell_type);
   const cellLang = (r: Row): Lang =>
-    r.cell.cell_type === 'markdown' ? 'markdown' : r.cell.cell_type === 'code' ? lang : 'text';
+    r.cell.cell_type === 'markdown'
+      ? 'markdown'
+      : r.cell.cell_type === 'code'
+        ? flavorLang(cellFlavor(textOf(r.key)), lang)
+        : 'text';
 
   // ---- live outputs ----
   const beginRun = (key: number) => {
@@ -223,8 +265,10 @@ export function useNotebookCells(
     move,
     remove,
     setType,
+    setKind,
     setText,
     textOf,
+    kindOf,
     cellLang,
     beginRun,
     pushOutput,

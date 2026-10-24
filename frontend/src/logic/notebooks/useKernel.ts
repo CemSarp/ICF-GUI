@@ -6,7 +6,7 @@ export type KernelState =
   | { phase: 'off' }
   | { phase: 'starting' }
   | { phase: 'queued'; jobId: string }
-  | { phase: 'ready'; jobId: string; node: string; python: string; endsAtMs: number; busy: boolean }
+  | { phase: 'ready'; jobId: string; node: string; python: string; tools: string; endsAtMs: number; busy: boolean }
   | { phase: 'ended'; reason: string; message: string };
 
 /** Where the live results of one execution go (one code cell). */
@@ -69,7 +69,7 @@ export function useKernel() {
         set({ phase: 'queued', jobId: e.jobId });
         break;
       case 'ready': {
-        set({ phase: 'ready', jobId: e.jobId, node: e.node, python: e.python, endsAtMs: e.endsAtMs, busy: false });
+        set({ phase: 'ready', jobId: e.jobId, node: e.node, python: e.python, tools: e.tools, endsAtMs: e.endsAtMs, busy: false });
         const waiting = held.current;
         held.current = [];
         for (const h of waiting) send(h.rid, h.code, h.sink);

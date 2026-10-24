@@ -30,11 +30,11 @@ function OutputView({ o }: { o: Output }) {
 }
 
 /** A code cell's outputs, JupyterLab style: `[n]:` beside the result, collapsible as a whole. */
-export function CellOutputs({ outputs, cell }: { outputs: Output[]; cell: number }) {
+export function CellOutputs({ outputs, label }: { outputs: Output[]; label: string }) {
   const [collapsed, setCollapsed] = useState(false);
   if (outputs.length === 0) return null;
   return (
-    <div className={`nb-outputs${collapsed ? ' collapsed' : ''}`} aria-label={`Cell ${cell} output`}>
+    <div className={`nb-outputs${collapsed ? ' collapsed' : ''}`} aria-label={label}>
       <button
         className="nb-collapse"
         aria-expanded={!collapsed}

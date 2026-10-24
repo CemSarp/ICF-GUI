@@ -1,40 +1,23 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { renderMarkdown } from '../../logic/notebooks/markdown';
-import type { CellType, Row } from '../../logic/notebooks/notebook';
+import type { CellKind, Row } from '../../logic/notebooks/notebook';
 import type { CellRun, NotebookDoc } from '../../logic/notebooks/useNotebookDoc';
 import { Icon } from '../components/ui';
 import { CodeEditor } from '../editor/CodeEditor';
 import { CellOutputs } from './CellOutputs';
 import { RichTree } from './RichTree';
+import { RunStatus } from './RunStatus';
 
 const Outputs = memo(CellOutputs);
 
-function seconds(ms: number) {
-  return ms < 1000
-    ? `${ms} ms`
-    : ms < 60_000
-      ? `${(ms / 1000).toFixed(1)} s`
-      : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`;
-}
-
-function RunStatus({ run }: { run: CellRun | undefined }) {
-  if (!run) return null;
-  if (run.state === 'queued') return <span className="nb-status muted">Waiting for the kernel…</span>;
-  if (run.state === 'running')
-    return (
-      <span className="nb-status busy">
-        <span className="nb-spinner" aria-hidden="true" />
-        Running
-      </span>
-    );
-  return (
-    <span className={`nb-status ${run.ok ? 'ok' : 'bad'}`}>
-      <span aria-hidden="true">{run.ok ? '✓' : '✕'}</span> {run.ok ? 'Done' : 'Failed'} in {seconds(run.ms)}
-    </span>
-  );
-}
-
-const TYPE_LABEL: Record<CellType, string> = { code: 'Python', markdown: 'Markdown', raw: 'Raw' };
+const KIND_LABEL: Record<CellKind, string> = {
+  python: 'Python',
+  cuda: 'CUDA',
+  cpp: 'C++',
+  c: 'C',
+  markdown: 'Markdown',
+  raw: 'Raw',
+};
 
 /**
  * One cell, laid out like JupyterLab: prompt gutter (`[n]`, `[*]`, ▶ on hover), the source (an
@@ -64,6 +47,7 @@ export function NotebookCell({
   const type = cell.cell_type;
   const pending = run?.state === 'queued' || run?.state === 'running';
   const n = index + 1;
+  const kind = doc.kindOf(row);
   const text = doc.textOf(key);
   const rendered = useMemo(
     () => (type === 'markdown' && !editing ? renderMarkdown(text, cell.attachments) : null),
@@ -90,7 +74,7 @@ export function NotebookCell({
       ref={ref}
       className={cls}
       tabIndex={-1}
-      aria-label={`Cell ${n}, ${TYPE_LABEL[type]}`}
+      aria-label={`Cell ${n}, ${KIND_LABEL[kind]}`}
       onMouseDown={() => !selected && doc.select(key)}
     >
       <div className="nb-gutter">
@@ -107,6 +91,11 @@ export function NotebookCell({
             <span className="nb-prompt in" aria-label={pending ? 'Running' : undefined}>
               [{pending ? '*' : (cell.execution_count ?? ' ')}]:
             </span>
+            {kind !== 'python' && (
+              <span className={`nb-lang lang-${kind}`} title={`Compiled and run on the GPU node with %%${kind}`}>
+                {KIND_LABEL[kind]}
+              </span>
+            )}
           </>
         )}
       </div>
@@ -116,10 +105,12 @@ export function NotebookCell({
             <label className="sr-only" htmlFor={`cell-type-${key}`}>
               Cell {n} type
             </label>
-            <select id={`cell-type-${key}`} value={type} onChange={(e) => doc.setType(key, e.target.value as CellType)}>
-              <option value="code">Python</option>
-              <option value="markdown">Markdown</option>
-              <option value="raw">Raw</option>
+            <select id={`cell-type-${key}`} value={kind} onChange={(e) => doc.setKind(key, e.target.value as CellKind)}>
+              {(Object.keys(KIND_LABEL) as CellKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {KIND_LABEL[k]}
+                </option>
+              ))}
             </select>
             <button
               className="btn ghost icon-btn small"
@@ -172,7 +163,7 @@ export function NotebookCell({
         ) : (
           <div className="nb-input">
             <CodeEditor
-              key={`${key}-${type}`}
+              key={`${key}-${type}-${row.rev ?? 0}`}
               initial={text}
               lang={doc.cellLang(row)}
               compact
@@ -194,7 +185,7 @@ export function NotebookCell({
             />
           </div>
         )}
-        {type === 'code' && <Outputs outputs={cell.outputs ?? []} cell={n} />}
+        {type === 'code' && <Outputs outputs={cell.outputs ?? []} label={`Cell ${n} output`} />}
         <RunStatus run={run} />
       </div>
     </section>

@@ -649,7 +649,8 @@ export interface NotebookOutput {
 
 /** Interactive Jupyter kernel on an Interactive partition (ADR-031). */
 export interface KernelRequest {
-  notebookPath: string;
+  /** Notebook or runnable source file (.py .cu .cpp .cc .cxx .c); the kernel runs in its folder. */
+  path: string;
   interpreter: string;
   toolchain: Toolchain;
   resources: WorkflowConfig['resources'];
@@ -671,7 +672,7 @@ export interface KernelPreview {
 export type KernelEvent =
   | { event: 'starting' }
   | { event: 'queued'; jobId: string }
-  | { event: 'ready'; jobId: string; node: string; python: string; endsAtMs: number }
+  | { event: 'ready'; jobId: string; node: string; python: string; tools: string; endsAtMs: number }
   | { event: 'status'; busy: boolean }
   | { event: 'output'; id: string; output: NotebookOutput }
   | { event: 'clear'; id: string; wait: boolean }

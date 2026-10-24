@@ -85,6 +85,21 @@ type KernelChannel = { onmessage: (e: KernelEvent) => void };
  * `raise`/`1/0` fails. Events arrive asynchronously, like the real channel.
  */
 function fakeRun(ch: KernelChannel, id: string, code: string, count: number) {
+  // %%cuda / %%cpp / %%c: "compiled and ran"; `return 1;` exits with 1. %%icfcc_script runs its body.
+  const magic = /^%%(cuda|cpp|c)\b/.exec(code)?.[1];
+  if (magic) {
+    const fails = code.includes('return 1;');
+    ch.onmessage({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text: `ran the ${magic} program\n` } });
+    if (fails)
+      ch.onmessage({
+        event: 'output',
+        id,
+        output: { output_type: 'error', ename: 'IcfccError', evalue: '', traceback: ['The program exited with code 1.'] },
+      });
+    ch.onmessage({ event: 'done', id, count, status: fails ? 'error' : 'ok' });
+    return;
+  }
+  if (code.startsWith('%%icfcc_script')) code = code.slice(code.indexOf('\n') + 1);
   const lines = code
     .split('\n')
     .map((l) => l.trim())
@@ -246,6 +261,7 @@ export const backend = {
             jobId: '5150',
             node: 'landonia01',
             python: '3.11.9',
+            tools: 'nvcc 12.8 · g++ 11.4.0 · gcc 11.4.0',
             endsAtMs: Date.now() + 3_600_000,
           });
         }, 0);

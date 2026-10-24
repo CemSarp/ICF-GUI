@@ -1,20 +1,14 @@
 import { useEffect, useState } from 'react';
+import { usePageGuard, type PageGuard } from '../app/guard';
 import { useFileEditor } from '../editor/useFileEditor';
 import { useRecentNotebooks } from './recent';
 import { useKernel } from './useKernel';
-
-/** What leaving the open notebook would lose: unsaved edits and/or the running kernel. */
-export interface NotebookGuard {
-  name: string;
-  dirty: boolean;
-  kernel: boolean;
-}
 
 /**
  * The open notebook: conflict-checked load/save (shared with the text editor), its kernel, and
  * the sheets the page shows. `onGuard` tells the app shell what navigating away would discard.
  */
-export function useNotebookPage(path: string, onGuard: (g: NotebookGuard | null) => void) {
+export function useNotebookPage(path: string, onGuard: (g: PageGuard | null) => void) {
   const [dirty, setDirty] = useState(false);
   const file = useFileEditor(path, setDirty);
   const kernel = useKernel();
@@ -28,11 +22,7 @@ export function useNotebookPage(path: string, onGuard: (g: NotebookGuard | null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
-  useEffect(() => {
-    onGuard(dirty || kernel.active ? { name, dirty, kernel: kernel.active } : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, kernel.active, name]);
-  useEffect(() => () => onGuard(null), [onGuard]);
+  usePageGuard(name, dirty, kernel.active, onGuard);
 
   return { ...file, name, kernel, kernelSheet, setKernelSheet, help, setHelp };
 }

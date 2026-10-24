@@ -83,6 +83,8 @@ export function useFileEditor(path: string, onDirtyChange: (dirty: boolean) => v
   };
 
   return {
+    /** The editor's current text (also unsaved edits). */
+    currentText: () => (kind === 'notebook' ? (serialize.current?.() ?? '') : text.current),
     kind,
     file,
     notebook,

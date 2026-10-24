@@ -4,7 +4,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { python } from '@codemirror/lang-python';
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
-import { EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import {
   Decoration,
   drawSelection,
@@ -126,6 +126,7 @@ export function CodeEditor({
   onChange,
   onSave,
   onRun,
+  onRunFile,
   onEscape,
   onFocus,
   active = false,
@@ -140,6 +141,8 @@ export function CodeEditor({
   onChange: (text: string) => void;
   onSave?: () => void;
   onRun?: (then: 'advance' | 'stay' | 'insert') => void;
+  /** ⌘⇧Enter: run the whole file (the editor's Run on GPU). */
+  onRunFile?: () => void;
   onEscape?: () => void;
   onFocus?: () => void;
   /** Take keyboard focus whenever this becomes true. */
@@ -154,10 +157,15 @@ export function CodeEditor({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const cb = useRef({ onChange, onSave, onRun, onEscape, onFocus });
+  const cb = useRef({ onChange, onSave, onRun, onRunFile, onEscape, onFocus });
+  // The language can change without a remount (a notebook cell typed `%%cuda`): cursor and focus stay.
+  const langSlot = useRef(new Compartment());
   useLayoutEffect(() => {
-    cb.current = { onChange, onSave, onRun, onEscape, onFocus };
+    cb.current = { onChange, onSave, onRun, onRunFile, onEscape, onFocus };
   });
+  useEffect(() => {
+    view.current?.dispatch({ effects: langSlot.current.reconfigure(language(lang)) });
+  }, [lang]);
   useEffect(() => {
     if (active && view.current && !view.current.hasFocus) view.current.focus();
   }, [active]);
@@ -189,7 +197,7 @@ export function CodeEditor({
           indentUnit.of('    '),
           EditorState.tabSize.of(4),
           syntaxHighlighting(highlight),
-          language(lang),
+          langSlot.current.of(language(lang)),
           theme,
           compact ? compactTheme : [],
           cell ? cellTheme : [],
@@ -201,6 +209,7 @@ export function CodeEditor({
             { key: 'Shift-Enter', run: run('advance') },
             { key: 'Mod-Enter', run: run('stay') },
             { key: 'Alt-Enter', run: run('insert') },
+            { key: 'Mod-Shift-Enter', run: () => (cb.current.onRunFile ? (cb.current.onRunFile(), true) : false) },
             { key: 'Escape', run: () => (cb.current.onEscape ? (cb.current.onEscape(), true) : false) },
             ...defaultKeymap,
             ...historyKeymap,
