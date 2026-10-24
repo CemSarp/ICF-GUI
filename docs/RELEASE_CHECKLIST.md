@@ -69,7 +69,7 @@
 - [x] Rust: fmt, clippy `-D warnings` and tests run locally on Linux (macOS-only modules stubbed);
       the real driver + ipykernel relay test passes, including compiled cells with g++/gcc
 - [x] Rust gates on macos-14 CI (run 27, before compiled cells): fmt, clippy, 136 unit tests incl. the real driver + ipykernel relay, auth and job flows
-- [ ] Rust gates on macos-14 CI for the 0.5.0 head (compiled cells with Apple clang as g++/gcc)
+- [x] Rust gates on macos-14 CI for the 0.5.0 head (run 30): fmt, clippy, 136 unit tests incl. compiled cells with Apple clang as g++/gcc, 15 auth + 5 job flows
 - [ ] Opt-in: `cargo test --test real_openssh -- --ignored` and `cargo test --lib keychain_roundtrip -- --ignored`
 - [ ] Built `.app` (demo data): Notebooks tab, a CUDA cell, editor run bar, full screen (button and
       ⌃⌘F) in WebKit, notebook CSS loads under the CSP, light and dark
