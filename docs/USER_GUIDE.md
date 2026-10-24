@@ -58,8 +58,9 @@ that accepted your last job shows *✓ accepted your last job* and needs no elig
 one that rejected your account shows *rejected you before* and warns before review. In My Jobs, **✕**
 hides a finished submission from the list (it is still remembered for this purpose).
 
-Use **Teaching** for normal training. **Interactive** is for short debugging; the app only ever uses
-`sbatch` and never holds an interactive GPU shell open.
+Use **Teaching** for normal training. **Interactive** is for short debugging: batch jobs there use
+`sbatch` like any other, and the Notebooks tab can start an interactive kernel there (see
+[Notebooks](#notebooks)). The app never opens an interactive GPU shell.
 
 ### Allocated vs utilised
 A job that is *Pending* holds no GPU. When *Running*, SLURM has allocated the GPU to you, whether or
@@ -117,8 +118,7 @@ without VS Code:
 - **Supported files:** Python, C/C++, CUDA (`.cu`, `.cuh`) and Markdown get colours; other text files
   (`.txt`, `.sh`, `.json`, `.yaml`, …) open as plain text.
 - **Keys:** Tab indents (press Esc, then Tab, to leave the editor). ⌘F searches and ⌘S saves.
-- **Notebooks** (`.ipynb`) open as cells, with outputs shown read-only. You can edit, add, move and
-  delete cells. Saving changes only the cells' source, so outputs and metadata stay as they were.
+- **Notebooks** (`.ipynb`) open in the [Notebooks](#notebooks) tab instead.
 
 **Saving.** Save writes to ICF only if nobody changed the file since you opened it, for example in
 VS Code. If someone did, you choose **Reload from ICF** or **Overwrite the version on ICF**. Leaving
@@ -227,12 +227,50 @@ this submission* before submitting again.
 The Runs screen checks SLURM and the runs' status files at most once a minute, only while it is
 visible and a run is still active.
 
-### Jupyter
+### Batch notebooks
 
-Notebooks run as **batch jobs** (workflow type *Notebook*): executed top to bottom on the GPU node with
-`nbconvert` (install it in your environment), and the executed notebook is saved with the results.
-Interactive Jupyter servers are **not offered**: a safe version needs SSH access to the compute node,
-which is not confirmed for ICF (see Settings → Jupyter).
+A notebook can also run as a **batch job** (workflow type *Notebook*): executed top to bottom on the
+GPU node with `nbconvert` (install it in your environment), and the executed notebook is saved with the
+results. Use this for long or unattended runs; use the [Notebooks](#notebooks) tab to work cell by cell.
+
+## Notebooks
+
+The **Notebooks** tab opens `.ipynb` files from your projects (click one in Project files, or use
+**Open a notebook on ICF**; **New file…** there creates an empty notebook). Recent notebooks are listed
+for one-click reopening.
+
+**The page.** Notebooks look as they do in JupyterLab: Markdown cells are rendered (headings, lists,
+tables, code, images attached to the cell) until you double-click them; code cells show `[n]:` prompts
+and their outputs: text, coloured errors, progress bars, tables (e.g. pandas), images and plots. Each
+selected cell has a small toolbar (type, move, clear output, delete), and hovering between cells shows
+**+ Code** / **+ Markdown**. Links are shown, not opened.
+
+**Interactive kernel (experimental).** Click **Start kernel…**, check the resources (an Interactive
+partition, GPU type and count, CPUs, memory, time limit up to the partition's maximum) and the Python
+environment (taken from the notebook's project; it needs `ipykernel`: `pip install ipykernel`), then
+**Review**. The sheet shows the exact `srun` line and the notices to confirm; **Start kernel** asks SLURM
+for the GPU. The chip shows *Queued · job N* until it starts, then the Python version, the node and the
+time left. Variables stay in memory between cells. Outputs appear as they arrive, and **Save** writes
+them into the notebook, as Jupyter does.
+
+The kernel holds the GPU until you **Stop** it, leave the notebook or disconnect (the app asks first),
+after 30 minutes without running a cell, or at its time limit. **Interrupt** stops the running cell;
+**Restart** clears all variables. *Run all* stops at the first error.
+
+**Full screen.** The ⤢ button (or ⌃⌘F) hides the sidebar and status bar and makes the window full
+screen, like an editor's zen mode.
+
+| Keys (outside a cell's editor) | |
+|---|---|
+| ⇧ Enter / ⌘ Enter / ⌥ Enter | Run, then select next / stay / insert a cell below |
+| Enter, Esc | Edit the selected cell / leave its editor |
+| A / B | Insert a cell above / below |
+| M / Y | Make the cell Markdown / code |
+| D D | Delete the cell |
+| ↑ ↓ (K J) | Select the previous / next cell |
+| I I / 0 0 | Interrupt / restart the kernel |
+
+The keyboard button in the toolbar lists them too.
 
 ## Refresh and load on ICF
 

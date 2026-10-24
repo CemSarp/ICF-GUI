@@ -81,6 +81,15 @@ Notes:
   window opening (the CLI is exercised with a fake bundle; detection was checked read-only against the
   real install).
 
+## Interactive kernels and the Notebooks tab (after 0.4.1)
+
+| Suite | What |
+|---|---|
+| Rust `kernel::tests` (12) | validation (Interactive only, MaxTime, hostile paths, unknown fields), rendering (quoting, one `exec srun`, heredoc delimiters), driver/srun line parsing, oversized lines, final messages |
+| Rust `kernel::tests::real_driver_*`, `closing_stdin_alone_*`, `missing_notebook_*` | the **real** launch script through `/bin/sh -s` with a fake `srun` on `PATH` and the real `driver.py` + ipykernel: handshake, outputs, `stop_on_error` aborts, interrupt, restart, stop, EOF exit, precheck refusal. Needs a Python with `ipykernel` (`ICFCC_TEST_PYTHON`; CI installs one in a throwaway venv), else skipped |
+| Rust `workflow::tests::toolchain_lines_are_rendered_exactly` | the shared toolchain lines keep the batch wrapper byte-identical |
+| Frontend `tests/notebooks.test.tsx` (12) | Markdown/HTML whitelisting (scripts, styles, `on*`, remote images, `javascript:` links), ANSI and progress bars, stream merging, MIME priority, Jupyter keys, byte-for-byte serialisation; Notebooks tab: open from Projects, save only edited source, reviewed kernel start, live run + saved outputs, Run all stops at the first error, leave guard stops the kernel, full screen, command-mode keys |
+
 ## Live ICF smoke tests (manual, need explicit approval)
 
 See the test table in `docs/examples/workflow-smoke/README.md`. `make_dataset.py` output was checked locally against the

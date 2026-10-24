@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added
+- **Notebooks tab** (Workspace). Opens `.ipynb` files from Projects or its own browser, with recent
+  notebooks. The page reads like JupyterLab: rendered Markdown (headings, lists, tables, code,
+  attached images) until double-clicked, code cells with `[n]` prompts, outputs with tables (pandas),
+  images and SVG plots, coloured tracebacks, collapsed progress bars, a toolbar per cell, insert bars,
+  run timings and Jupyter keys (⇧/⌘/⌥ Enter, A/B, M/Y, D D, I I, 0 0). New notebooks from New file….
+- **Interactive kernels (experimental, ADR-031).** Start kernel… reviews the resources on an
+  Interactive partition, the project's Python and toolchain, the exact `srun` line and every notice.
+  Cells then run one at a time on the GPU node and keep their variables; Save writes outputs into the
+  notebook. No notebook server, port forward or token: the kernel talks to the app over the app's own
+  SSH connection. It stops on Stop, leaving the notebook (asked first), Disconnect or quit, after 30
+  minutes without running a cell, or at its time limit; Interrupt and Restart work as in Jupyter.
+- **Full screen** for notebooks (button or ⌃⌘F): hides the sidebar and status bar and makes the
+  window full screen.
+
+### Changed
+- `.ipynb` files open in the Notebooks tab instead of the file editor.
+- Settings → Jupyter and the batch-notebook notice describe interactive kernels instead of "disabled".
+- The app now uses `srun` for exactly one thing, the notebook kernel you start (docs updated).
+
+### Internal
+- New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.
+- New dependency: `markdown-it` 14.1.0 (used as a parser only).
+- CI installs `ipykernel` in a throwaway venv so the real relay test runs.
+
 ## [0.4.1] — 2026-10-24 · Housekeeping
 
 No new features: the app works like 0.4.0, with a fixed version label and clearer Projects and

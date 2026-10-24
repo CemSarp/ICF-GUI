@@ -74,7 +74,14 @@ const receipt = (o: Record<string, unknown>) => ({
   ...o,
 });
 
-// Preview kernel: echoes print("…") lines and a last bare expression; never runs code.
+// Preview kernel: replays the stored outputs of the showcase notebook's cells (explore.ipynb), else
+// echoes print("…") lines and a last bare expression; never runs code.
+type StoredCell = { cell_type: string; source: string[]; outputs?: Record<string, unknown>[] };
+const replay = new Map<string, Record<string, unknown>[]>(
+  (JSON.parse(v3.FILES[`${v3.PROJECT}/explore.ipynb`]!).cells as StoredCell[])
+    .filter((c) => c.cell_type === 'code')
+    .map((c) => [c.source.join(''), c.outputs ?? []]),
+);
 let kernelSend: ((m: unknown) => void) | null = null;
 let kernelCount = 0;
 const kernelChannel = (ch: { id: number }) => {
@@ -90,6 +97,15 @@ const fakeKernelRun = (id: string, code: string) => {
     .map((l) => l.trim())
     .filter(Boolean);
   const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
+  const stored = replay.get(code);
+  if (stored) {
+    setTimeout(() => {
+      for (const o of stored)
+        send({ event: 'output', id, output: o.output_type === 'execute_result' ? { ...o, execution_count: n } : o });
+      send({ event: 'done', id, count: n, status: stored.some((o) => o.output_type === 'error') ? 'error' : 'ok' });
+    }, 700);
+    return;
+  }
   setTimeout(() => {
     if (printed.length)
       send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text: printed.join('\n') + '\n' } });

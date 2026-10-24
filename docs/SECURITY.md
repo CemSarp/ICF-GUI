@@ -82,7 +82,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   (`dangerouslySetInnerHTML` is lint-banned).
 - Disconnect / quit: `ssh -O exit`, kill the master's process group, delete the session dir.
   Startup sweeps session dirs whose owning app process no longer exists. Idle sessions close after
-  30 minutes without commands. Jobs and external VS Code sessions are never touched.
+  30 minutes without commands. Batch jobs and external VS Code sessions are never touched; the app's
+  own interactive kernel (ADR-031) is stopped first.
 - No telemetry. Diagnostics in Settings redact usernames by default.
 
 ## V2: job submission, logs, cancellation
@@ -164,14 +165,26 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   the canonical home are allowed: symlinks are refused, and the folder is re-resolved on ICF. Content
   travels base64-encoded (it cannot end the heredoc). Saves are atomic, keep the mode, and are refused
   when the file changed since it was opened. File text is rendered by CodeMirror as text, never as
-  HTML; notebook images are shown only as `data:image/png` (the CSP allows `img-src 'self' data:`).
+  HTML. Notebook Markdown and HTML outputs are converted to a whitelisted element tree in the app
+  (never inserted as HTML): raw HTML stays text, scripts/styles/attributes are dropped, links never
+  navigate the app, and images are only `data:` URLs (raster types, or SVG through `<img>`, which runs
+  no script). The CSP still allows only `img-src 'self' data:`.
 - **Local files** come only from native dialogs owned by the backend (opaque tokens to the UI). Folder
   packing refuses links that leave the folder and special files. Downloaded data goes to a partial file
   opened with `O_NOFOLLOW` and is renamed only after its SHA-256 matches the remote file.
 - **Concurrency.** One transfer at a time (semaphore); retry refuses running transfers; settings writes
   compare hashes; the wizard and `jobs_submit` keep the V2 single-submission guarantees.
-- **Jupyter.** Interactive sessions are disabled (ADR-022); no notebook server, tunnel or idle GPU
-  allocation is ever created. Batch notebooks run inside the normal workflow wrapper.
+- **Interactive kernels (ADR-031, experimental).** No notebook server, port forward, localhost
+  listener or token: `kernel_start` runs one reviewed fixed script over the existing master, which
+  `exec`s one `srun` on an Interactive partition (checked in Rust); ipykernel talks to the relay over
+  IPC sockets in a private 0700 directory on the node, and its key never leaves the node. The five
+  commands that start or drive a kernel are in their own capability, `kernel-mutations.json`. One
+  reviewed preview starts at most one kernel, and one kernel runs at a time. Every way out releases
+  the GPU: Stop, leaving the notebook (asked first), Disconnect/quit, 30 minutes without a cell run,
+  the wall time, SIGTERM, or the SSH session dropping (stdin EOF). If the job outlives a Stop, the app
+  runs the owner-checked `scancel` for its id. Code sent to the kernel is the user's own cell text and
+  runs with their account, like a batch job; it is capped at 1 MiB per cell and is never logged.
+  Batch notebooks still run inside the normal workflow wrapper.
 - **Storage limits are stated, not hidden.** `/home` is NFS and not backed up; scratch is node-local and
   deleted at job end; nothing survives a node failure unless it was synced to `/home` first.
 

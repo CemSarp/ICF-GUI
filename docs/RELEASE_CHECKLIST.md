@@ -62,3 +62,17 @@
       (Overview, New job, Settings incl. VS Code/toolchains, light and dark)
 - [ ] A real sign-in still works with the 0.4.1 build
 - [x] Publish the draft release
+
+## Next release (Notebooks tab and interactive kernels, ADR-031)
+
+- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 81 UI tests, production build
+- [x] Rust: fmt, clippy `-D warnings` and tests run locally on Linux (macOS-only modules stubbed);
+      the real driver + ipykernel relay test passes
+- [ ] Rust gates on macos-14 CI, including the relay test with ipykernel
+- [ ] **Approved live kernel test** (needs explicit consent): open a notebook, start a kernel on
+      Interactive (1 GPU, 15 min), run `import torch; torch.cuda.is_available()` and a cell that prints;
+      Stop; `squeue -u $USER` shows no job left. Repeat with Disconnect instead of Stop, and once
+      leaving the kernel idle until the 30-minute shutdown (or a short time limit)
+- [ ] Confirm students may `srun` on Interactive from the login node; note typical queue times
+- [ ] Built `.app`: full screen (button and ⌃⌘F) works in WebKit; notebook CSS loads under the CSP
+- [ ] Bump versions, changelog date, tag

@@ -25,7 +25,9 @@ React component (frontend/src/ui/)
             ◀─ Rust parser → typed JSON (serde camelCase, mirrored in frontend/src/types/index.ts)
 ```
 
-Backend → frontend events (`frontend/src/logic/api.ts` → `events`):
+Backend → frontend events (`frontend/src/logic/api.ts` → `events`). The interactive kernel's own
+events go on a per-call `Channel` given to `kernel_start` (§4.7), so only the page that started it
+hears them:
 
 | Event | Payload | When |
 |---|---|---|
@@ -155,8 +157,10 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 
 ## 3. IPC command reference
 
-68 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
-**D** = `capabilities/default.json` (reads and local state), **J** = `job-mutations.json`, **F** = `file-mutations.json`.
+74 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
+**D** = `capabilities/default.json` (reads and local state), **J** = `job-mutations.json`, **F** = `file-mutations.json`,
+**K** = `kernel-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
+full-screen button; local only).
 **Runs** names the remote script (§4) or says *local* (no network at all).
 
 ### Connection and settings — `backend/src/commands.rs`
@@ -243,6 +247,16 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 | `workflow_reconcile` | `workflowReconcile` | D | as `jobs_reconcile` |
 | `workflow_list_files` | `workflowFiles` | D | `browse` on the run folder |
 | `workflow_metrics` | `workflowMetrics` | D | `log` on `<run>/metrics.jsonl` (last 64 KiB) |
+
+### Interactive kernels — `backend/src/kernel/commands.rs` (ADR-031)
+
+| Command | `api.` | Cap. | Runs |
+|---|---|---|---|
+| `kernel_preview` | `kernelPreview` | D | local (validate against snapshot, Interactive partitions only; render the launch script) |
+| `kernel_start` | `kernelStart` | **K** | `kernel` as a long-lived session (§4.7), exactly once per reviewed preview |
+| `kernel_execute` | `kernelExecute` | **K** | one JSON line to the running driver (≤ 1 MiB of code) |
+| `kernel_interrupt` / `kernel_restart` | `kernelInterrupt` / `kernelRestart` | **K** | one JSON line to the driver |
+| `kernel_stop` | `kernelStop` | **K** | `stop` line + stdin EOF; if the job is still there after 10 s, `cancel` (§4.2) for its id; then the session is killed |
 
 ---
 
@@ -341,6 +355,9 @@ It adds `tail -c 8192 slurm-<id>.err` when an error tail is needed.
 
 ### 4.6 What runs on the compute node (inside your SLURM job)
 
+(For the interactive kernel's node-side step, see §4.7.)
+
+
 These are not commands the app runs. They are the content of the reviewed batch script that
 `sbatch` starts on the allocated node (`workflow/script.rs` → `render`):
 
@@ -351,6 +368,42 @@ These are not commands the app runs. They are the content of the reviewed batch 
 - **TRAINING:** `python -u <entry> <args>` (or `python -m nbconvert --execute`, or the fixed GPU smoke check `SMOKE_PY`: one 256×256 CUDA matmul) in the background. USR1/TERM are forwarded. Optional checkpoint sync uses `rsync -a` (or `cp -a`), `nice -n 10`.
 - **EXIT trap:** final checkpoint sync, then `sha256sum` manifest, `cp -a` to `.outputs.partial`, `sha256sum -c`, `mv` to `outputs/`. Then `rm -rf` of only the scratch dir it created (re-verified first). Then `DONE exit=…`.
 - Also logged: `hostname`, `git rev-parse --short HEAD`, `nvidia-smi --query-gpu=name,memory.total`.
+
+### 4.7 Interactive kernel (`kernel/script.rs`, `kernel/driver.py`)
+
+**`kernel`** is the only long-lived script. It is sent on stdin to `sh -s` like every other one, but the
+session stays open after it (`Session::spawn_stream`), and the app writes nothing more until the driver
+prints `ready`:
+
+```sh
+# icfcc:kernel
+umask 077
+<need_file '<notebook>' notebook home; need_exec '<python>' interpreter; need_file '<rc>' toolchain any>
+command -v srun …  ||  printf '@@err nosrun'          # prechecks print @@err … and exit 0
+ICFCC_DRIVER=$(cat <<'ICFCC_PY_<tag>'                # driver.py, embedded in the app
+…
+ICFCC_PY_<tag>
+)
+export ICFCC_DRIVER
+ICFCC_STEP=$(cat <<'ICFCC_STEP_<tag>'                # runs on the node under bash
+source '<rc>' / module load … ; PY='<python>' ; . "$(dirname "$PY")/activate"
+"$PY" -c 'import ipykernel, jupyter_client' || fail ipykernel_missing
+cd '<notebook folder>' && exec "$PY" -u -c "$ICFCC_DRIVER"
+ICFCC_STEP_<tag>
+)
+printf '@@starting\n'
+exec srun --job-name=icfcc-notebook-<tag> --partition=<Interactive…> --nodes=1 --ntasks=1 \
+  --gres=gpu[:<type>]:<n> --cpus-per-task=<n> --mem=<MiB>M --time=<d-hh:mm:ss> \
+  --comment=icfcc-kernel-<tag> --kill-on-bad-exit=1 /bin/bash -c "$ICFCC_STEP"
+```
+
+On the node, the driver writes a connection file with a random key in a private `mkdtemp` (0700) and
+starts `python -m ipykernel_launcher -f <file>` over **IPC sockets** (no TCP port). It relays JSON
+lines: in `exec{id,code}`, `interrupt` (SIGINT to the kernel), `restart`, `stop`; out `ready{job,node,python}`,
+`out{id,output}` (nbformat output dicts; one payload over 2 MiB becomes a notice), `clear`, `done{id,count,status}`,
+`status{busy}`, `restarted`, `bye{reason}`. It exits on stdin EOF, `stop`, SIGTERM/SIGHUP, kernel death, or 30
+minutes without an execution, and removes its directory. srun's own stderr (`srun: job N queued …`,
+`srun: error: …`) gives the job id and any refusal.
 
 ---
 
@@ -384,8 +437,10 @@ Local state files are listed in [ARCHITECTURE.md → Files on disk](ARCHITECTURE
 | Log viewer (`log`) | every 10 s while following a running job | ≥ 5 s per job+stream; last 64 KiB |
 | Workflow runs (`wf-status`) | every 60 s while a run is active | ≥ 45 s; one script for all runs |
 | Upload progress (`xfer-size`) | every 5 s during an upload | — |
+| Interactive kernel | no polling: one open session streams events while a kernel runs | ends after 30 min without a cell run, or at its time limit |
 | Everything else | only when you click | — |
 
 Nothing is polled while the window is hidden, disconnected or after an auth failure. There are no
-per-node queries and no heartbeat pings. The master closes after 30 minutes without a command.
+per-node queries and no heartbeat pings. The master closes after 30 minutes without a command (not
+while an interactive kernel runs; the kernel ends itself after 30 idle minutes).
 Automated tests never contact ICF; see [TESTING.md](TESTING.md).

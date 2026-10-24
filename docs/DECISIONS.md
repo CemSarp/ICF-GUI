@@ -142,7 +142,7 @@ changed since the preview, writes through symlinks are refused, and the old file
 `settings.json.icfcc-backup-<stamp>` first.
 
 ## ADR-022 — Interactive Jupyter disabled
-*Status: accepted (V3).* A safe session needs Jupyter bound to 127.0.0.1 on the compute node and an SSH
+*Status: accepted (V3); superseded for interactive kernels by ADR-031 (a Jupyter server stays off).* A safe session needs Jupyter bound to 127.0.0.1 on the compute node and an SSH
 tunnel to that node (pam_slurm_adopt or equivalent, plus verified compute-node host keys). Neither is
 confirmed for ICF, and binding to a cluster-visible address would expose the server to other users.
 Batch notebook execution (`python -m nbconvert --execute` inside the workflow wrapper) is supported
@@ -243,6 +243,32 @@ host-key-changed errors (ADR-003), and a second login.
   commit. Each step passed the 70 UI tests and a pixel comparison of 26 preview screens (demo, live
   and login) against screenshots taken before the change.
 
+## ADR-031 — Interactive kernels over an srun stdio relay (Notebooks tab)
+*Status: accepted (after 0.4.1), experimental; amends ADR-022 and the "never uses srun" rule.*
+- **What.** A Notebooks tab runs cells of an open notebook on a GPU node. Code goes to an ipykernel on
+  the allocated node; outputs stream back into the page, and Save writes them into the `.ipynb`.
+- **How, without a server.** `kernel_start` runs one reviewed, fixed script as a long-lived
+  `ssh -T … sh -s` over the existing ControlMaster. The script checks the notebook and interpreter
+  (`need_file`/`need_exec`), then `exec srun` with the reviewed resources on the login node. The step
+  runs `driver.py` (embedded in the app), which starts ipykernel on the node over IPC sockets in a
+  private 0700 directory and relays JSON lines on stdin/stdout. Nothing listens on the Mac or the node,
+  nothing is forwarded (`ClearAllForwardings yes` stays), the CSP is unchanged, no compute-node SSH
+  or host key is needed, and the kernel's HMAC key never leaves the node. The app writes nothing to
+  stdin until the driver says `ready`, so `sh -s` can never read protocol lines as commands.
+- **Limits.** Partitions whose name contains "interactive" only (checked in Rust); the resource checks
+  of batch jobs (`validate_resources`), interpreter/toolchain checks (`check_env`) and a review
+  sheet with every notice to confirm. One kernel at a time; one preview starts at most one `srun`.
+- **Lifetime.** The kernel lives exactly as long as the open notebook page. It ends on Stop, on
+  leaving the page (the app asks first), on Disconnect or quit (`close_session`/`RunEvent::Exit`),
+  after 30 minutes without running a cell (driver), at the wall time (`--time`), on SIGTERM, and when
+  the SSH session drops (stdin EOF / EPIPE). `kernel_stop` falls back to an owner-checked `scancel`
+  of the job id `srun` reported, then kills the session. The idle disconnect waits while a kernel runs.
+- **Rendering.** Markdown (markdown-it, parser only, `html: false`) and HTML outputs are converted to
+  a whitelisted element tree, never inserted as HTML: raw HTML stays text, links do not navigate,
+  images must be `data:` (inline outputs or cell attachments), SVG is shown through `<img>`.
+- **Open.** Live check on ICF (needs your consent): that students may `srun` on Interactive from the
+  login node, and how long allocations queue there.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.
@@ -250,6 +276,7 @@ host-key-changed errors (ADR-003), and a second login.
 4. Any rule on `scontrol` frequency stricter than once a minute.
 5. Is `/disk/scratch` present and writable on every GPU node, and does ICF set `SLURM_TMPDIR`?
 6. Is the SFTP subsystem enabled for students on the ICF login host?
-7. Can users SSH into the compute node running their job (needed for interactive Jupyter)?
+7. Can users SSH into the compute node running their job? (No longer needed for interactive kernels,
+   ADR-031; it would still be needed for a JupyterLab server.)
 8. Does `/home` have per-user quotas lower than the filesystem free space reported by `df`?
 9. Does ICF's SLURM send job e-mail (`MailProg`) to university addresses?
