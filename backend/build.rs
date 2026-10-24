@@ -61,6 +61,13 @@ const COMMANDS: &[&str] = &[
     "workflow_reconcile",
     "workflow_list_files",
     "workflow_metrics",
+    // Interactive kernels: preview is local; the rest only via capabilities/kernel-mutations.json
+    "kernel_preview",
+    "kernel_start",
+    "kernel_execute",
+    "kernel_interrupt",
+    "kernel_restart",
+    "kernel_stop",
     // V3 file mutations — granted only via capabilities/file-mutations.json
     "projects_mkdir",
     "vscode_settings_apply",

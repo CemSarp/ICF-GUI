@@ -88,6 +88,9 @@ pub struct AppState {
     /// VS Code was opened through the shared connection since this connect: no idle disconnect.
     pub vscode_in_use: AtomicBool,
     pub share_previews: Mutex<HashMap<String, crate::integrations::vscode_share::StoredShare>>,
+    // ---- Interactive kernels (ADR-031) ----
+    /// The one running kernel, if any; it keeps the connection open while it lives.
+    pub kernel: Mutex<Option<Arc<crate::kernel::commands::Running>>>,
 }
 
 impl AppState {
@@ -119,6 +122,7 @@ impl AppState {
             config_dir: config_dir.to_path_buf(),
             vscode_in_use: AtomicBool::new(false),
             share_previews: Default::default(),
+            kernel: Default::default(),
         }
     }
 
@@ -265,8 +269,10 @@ pub struct LoginRequest {
     use_saved: bool,
 }
 
-/// Closes the app's SSH master and forgets per-identity state. Never touches SLURM jobs.
+/// Closes the app's SSH master and forgets per-identity state. Never touches SLURM batch jobs; the
+/// app's own interactive kernel allocation is stopped first (ADR-031).
 async fn close_session(state: &AppState) {
+    crate::kernel::commands::shutdown(state, true).await;
     if let Some(s) = state.session.lock().await.take() {
         s.close().await;
     }
@@ -406,8 +412,9 @@ fn spawn_idle_watch(app: AppHandle, session: std::sync::Weak<Session>) {
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             let Some(s) = session.upgrade() else { return };
             let state = app.state::<AppState>();
-            // VS Code is working over this connection (ADR-028): keep it until the user disconnects.
-            if s.idle_for() < session::IDLE_TIMEOUT || state.vscode_in_use.load(std::sync::atomic::Ordering::Relaxed) {
+            // VS Code (ADR-028) or a kernel (ADR-031) is working over this connection: keep it.
+            if s.idle_for() < session::IDLE_TIMEOUT || state.vscode_in_use.load(std::sync::atomic::Ordering::Relaxed) || crate::kernel::commands::active(&state)
+            {
                 continue;
             }
             let mut cur = state.session.lock().await;

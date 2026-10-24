@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "kernel-mutations",
+  "description": "Interactive Jupyter kernels (ADR-031): one srun allocation on an Interactive partition per reviewed preview, code sent to that kernel, and interrupt/restart/stop. Never retried automatically; stopping always releases the allocation.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-kernel-start",
+    "allow-kernel-execute",
+    "allow-kernel-interrupt",
+    "allow-kernel-restart",
+    "allow-kernel-stop"
+  ]
+}

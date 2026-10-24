@@ -36,6 +36,8 @@ pub struct StoredPreview {
     pub user: String,
     /// Set for V3 workflow previews: different prechecks and run tracking, same single sbatch.
     pub workflow: Option<Box<crate::workflow::commands::Pending>>,
+    /// Set for interactive kernel previews (ADR-031): started only by `kernel_start`, never sbatch.
+    pub kernel: Option<Box<crate::kernel::commands::Pending>>,
 }
 
 pub(crate) struct Ctx {
@@ -122,6 +124,7 @@ pub async fn jobs_preview(state: State<'_, AppState>, request: JobRequest) -> Ap
                 profile_id: c.profile_id.clone(),
                 user: c.user.clone(),
                 workflow: None,
+                kernel: None,
             },
         );
         id
@@ -186,6 +189,9 @@ pub async fn jobs_submit(
     let c = ctx(&state).await?;
     let session = live(&c, "job submission")?;
     let p = take_preview(&mut state.previews.lock().unwrap(), &preview_id, acknowledged, &c.user, &c.profile_id, now_ms())?;
+    if p.kernel.is_some() {
+        return Err(AppError::invalid("This preview starts an interactive kernel; it cannot be submitted as a batch job."));
+    }
     // Re-validate against the newest snapshot immediately before submitting.
     let snap = state.cache.lock().await.last.clone().ok_or_else(|| AppError::invalid("Cluster data is no longer available. Refresh and review again."))?;
     let learned = state.receipts.lock().unwrap().partition_record(&c.profile_id, &c.user, &p.request.partition);

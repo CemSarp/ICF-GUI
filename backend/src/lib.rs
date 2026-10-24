@@ -3,6 +3,7 @@ pub mod commands;
 pub mod errors;
 pub mod integrations;
 pub mod jobs;
+pub mod kernel;
 pub mod profiles;
 pub mod projects;
 pub mod slurm;
@@ -102,15 +103,22 @@ pub fn run() {
             workflow::commands::workflow_reconcile,
             workflow::commands::workflow_list_files,
             workflow::commands::workflow_metrics,
+            kernel::commands::kernel_preview,
+            kernel::commands::kernel_start,
+            kernel::commands::kernel_execute,
+            kernel::commands::kernel_interrupt,
+            kernel::commands::kernel_restart,
+            kernel::commands::kernel_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building ICF Control Center");
 
     app.run(|handle, event| {
         if let tauri::RunEvent::Exit = event {
-            // Tear down the app-owned ControlMaster; submitted jobs are never affected.
+            // Tear down the app-owned kernel and ControlMaster; submitted batch jobs are never affected.
             let state = handle.state::<AppState>();
             tauri::async_runtime::block_on(async {
+                kernel::commands::shutdown(&state, false).await;
                 if let Some(s) = state.session.lock().await.take() {
                     s.close().await;
                 }
