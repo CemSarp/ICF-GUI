@@ -1,0 +1,28 @@
+[package]
+name = "icf-control-center"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.82"
+publish = false
+
+[lib]
+name = "icf_control_center_lib"
+crate-type = ["lib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["process", "io-util", "time", "sync", "net", "macros", "rt-multi-thread", "fs"] }
+security-framework = "3"
+zeroize = { version = "1", features = ["serde"] }
+libc = "0.2"
+tauri-plugin-dialog = "2"
+base64 = "0.22"
+
+[profile.release]
+strip = true
+lto = true

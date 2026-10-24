@@ -1,0 +1,103 @@
+name: release
+# Builds the macOS app on a macOS runner. A pushed v* tag also creates a DRAFT GitHub release with the
+# zip and its SHA-256; nothing is published until a person reviews the draft. Pull requests that change
+# this file only build and upload the zip as an artifact, so the build is proven before a tag exists.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['.github/workflows/release.yml']
+
+jobs:
+  build:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: frontend/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Versions agree (and match the tag)
+        id: version
+        run: |
+          v=$(node -p "require('./frontend/package.json').version")
+          cargo_v=$(sed -n 's/^version = "\(.*\)"$/\1/p' backend/Cargo.toml | head -n 1)
+          tauri_v=$(node -p "require('./backend/tauri.conf.json').version")
+          echo "package.json=$v Cargo.toml=$cargo_v tauri.conf.json=$tauri_v"
+          if [ "$v" != "$cargo_v" ] || [ "$v" != "$tauri_v" ]; then echo "::error::Version mismatch"; exit 1; fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $v"; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        working-directory: frontend
+        run: pnpm tauri build
+
+      - name: Ad-hoc sign, verify and zip
+        id: zip
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          app="backend/target/release/bundle/macos/ICF Control Center.app"
+          # Not notarized: an ad-hoc signature, as for earlier releases (users allow the first launch).
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          zip="ICF-Control-Center-$VERSION-macOS-arm64.zip"
+          ditto -c -k --keepParent "$app" "$zip"
+          shasum -a 256 "$zip" | tee "$zip.sha256"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.zip }}
+          path: |
+            ${{ steps.zip.outputs.zip }}
+            ${{ steps.zip.outputs.zip }}.sha256
+          retention-days: 14
+
+      - name: Create a draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP: ${{ steps.zip.outputs.zip }}
+        run: |
+          heading=$(grep -m 1 "^## \[$VERSION\]" docs/CHANGELOG.md || true)
+          [ -n "$heading" ] || { echo "::error::No CHANGELOG section for $VERSION"; exit 1; }
+          subtitle=${heading##*· }
+          docs="https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs"
+          {
+            echo "## ICF Control Center $VERSION · $subtitle"
+            echo
+            # This version's CHANGELOG section; relative doc links made absolute for the release page.
+            awk -v h="$heading" '$0 == h {on = 1; next} on && /^## \[/ {exit} on' docs/CHANGELOG.md |
+              sed -E "s#\]\(([A-Za-z0-9_./-]+\.md)\)#](${docs}/\1)#g"
+            echo
+            echo "Full list: [CHANGELOG.md]($docs/CHANGELOG.md)"
+            echo
+            echo "---"
+            echo
+            echo "### ⬇️ Install"
+            echo "1. Download **\`$ZIP\`** below and unzip it."
+            echo "2. Move **ICF Control Center.app** to **Applications**, replacing the older version."
+            echo "3. The app is not notarized by Apple, so macOS blocks the first launch. Allow it once:"
+            echo "   - **System Settings → Privacy & Security → Open Anyway**, or"
+            echo "   - Terminal: \`xattr -dr com.apple.quarantine \"/Applications/ICF Control Center.app\"\`"
+            echo
+            echo "**Requirements:** an Apple Silicon Mac with macOS 13+, and an Informatics (DICE) account with ICF access."
+            echo
+            echo "**SHA-256** \`$ZIP\`:"
+            echo "\`$(cut -d ' ' -f 1 "$ZIP.sha256")\`"
+          } > notes.md
+          cat notes.md
+          gh release create "$GITHUB_REF_NAME" "$ZIP" --draft --verify-tag \
+            --title "ICF Control Center $VERSION — $subtitle" --notes-file notes.md

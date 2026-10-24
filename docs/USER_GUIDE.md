@@ -204,7 +204,7 @@ SIGTERM; such a run shows *Timed out* with what was copied). **Nothing can be co
 survives. `/home` is NFS and is **not backed up** — copy important results elsewhere (e.g. Git, your
 Mac, or AFS if you have it).
 
-Example files for trying all of this cheaply are in `examples/workflow-smoke/` (a tiny dataset
+Example files for trying all of this cheaply are in [`docs/examples/workflow-smoke/`](examples/workflow-smoke/) (a tiny dataset
 builder, a tiny PyTorch training script and a notebook, with a test table).
 
 ### Runs

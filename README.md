@@ -4,24 +4,39 @@
 
 **A friendly macOS app for the University of Edinburgh Informatics Compute Facility (ICF) GPU cluster.**
 
-See which GPUs are free, open your projects in VS Code, move datasets, run training on GPU nodes with
-scratch staging and checkpoints, and follow everything — without remembering a single `sinfo`,
-`sbatch` or `squeue` flag.
+See which GPUs are free, run jobs and training on GPU nodes, edit your code on ICF, open projects in
+VS Code without password prompts, move datasets, and follow everything — without remembering a single
+`sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
+![version](https://img.shields.io/badge/version-0.4.1-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
 [**⬇️ Download**](https://github.com/CemSarp/ICF-GUI/releases/latest) ·
 [User guide](docs/USER_GUIDE.md) ·
 [Security](docs/SECURITY.md) ·
-[Changelog](CHANGELOG.md)
+[Changelog](docs/CHANGELOG.md)
 
-![Overview of GPUs by type (demo data)](docs/screenshots/overview-demo.jpg)
+![Overview: GPUs by type with potentially free, allocated, unavailable and unknown counts (demo data)](docs/screenshots/overview.jpg)
 
 </div>
 
 ---
+
+## 🆕 New in 0.4
+
+- ✏️ **Edit files on ICF, right in the app.** Python, C/C++, CUDA and Markdown with syntax colours,
+  other text files as plain text, and Jupyter notebooks as cells. A save replaces the file on ICF only
+  if nobody changed it since you opened it. → [Editing files](docs/USER_GUIDE.md#editing-files-in-the-app)
+- 🔑 **VS Code without password prompts.** Opt in once and VS Code reuses the app's signed-in
+  connection. Your password never leaves the app, and `~/.ssh/config` is never touched.
+  → [Sign VS Code in through this app](docs/USER_GUIDE.md#sign-vs-code-in-through-this-app-no-password-prompts)
+- 📄 **New file…** in Project files creates a Python, notebook, CUDA, C/C++ or Markdown file and opens
+  it straight in the editor. Existing files are never overwritten.
+- 🚀 **One *New job* screen** for script jobs and training workflows, and **Runs** in the sidebar.
+- 🎨 **A cleaner, Apple-style look** across every screen.
+
+0.4.1 is a housekeeping release with the same features; see the [changelog](docs/CHANGELOG.md).
 
 ## ✨ What is it for?
 
@@ -32,36 +47,64 @@ worked. **ICF Control Center puts all of that in one window.**
 | | |
 |---|---|
 | 📊 **See the cluster** | Every partition and GPU node, with **free / used / down** GPUs per type (RTX 2080 Ti, A6000, H200, MIG slices…), refreshed once a minute. |
-| 🚀 **Request a GPU** | A short form: pick a partition and GPU type, CPUs, RAM, time and your script. The app writes the `sbatch` script for you and shows it **before** anything is sent. |
+| 🚀 **New job** | A short form: pick a partition and GPU type, CPUs, RAM, time and your script. The app writes the `sbatch` script for you and shows it **before** anything is sent. |
 | 📋 **My Jobs** | Your queued, running and finished jobs, with why a job is waiting, exit codes and hints (timeout, out of memory…). |
 | 📜 **Live logs** | Read your job's output and errors in the app, and follow them while it runs. |
 | 🛑 **Cancel safely** | Cancel your own jobs, with a confirmation. Other people's jobs can't be touched. |
-| 🗂️ **Projects + VS Code** | Browse your ICF home, open a project in VS Code over Remote - SSH, pick the remote Python interpreter and CUDA toolchain. |
+| 🗂️ **Projects** | Browse your ICF home, create folders and files, and keep your recent projects one click away. |
+| ✏️ **Edit on ICF** | Code and notebook editor with syntax colours, search and ⌘S. Saves are checked, so they never silently overwrite someone else's change. |
+| 🧑‍💻 **VS Code** | Open a project in VS Code over Remote - SSH, optionally signed in through the app so it never asks for passwords. Pick the remote Python interpreter and CUDA toolchain. |
 | ⇅ **Transfers** | Upload datasets and download results over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
 | 🏋️ **Training workflows** | One reviewed job that stages data to the GPU node's fast local disk, trains, saves checkpoints, copies results back and cleans up. |
-| 📈 **Runs** | Follow each run's stage, node, GPU, checkpoints, results and failures — even after restarting the app. |
+| 📈 **Runs** | Follow each run's stage, node, GPU, metrics, checkpoints, results and failures — even after restarting the app. |
 | 🔐 **Safe by design** | Uses your Mac's own `ssh`. Passwords never touch disk unless you opt in to the macOS Keychain. Nothing is ever submitted without your explicit click. |
 
 ## 🖼️ A quick tour
 
-| Request a GPU | Review the exact script |
+*All screenshots use synthetic demo data, not a real account.*
+
+### Run a job
+
+| Choose resources | Review the exact script |
 |---|---|
-| ![Request GPU wizard](docs/screenshots/request-gpu-demo.jpg) | ![Script review](docs/screenshots/review-script-demo.jpg) |
+| ![New job: partition, GPU type with free counts, GPUs, CPUs, RAM and wall time](docs/screenshots/new-job-script.jpg) | ![Script review: the exact sbatch script and its checksum before submitting](docs/screenshots/review-script.jpg) |
 | **My Jobs** | **Job detail and logs** |
-| ![My Jobs](docs/screenshots/my-jobs-demo.jpg) | ![Job detail with logs](docs/screenshots/job-detail-demo.jpg) |
+| ![My Jobs: queued, running and recently finished jobs](docs/screenshots/my-jobs.jpg) | ![Job detail with scheduler fields and live log output](docs/screenshots/job-detail.jpg) |
 
-| **Project + VS Code + Python env** | **Training workflow review** |
-| ![Project detail](docs/screenshots/project-detail-demo.jpg) | ![Workflow review](docs/screenshots/workflow-review-demo.jpg) |
-| **Run detail** | |
-| ![Run detail](docs/screenshots/run-detail-demo.jpg) | |
+### Edit files on ICF
 
-*Screenshots use synthetic demo data, not a real account.*
+| Python, with syntax colours | Jupyter notebooks as cells |
+|---|---|
+| ![Editing train.py on ICF in the app](docs/screenshots/editor-python.jpg) | ![Editing a notebook: markdown and code cells with read-only outputs](docs/screenshots/editor-notebook.jpg) |
+| **CUDA (dark mode)** | **New file…** |
+| ![Editing a CUDA kernel in dark mode](docs/screenshots/editor-cuda-dark.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
+
+### VS Code and Python environments
+
+| VS Code and Python environment | Let VS Code reuse the app's connection |
+|---|---|
+| ![Project page: VS Code status, Remote - SSH, interpreters with PyTorch versions and CUDA toolchain](docs/screenshots/project-vscode.jpg) | ![Opt-in dialog showing both local changes before VS Code connection sharing is turned on](docs/screenshots/vscode-share.jpg) |
+
+### Train and follow runs
+
+| Training workflow | Review the workflow |
+|---|---|
+| ![New job, training workflow: project folder, script and arguments](docs/screenshots/training-workflow.jpg) | ![Workflow review: run folder, scratch, wall time and the exact batch script](docs/screenshots/workflow-review.jpg) |
+| **Run detail** | **Transfers** |
+| ![Run detail: logs, metrics with trends, outputs and checkpoints](docs/screenshots/run-detail.jpg) | ![Transfers: uploads and downloads verified with SHA-256](docs/screenshots/transfers.jpg) |
+
+### And more
+
+| Projects | Dark mode |
+|---|---|
+| ![Projects: recent projects and a browser for your ICF home](docs/screenshots/projects.jpg) | ![Overview in dark mode](docs/screenshots/overview-dark.jpg) |
 
 ## ⬇️ Install
 
 1. Download the latest **`ICF-Control-Center-<version>-macOS-arm64.zip`** from the
-   [latest release](https://github.com/CemSarp/ICF-GUI/releases/latest) and unzip it.
-2. Drag **ICF Control Center.app** into your **Applications** folder.
+   [latest release](https://github.com/CemSarp/ICF-GUI/releases/latest) and unzip it. The release
+   notes list its SHA-256 if you want to check the download (`shasum -a 256 <file>.zip`).
+2. Drag **ICF Control Center.app** into your **Applications** folder, replacing any older version.
 3. The first time, macOS will warn you because the app isn't notarized by Apple. Open it once anyway:
    - **System Settings → Privacy & Security → "Open Anyway"**, or
    - in Terminal: `xattr -dr com.apple.quarantine "/Applications/ICF Control Center.app"`
@@ -81,6 +124,8 @@ flowchart LR
     F --> G[📋 My Jobs<br/>logs · cancel]
 ```
 
+<img src="docs/screenshots/login.jpg" alt="Connect to ICF: SSH config or username and password, optional Keychain, demo data" width="360" align="right">
+
 1. **Sign in.** Choose **Username and password**, type your UUN (e.g. `s1234567`) and your DICE
    password. Tick *Use the same password for the gateway and ICF* if they're the same.
    **No SSH setup is needed:** if your Mac has no `icf` entry in `~/.ssh/config`, the app goes through
@@ -88,19 +133,25 @@ flowchart LR
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
 3. **Look around.** *Overview* shows GPUs by type, *Partitions* and *GPU Nodes* show the details.
-4. **Request a GPU.** Pick a partition (normally **Teaching**) and a GPU type, then set CPUs, RAM and
-   wall time. Give the working directory (relative paths start in your home, e.g. `projects/myrun`) and
-   your script (`train.py`, or a bash script).
+4. **Start a job.** Open **New job**, keep **Script job**, pick a partition (normally **Teaching**) and
+   a GPU type, then set CPUs, RAM and wall time. Give the working directory (relative paths start in
+   your home, e.g. `projects/myrun`) and your script (`train.py`, or a bash script).
 5. **Review and submit.** The app shows the exact batch script. Tick the notices, click
    **Submit job…**, then confirm. The job is submitted **exactly once**.
 6. **Follow it** in **My Jobs**: open the job, load its log, and cancel it if you need to.
+7. **Work on a project.** In **Projects**, open your project folder. Edit files right there, or tick
+   *Sign VS Code in through this app* and click *Open in VS Code*. Pick the project's Python
+   environment and check it with a GPU smoke test.
+8. **Train with your data.** Upload a dataset archive in **Transfers**, then **New job → Training
+   workflow**: the job copies the archive to the GPU node's local scratch disk, trains, syncs
+   checkpoints to `/home` and copies results back. Follow it in **Runs**.
 
-7. **Train with your data (V3).** In **Projects**, open your project folder, pick its Python
-   environment and *Open in VS Code* to edit. Upload a dataset archive in **Transfers**, then
-   **New job → Training workflow**: the job copies the archive to the GPU node's local scratch disk, trains,
-   syncs checkpoints to `/home` and copies results back. Follow it in **Runs**.
+<br clear="right">
 
-👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md).
+👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md)
+([connecting](docs/USER_GUIDE.md#connecting), [jobs](docs/USER_GUIDE.md#requesting-a-gpu-batch-jobs),
+[projects and VS Code](docs/USER_GUIDE.md#projects-and-vs-code), [transfers](docs/USER_GUIDE.md#transfers),
+[training workflows](docs/USER_GUIDE.md#training-workflows), [troubleshooting](docs/USER_GUIDE.md#troubleshooting)).
 Want to look around first? Click **Explore demo data** on the login screen.
 
 ## 🔐 How it connects (and why it's safe)
@@ -110,6 +161,7 @@ flowchart LR
     subgraph Mac["Your Mac"]
         App["ICF Control Center"] --> SSH["/usr/bin/ssh<br/>(your config and keys)"]
         KC[("macOS Keychain<br/>optional")] -.-> App
+        VS["VS Code<br/>optional sharing"] -.-> SSH
     end
     SSH --> GW["student.ssh.inf.ed.ac.uk<br/>gateway"] --> ICF["icf login node"] --> SLURM[["SLURM scheduler"]]
 ```
@@ -118,12 +170,15 @@ flowchart LR
 - Passwords travel only through a private, in-memory channel to `ssh`. They're never put in command
   lines, environment variables, logs or files, and go into the Keychain only if you tick *Remember*.
 - The interface can't run arbitrary commands, only fixed, typed operations: read-only SLURM queries,
-  `sbatch`/`scancel` after your confirmation, and (V3) bounded folder listings, SFTP transfers and
-  explicit file writes that never overwrite.
-- VS Code makes its own SSH connection; the app never hands it your password and never edits
-  `~/.ssh/config`.
+  `sbatch`/`scancel` after your confirmation, bounded folder listings, SFTP transfers, and explicit
+  file writes. Every one of them is listed in [ICF_COMMANDS.md](docs/ICF_COMMANDS.md).
+- **Editor saves are safe:** a file is replaced only if it is unchanged since you opened it; otherwise
+  you choose to reload or overwrite. Symbolic links and files outside your home are refused.
+- **VS Code sharing is opt-in.** VS Code reuses the app's connection through a socket only your macOS
+  user can reach; it is never given a password. The app shows both local changes (a VS Code-only ssh
+  config and one `settings.json` key, backed up) before making them, and never edits `~/.ssh/config`.
 - It's gentle on the cluster: one small query a minute while the window is visible, nothing while
-  it's minimised, and the connection closes after 30 minutes of inactivity.
+  it's minimised, and the connection closes after 30 minutes of inactivity (unless VS Code is using it).
 
 Details: [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -134,7 +189,7 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
 - **Times** are shown as SLURM reports them (cluster-local, UK time).
 - **VRAM** figures are nominal per GPU model, not live free memory.
 - The app never uses `srun`/`salloc` or keeps an interactive GPU shell open. Interactive Jupyter is
-  off; notebooks run as batch jobs.
+  off; notebooks run as batch jobs (and can be edited in the app).
 - **Scratch is temporary and `/home` is not backed up.** Results reach `/home` when a job ends, fails,
   is cancelled or nears its time limit — but nothing can be copied from a node that fails. Use the
   periodic checkpoint sync and keep your own copies of important results.
@@ -160,9 +215,26 @@ Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemS
 | Node 20+ and pnpm 10 | frontend build | `node -v && pnpm -v` |
 | macOS OpenSSH (`/usr/bin/ssh`) | all cluster access | `ssh -V` |
 
+### Repository layout
+
+| Folder | What lives there |
+|---|---|
+| [`frontend/`](frontend) | React + TypeScript UI (Vite). `src/ui/` components (rendering only), `src/logic/` hooks, IPC client and app logic, `tests/` Vitest suite, `dev/` browser preview with a mocked backend, `fixtures/` demo data the UI tests load |
+| [`backend/`](backend) | Rust/Tauri app: SSH, SLURM, jobs, transfers, workflows, editor, VS Code sharing. `src/` app logic, `tests/` integration tests, `capabilities/` IPC grants, `fixtures/` demo inventory, `icons/` |
+| [`docs/`](docs) | User guide, architecture, security, decisions, testing, changelog, screenshots, smoke-test examples |
+| [`.github/workflows/`](.github/workflows) | `ci.yml` (lint, typecheck, tests and the frontend build on every push and PR) and `release.yml` (macOS release build) |
+
+Components never run commands or hold app logic: they render what `frontend/src/logic/` hooks return, those
+hooks call typed Tauri commands through `frontend/src/logic/api.ts`, and the backend runs every SSH and SLURM
+command (`pnpm lint` enforces this layering). [docs/ICF_COMMANDS.md](docs/ICF_COMMANDS.md) lists each call and
+the exact commands it runs on ICF.
+
 ### Run and build
 
+All `pnpm` commands run from `frontend/`; all `cargo` commands from `backend/`.
+
 ```bash
+cd frontend
 pnpm install
 ```
 
@@ -174,9 +246,9 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-The `.app` lands in `src-tauri/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
+The `.app` lands in `backend/target/release/bundle/macos/`. It's ad-hoc signed (not notarized).
 For UI work without SSH, run `pnpm dev` and open <http://localhost:1420/dev/preview.html?state=demo>
-(or `?state=live` for the V3 screens with synthetic data).
+(or `?state=live` for projects, the editor, transfers and runs with synthetic data).
 
 ### Tests
 
@@ -185,27 +257,37 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 ```bash
-cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+cd backend && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
 Opt-in tests that touch local machine state (never the cluster):
 
 ```bash
-cd src-tauri && cargo test --test real_openssh -- --ignored
+cd backend && cargo test --test real_openssh -- --ignored
 ```
 
 ```bash
-cd src-tauri && cargo test --lib keychain_roundtrip -- --ignored
+cd backend && cargo test --lib keychain_roundtrip -- --ignored
 ```
 
 Automated tests never contact ICF or submit real jobs; scheduler commands run against a scripted ssh and
 stub `sbatch`/`squeue`/`scancel`.
 
+### Releases
+
+1. Bump the version in `frontend/package.json`, `backend/Cargo.toml` and `backend/tauri.conf.json`, and
+   add a `## [x.y.z] — date · Title` section to [docs/CHANGELOG.md](docs/CHANGELOG.md).
+2. Merge to `main`, then tag it: `git tag vx.y.z && git push origin vx.y.z`.
+3. [`release.yml`](.github/workflows/release.yml) builds the app on a macOS runner, checks that the three
+   versions match the tag, ad-hoc signs and zips it, and creates a **draft** release with the zip, its
+   SHA-256 and the changelog section as notes. Review the draft on GitHub, then publish it.
+
+The full checklist is in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
 ### Project docs
 
-[Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
-[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) · [V3 report](docs/V3_IMPLEMENTATION_REPORT.md) ·
-[Release checklist](docs/RELEASE_CHECKLIST.md) ·
-[Agent rules](AGENTS.md)
+[Architecture](docs/ARCHITECTURE.md) · [ICF commands & IPC](docs/ICF_COMMANDS.md) · [Security](docs/SECURITY.md) · [Decisions](docs/DECISIONS.md) ·
+[Cluster compatibility](docs/CLUSTER_COMPATIBILITY.md) · [Testing](docs/TESTING.md) ·
+[Release checklist](docs/RELEASE_CHECKLIST.md) · [Changelog](docs/CHANGELOG.md)
 
 </details>

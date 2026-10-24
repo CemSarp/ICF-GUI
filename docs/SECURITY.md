@@ -179,8 +179,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 
 | Matrix row (V1 plan M2) | Evidence | Status |
 |---|---|---|
-| Correct key/agent | real OpenSSH + local sshd (`tests/real_openssh.rs`), fake ssh | ✅ |
-| Password to one hop / distinct passwords per hop | scripted ssh (`tests/auth_flows.rs`) | ✅ simulated |
+| Correct key/agent | real OpenSSH + local sshd (`backend/tests/real_openssh.rs`), fake ssh | ✅ |
+| Password to one hop / distinct passwords per hop | scripted ssh (`backend/tests/auth_flows.rs`) | ✅ simulated |
 | Wrong password, no loop | scripted ssh | ✅ simulated |
 | Cancel mid-prompt, cleanup | scripted ssh: process killed, dir/socket removed | ✅ |
 | Unknown host key gate | **real OpenSSH 10.3**: prompt on both ProxyJump hops, real fingerprint | ✅ |

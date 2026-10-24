@@ -56,7 +56,7 @@ set, selectable per workflow); `--signal=B:USR1@<s>` honoured by the site's SLUR
 
 ## Tested against
 
-- Synthetic fixtures modelled on the public ICF tutorial's `sinfo` listing (`fixtures/slurm/`):
+- Synthetic fixtures modelled on the public ICF tutorial's `sinfo` listing (`backend/fixtures/slurm/`):
   overlapping Teaching/ICF-Free, Interactive, RTX 2080 Ti, A6000, H200 + MIG, down/drain/not
   responding, untyped GRES, GPUs not tracked as TRES, scheduler errors, malformed counts, empty output,
   property test over random inventories.
