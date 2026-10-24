@@ -28,6 +28,8 @@ const PATHS = {
   close: 'M6.5 6.5l11 11M17.5 6.5l-11 11',
   external: 'M13.5 4.5h6v6M19.5 4.5l-8 8M17.5 14v4.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1H10',
   chip: 'M7 7h10v10H7zM10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5',
+  code: 'M8.5 7L3.5 12l5 5M15.5 7l5 5-5 5M13.5 5l-3 14',
+  layers: 'M12 4l8.5 4.5L12 13 3.5 8.5zM3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5',
 } as const;
 export type IconName = keyof typeof PATHS;
 
@@ -67,6 +69,34 @@ export function Badge({ tone, glyph, children }: { tone: string; glyph?: string;
       {glyph && <span aria-hidden="true">{glyph} </span>}
       {children}
     </span>
+  );
+}
+
+/** One row of an inset grouped list (wrap rows in `.rows`): tinted glyph, title, detail, trailing control. */
+export function Row({
+  icon,
+  tone = 'info',
+  title,
+  children,
+  trailing,
+}: {
+  icon: IconName;
+  tone?: 'info' | 'warn' | 'bad' | 'ok' | 'muted';
+  title: ReactNode;
+  children?: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="list-row">
+      <span className={`list-glyph tone-${tone}`}>
+        <Icon name={icon} size={18} />
+      </span>
+      <div className="list-text">
+        <strong>{title}</strong>
+        {children && <div className="muted small">{children}</div>}
+      </div>
+      {trailing && <div className="list-trailing">{trailing}</div>}
+    </div>
   );
 }
 

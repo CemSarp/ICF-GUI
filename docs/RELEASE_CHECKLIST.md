@@ -46,11 +46,13 @@
 - [ ] Approved cancel test (still open from V2)
 - [ ] Built `.app` clicked through by a person
 
-## v0.4.1 (housekeeping: repository layout, ui/logic split, version label)
+## v0.4.1 (housekeeping: repository layout, ui/logic split, version label, clearer Projects/Settings)
 
 - [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 71 UI tests, production build
 - [x] Rust gates on macos-14 CI: fmt, clippy `-D warnings`, tests (backend logic unchanged since 0.4.0; only paths moved)
 - [x] Behaviour unchanged: 26 preview screens and 38 interaction screenshots pixel-identical to 0.4.0
+      (before the Projects/Settings redesign, which changes only the Python environment, VS Code and
+      CUDA toolchain sections)
 - [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
 - [ ] Merge PR #2, then tag `v0.4.1` on `main` and push the tag
 - [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,

@@ -88,7 +88,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
     await openProject();
     expect(backend.count('python_discover')).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Discover interpreters' }));
-    const row = (await screen.findByText('/usr/bin/python3')).closest('tr')!;
+    const row = (await screen.findByText('/usr/bin/python3')).closest('li')!;
     await userEvent.click(within(row).getByRole('button', { name: 'Use' }));
     expect(backend.calls.find((c) => c.cmd === 'projects_set_prefs')?.args.prefs).toMatchObject({
       interpreter: '/usr/bin/python3',

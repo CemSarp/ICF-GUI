@@ -1637,3 +1637,180 @@ pre.nb-error {
   margin: 0;
   width: 100%;
 }
+
+/* ---------- Inset grouped lists (Settings-style rows) ---------- */
+.rows {
+  display: block;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  margin-bottom: var(--s3);
+  overflow: hidden;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px 14px;
+  min-height: 52px;
+}
+.list-row + .list-row {
+  border-top: 1px solid var(--border);
+}
+.list-glyph {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-control);
+  display: grid;
+  place-items: center;
+}
+.list-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.list-text .mono {
+  overflow-wrap: anywhere;
+}
+.list-trailing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.list-heading {
+  margin: var(--s4) 0 var(--s2);
+}
+.route {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.route .chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+}
+details.more {
+  margin: var(--s2) 0 var(--s3);
+}
+details.more > summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+details.more[open] > summary {
+  margin-bottom: var(--s2);
+}
+details.more p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Selected interpreter: the one fact the Projects screen must make obvious. */
+.env-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--fill);
+  margin-bottom: var(--s3);
+}
+.env-hero.is-set {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: color-mix(in srgb, var(--ok) 7%, var(--surface));
+}
+.env-hero .list-glyph {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+.env-hero strong {
+  font-size: 17px;
+  font-weight: 600;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.interp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--s3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.interp-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--fill);
+}
+.interp-list li.is-selected {
+  border-color: color-mix(in srgb, var(--primary-fill) 55%, transparent);
+  background: color-mix(in srgb, var(--primary-fill) 10%, var(--surface));
+}
+.interp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* macOS-style switch on a plain checkbox (role="switch"). */
+.switch-row {
+  cursor: pointer;
+}
+input.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-strong);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+input.switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-seg);
+  transition: transform var(--dur) var(--ease-out);
+}
+input.switch:checked {
+  background: var(--ok);
+}
+input.switch:checked::before {
+  transform: translateX(16px);
+}
+input.switch:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}

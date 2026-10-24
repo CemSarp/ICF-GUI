@@ -2,15 +2,26 @@
 
 ## [Unreleased]
 
-## [0.4.1] — 2026-10-23 · Housekeeping
+## [0.4.1] — 2026-10-24 · Housekeeping
 
-No new features: the app behaves exactly like 0.4.0 apart from the fix below.
+No new features: the app works like 0.4.0, with a fixed version label and clearer Projects and
+Settings screens.
+
+### Changed
+- **Python environment** (Projects): the selected interpreter is now a highlighted card with its
+  Python version, environment type, PyTorch/CUDA build and last check. The CUDA toolchain and GPU
+  compatibility are status rows (green when the toolchain exists and matches PyTorch's CUDA build),
+  and discovered interpreters are cards with the selected one outlined.
+- **VS Code** (Projects and Settings): VS Code, the Remote - SSH extension and the route to ICF
+  (`This Mac › gateway › ICF`) are status rows; "Sign VS Code in through this app" is a switch.
+- **CUDA toolchain profiles** (Settings): each profile is a row with its CUDA version badge.
+- Long explanations on these screens moved into collapsible "How … works" sections.
 
 ### Fixed
 - The sidebar said "Version 0.3.0" in 0.4.0. It now shows the version of the build you are running,
   read from `package.json` at build time.
 
-### Changed (internal; no change in behaviour)
+### Internal (no change in behaviour)
 - Repository split into `frontend/`, `backend/` and `docs/`; generated permission files and local
   agent notes are no longer tracked.
 - Frontend split into components (`src/ui`) and logic (`src/logic`), enforced by lint (ADR-030).

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Notice } from '../components/ui';
+import { Badge, Icon, Notice, Row } from '../components/ui';
 import { formatTime } from '../../logic/format';
 import {
   POLL_CHOICES,
@@ -179,32 +179,52 @@ function ToolchainsCard() {
     <section className="card" aria-labelledby="tc-title">
       <h2 id="tc-title">CUDA toolchain profiles</h2>
       <p className="muted small">
-        A toolchain is sourced (or its modules loaded) at the start of a job, before your interpreter. The app never
-        installs or upgrades CUDA or PyTorch. Paths are checked on ICF when you discover environments and again inside
-        each job.
+        Loaded at the start of each job, before your interpreter. The app never installs CUDA or PyTorch.
       </p>
       {error && <Notice tone="bad">{error}</Notice>}
-      <ul className="project-list">
+      <div className="rows">
+        {q.data?.length === 0 && (
+          <Row icon="layers" tone="muted" title="No toolchains yet">
+            Add one below to pick it per project.
+          </Row>
+        )}
         {q.data?.map((t) => (
-          <li key={t.id}>
-            <span>
-              <strong>{t.label}</strong>{' '}
-              <span className="muted small mono">
-                {t.spec.kind === 'rc'
-                  ? `source ${t.spec.path}`
-                  : t.spec.kind === 'modules'
-                    ? `module load ${t.spec.names.join(' ')}`
-                    : 'none'}
-                {t.cuda && ` · CUDA ${t.cuda}`}
-              </span>
-              {t.note && <div className="muted small">{t.note}</div>}
+          <Row
+            key={t.id}
+            icon="layers"
+            title={t.label}
+            trailing={
+              <>
+                {t.cuda && <Badge tone="info">CUDA {t.cuda}</Badge>}
+                <button
+                  className="btn ghost danger small-btn"
+                  aria-label={`Delete ${t.label}`}
+                  onClick={() => remove(t.id)}
+                >
+                  Delete
+                </button>
+              </>
+            }
+          >
+            <span className="mono">
+              {t.spec.kind === 'rc'
+                ? `source ${t.spec.path}`
+                : t.spec.kind === 'modules'
+                  ? `module load ${t.spec.names.join(' ')}`
+                  : 'none'}
             </span>
-            <button className="btn ghost small-btn" aria-label={`Delete ${t.label}`} onClick={() => remove(t.id)}>
-              Delete
-            </button>
-          </li>
+            {t.note && <div>{t.note}</div>}
+          </Row>
         ))}
-      </ul>
+      </div>
+      <details className="more">
+        <summary>How toolchains are checked</summary>
+        <p>
+          A toolchain is sourced (or its modules loaded) at the start of a job, before your interpreter. Paths are
+          checked on ICF when you discover environments and again inside each job.
+        </p>
+      </details>
+      <h4 className="list-heading">Add a toolchain</h4>
       <div className="grid-4">
         <label className="field">
           <span>Name</span>
