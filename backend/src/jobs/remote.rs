@@ -126,6 +126,7 @@ pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
         "resume" => "checkpoint to resume from",
         "resultsRoot" => "results directory",
         "notebook" => "notebook",
+        "file" => "file",
         _ => "path",
     };
     match kind {

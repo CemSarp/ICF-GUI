@@ -61,6 +61,8 @@ pub enum KernelEvent {
         job_id: String,
         node: String,
         python: String,
+        /// Compilers on the node, e.g. "nvcc 12.8 · g++ 11.4.0" (empty if none).
+        tools: String,
         ends_at_ms: u64,
     },
     Status {
@@ -410,9 +412,12 @@ pub fn parse_driver_line(line: &str) -> Option<DriverMsg> {
     let v: Value = serde_json::from_str(line.trim()).ok()?;
     let short = |key: &str| v.get(key).and_then(Value::as_str).map(|s| sanitize_text(s, 120));
     Some(match v.get("t")?.as_str()? {
-        "ready" => {
-            DriverMsg::Ready { job: short("job").unwrap_or_default(), node: short("node").unwrap_or_default(), python: short("python").unwrap_or_default() }
-        }
+        "ready" => DriverMsg::Ready {
+            job: short("job").unwrap_or_default(),
+            node: short("node").unwrap_or_default(),
+            python: short("python").unwrap_or_default(),
+            tools: short("tools").unwrap_or_default(),
+        },
         "out" => {
             let output = v.get("output")?.clone();
             let kind = output.get("output_type")?.as_str()?;
@@ -439,7 +444,7 @@ pub fn parse_driver_line(line: &str) -> Option<DriverMsg> {
 
 #[derive(Debug, PartialEq)]
 pub enum DriverMsg {
-    Ready { job: String, node: String, python: String },
+    Ready { job: String, node: String, python: String, tools: String },
     Event(KernelEvent),
     Bye(String),
 }
@@ -454,12 +459,12 @@ fn on_stdout(line: &str, k: &Running, ev: &Channel<KernelEvent>, o: &Mutex<Outco
         return;
     }
     match parse_driver_line(line) {
-        Some(DriverMsg::Ready { job, node, python }) => {
+        Some(DriverMsg::Ready { job, node, python, tools }) => {
             if valid_job_id(&job) {
                 *k.job_id.lock().unwrap() = Some(job.clone());
             }
             k.ready.store(true, Ordering::Release);
-            let _ = ev.send(KernelEvent::Ready { job_id: job, node, python, ends_at_ms: now_ms() + time_limit_ms });
+            let _ = ev.send(KernelEvent::Ready { job_id: job, node, python, tools, ends_at_ms: now_ms() + time_limit_ms });
         }
         Some(DriverMsg::Event(e)) => {
             let _ = ev.send(e);
@@ -520,7 +525,7 @@ pub(crate) fn ended(o: &Outcome, stopping: bool) -> KernelEvent {
         Some(
             r @ ("interpreter_missing"
             | "venv_activate_failed"
-            | "notebook_dir_missing"
+            | "workdir_missing"
             | "toolchain_missing"
             | "toolchain_failed"
             | "module_command_missing"

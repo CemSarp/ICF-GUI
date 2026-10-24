@@ -16,7 +16,7 @@ const HOME: &str = "/home/demo";
 
 fn req(home: &str) -> KernelRequest {
     KernelRequest {
-        notebook_path: format!("{home}/proj/nb/explore.ipynb"),
+        path: format!("{home}/proj/nb/explore.ipynb"),
         interpreter: format!("{home}/env/bin/python"),
         toolchain: Toolchain::None,
         resources: Resources {
@@ -44,7 +44,7 @@ fn fields(v: &Validation) -> Vec<String> {
 fn valid_request_plans_prechecks_and_always_needs_acknowledgement() {
     let (v, checks) = check(&req(HOME));
     assert!(v.errors.is_empty(), "{:?}", v.errors);
-    assert!(checks.contains(&Precheck::File("/home/demo/proj/nb/explore.ipynb".into(), "notebook")));
+    assert!(checks.contains(&Precheck::File("/home/demo/proj/nb/explore.ipynb".into(), "file")));
     assert!(checks.contains(&Precheck::Exec("/home/demo/env/bin/python".into(), "interpreter")));
     assert!(v.acknowledgements.iter().any(|a| a.contains("holds 1 GPU on 'Interactive'") && a.contains("30 minutes")), "{:?}", v.acknowledgements);
     assert!(v.acknowledgements.iter().any(|a| a.contains("short debugging")), "shared Interactive notice");
@@ -63,10 +63,15 @@ fn only_interactive_partitions_and_safe_paths_are_accepted() {
     })
     .contains(&"partition".to_string()));
     assert_eq!(with(&|r| r.resources.time_limit_seconds = 5 * 3600), ["timeLimitSeconds"], "Interactive max is 4 h");
-    assert_eq!(with(&|r| r.notebook_path = "/home/demo/proj/run.py".into()), ["notebookPath"]);
-    assert_eq!(with(&|r| r.notebook_path = "/etc/x.ipynb".into()), ["notebookPath"]);
-    assert_eq!(with(&|r| r.notebook_path = "/home/demo/a b.ipynb".into()), ["notebookPath"]);
-    assert_eq!(with(&|r| r.notebook_path = "/home/demo/../x.ipynb".into()), ["notebookPath"]);
+    for ok in ["run.py", "saxpy.cu", "main.cpp", "main.cc", "main.cxx", "hello.c"] {
+        assert!(with(&|r| r.path = format!("/home/demo/proj/{ok}")).is_empty(), "{ok} can run");
+    }
+    for bad in ["run.sh", "kernel.cuh", "util.h", "README.md", "data.csv"] {
+        assert_eq!(with(&|r| r.path = format!("/home/demo/proj/{bad}")), ["path"], "{bad} cannot run");
+    }
+    assert_eq!(with(&|r| r.path = "/etc/x.ipynb".into()), ["path"]);
+    assert_eq!(with(&|r| r.path = "/home/demo/a b.ipynb".into()), ["path"]);
+    assert_eq!(with(&|r| r.path = "/home/demo/../x.ipynb".into()), ["path"]);
     assert_eq!(with(&|r| r.interpreter = "/home/demo/env/bin/python'; id".into()), ["interpreter"]);
     assert_eq!(with(&|r| r.toolchain = Toolchain::Modules { names: vec!["cuda;rm".into()] }), ["toolchain"]);
     assert_eq!(with(&|r| r.resources.gpu_count = 0), ["gpuCount"]);
@@ -90,11 +95,11 @@ fn launch_script_quotes_values_and_ends_with_one_srun() {
     let s = render(&r, &checks, "ab12cd");
     assert!(s.starts_with("# icfcc:kernel\numask 077\n"));
     assert!(s.contains("command -v srun >/dev/null 2>&1 || { printf '@@err nosrun\\n'; exit 0; }"));
-    assert!(s.contains("need_file '/home/demo/proj/nb/explore.ipynb' notebook home\n"));
+    assert!(s.contains("need_file '/home/demo/proj/nb/explore.ipynb' file home\n"));
     assert!(s.contains("need_exec '/home/demo/env/bin/python' interpreter\n"));
     assert!(s.contains("source '/home/htang2/toolchain-20251006/toolchain.rc' || fail toolchain_failed\n"));
     assert!(s.contains("PY='/home/demo/env/bin/python'\n"));
-    assert!(s.contains("cd '/home/demo/proj/nb' || fail notebook_dir_missing\n"));
+    assert!(s.contains("cd '/home/demo/proj/nb' || fail workdir_missing\n"));
     assert!(s.contains("exec \"$PY\" -u -c \"$ICFCC_DRIVER\"\n"));
     assert!(delimiters_safe(&s, "ab12cd"));
     let last = s.lines().last().unwrap();
@@ -124,8 +129,8 @@ fn heredoc_delimiters_are_unique_lines() {
 #[test]
 fn driver_lines_parse_into_events_and_junk_is_ignored() {
     assert_eq!(
-        parse_driver_line(r#"{"t":"ready","job":"4242","node":"landonia01","python":"3.11.4"}"#),
-        Some(DriverMsg::Ready { job: "4242".into(), node: "landonia01".into(), python: "3.11.4".into() })
+        parse_driver_line(r#"{"t":"ready","job":"4242","node":"landonia01","python":"3.11.4","tools":"nvcc 12.8 · g++ 11.4.0"}"#),
+        Some(DriverMsg::Ready { job: "4242".into(), node: "landonia01".into(), python: "3.11.4".into(), tools: "nvcc 12.8 · g++ 11.4.0".into() })
     );
     let out = parse_driver_line(r#"{"t":"out","id":"c-1","output":{"output_type":"stream","name":"stdout","text":"hi\n"}}"#);
     assert!(matches!(out, Some(DriverMsg::Event(KernelEvent::Output { ref id, .. })) if id == "c-1"));
@@ -332,6 +337,52 @@ async fn real_driver_runs_cells_interrupts_restarts_and_stops() {
     wait_for(&events, "c5 done", |v| v["event"] == "done" && v["id"] == "c5").await;
     assert!(outputs(&events, "c5").iter().any(|o| o["data"]["text/plain"] == "False"));
 
+    // Compiled languages (loaded again after the restart): C++ with args and a header next to the file.
+    let has = |tool: &str| std::process::Command::new("sh").args(["-c", &format!("command -v {tool}")]).output().is_ok_and(|o| o.status.success());
+    if has("g++") {
+        assert!(ready["tools"].as_str().unwrap().contains("g++"), "{ready}");
+        std::fs::write(home.join("proj/nb/greet.h"), "#define GREETING \"hi from a header\"\n").unwrap();
+        let cpp =
+            "%%cpp -- world\n#include <cstdio>\n#include \"greet.h\"\nint main(int c, char** v) { std::printf(\"%s, %s\\n\", GREETING, v[1]); return 0; }";
+        send(&k, json!({"t": "exec", "id": "c6", "code": cpp})).await.unwrap();
+        let d6 = wait_for(&events, "c6 done", |v| v["event"] == "done" && v["id"] == "c6").await;
+        assert_eq!(d6["status"], "ok", "{:?}", outputs(&events, "c6"));
+        assert!(outputs(&events, "c6").iter().any(|o| o["text"] == "hi from a header, world\n"), "{:?}", outputs(&events, "c6"));
+
+        send(&k, json!({"t": "exec", "id": "c7", "code": "%%cpp\nint main( {"})).await.unwrap();
+        let d7 = wait_for(&events, "c7 done", |v| v["event"] == "done" && v["id"] == "c7").await;
+        assert_eq!(d7["status"], "error");
+        let o7 = outputs(&events, "c7");
+        assert!(o7.iter().any(|o| o["name"] == "stderr"), "compiler diagnostics on stderr: {o7:?}");
+        assert!(o7.iter().any(|o| o["traceback"][0].as_str().is_some_and(|t| t.starts_with("Compilation failed (g++ exited with"))), "{o7:?}");
+    }
+    if has("gcc") {
+        send(&k, json!({"t": "exec", "id": "c8", "code": "%%c\n#include <stdio.h>\nint main(void) { puts(\"from c\"); return 3; }"})).await.unwrap();
+        let d8 = wait_for(&events, "c8 done", |v| v["event"] == "done" && v["id"] == "c8").await;
+        assert_eq!(d8["status"], "error");
+        let o8 = outputs(&events, "c8");
+        assert!(o8.iter().any(|o| o["text"] == "from c\n"), "{o8:?}");
+        assert!(o8.iter().any(|o| o["traceback"] == json!(["The program exited with code 3."])), "{o8:?}");
+    }
+    if !has("nvcc") {
+        send(&k, json!({"t": "exec", "id": "c9", "code": "%%cuda\nint main() { return 0; }"})).await.unwrap();
+        wait_for(&events, "c9 done", |v| v["event"] == "done" && v["id"] == "c9").await;
+        assert!(outputs(&events, "c9").iter().any(|o| o["traceback"][0].as_str().is_some_and(|t| t.starts_with("nvcc was not found on this node."))));
+    }
+
+    // The editor's Run on GPU for a Python file: __main__, sys.argv, and exit codes.
+    let script = "%%icfcc_script '/home/x/run.py' -- --epochs 3\nimport sys\nprint(__name__, __file__, sys.argv[1:])";
+    send(&k, json!({"t": "exec", "id": "c10", "code": script})).await.unwrap();
+    wait_for(&events, "c10 done", |v| v["event"] == "done" && v["id"] == "c10").await;
+    assert!(outputs(&events, "c10").iter().any(|o| o["text"] == "__main__ /home/x/run.py ['--epochs', '3']\n"), "{:?}", outputs(&events, "c10"));
+    send(&k, json!({"t": "exec", "id": "c11", "code": "%%icfcc_script run.py\nimport sys\nsys.exit(2)"})).await.unwrap();
+    let d11 = wait_for(&events, "c11 done", |v| v["event"] == "done" && v["id"] == "c11").await;
+    assert_eq!(d11["status"], "error");
+    assert!(outputs(&events, "c11").iter().any(|o| o["traceback"] == json!(["The script exited with 2."])));
+    send(&k, json!({"t": "exec", "id": "c12", "code": "'argv' in dir() or __import__('sys').argv[0] != 'run.py'"})).await.unwrap();
+    wait_for(&events, "c12 done", |v| v["event"] == "done" && v["id"] == "c12").await;
+    assert!(outputs(&events, "c12").iter().any(|o| o["data"]["text/plain"] == "True"), "sys.argv restored");
+
     send(&k, json!({"t": "stop"})).await.unwrap();
     k.close_stdin().await;
     let end = tokio::time::timeout(Duration::from_secs(30), task).await.expect("driver exits after stop").unwrap();
@@ -385,7 +436,7 @@ async fn missing_notebook_is_rejected_before_srun() {
     let home = sb.root.join("home");
     let home_s = home.to_str().unwrap().to_string();
     let mut r = req(&home_s);
-    r.notebook_path = format!("{home_s}/proj/nb/missing.ipynb");
+    r.path = format!("{home_s}/proj/nb/missing.ipynb");
     r.interpreter = "/bin/sh".into();
     let (_, checks) = plan(&r, &Context { home: &home_s, snapshot: &demo_snapshot(0), learned: PartitionRecord::Accepted });
     let mut child = tokio::process::Command::new("/bin/sh")
@@ -411,6 +462,6 @@ async fn missing_notebook_is_rejected_before_srun() {
         Ok(())
     });
     let end = tokio::time::timeout(Duration::from_secs(30), pump(child, &k, &ch, kill_rx, 60_000)).await.unwrap();
-    assert_eq!(end, KernelEvent::Ended { reason: "rejected".into(), message: "Not started: The notebook does not exist on ICF or is not readable.".into() });
+    assert_eq!(end, KernelEvent::Ended { reason: "rejected".into(), message: "Not started: The file does not exist on ICF or is not readable.".into() });
     assert!(!events.lock().unwrap().iter().any(|v| v["event"] == "starting"), "srun never ran");
 }

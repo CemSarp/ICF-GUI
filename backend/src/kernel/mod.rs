@@ -20,12 +20,12 @@ use serde::{Deserialize, Serialize};
 pub const IDLE_MINUTES: u64 = 30;
 pub const JOB_NAME: &str = "icfcc-notebook";
 
-/// Exactly what the Notebooks tab sends. Unknown fields are rejected.
+/// Exactly what the Notebooks tab or the editor's Run on GPU sends. Unknown fields are rejected.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KernelRequest {
-    /// Absolute `.ipynb` path inside home; the kernel's working directory is its folder.
-    pub notebook_path: String,
+    /// Absolute notebook or source file inside home (`RUNNABLE`); the kernel runs in its folder.
+    pub path: String,
     /// Absolute Python executable with ipykernel installed (venv `bin/python` or a system python).
     pub interpreter: String,
     #[serde(default)]
@@ -34,8 +34,8 @@ pub struct KernelRequest {
 }
 
 impl KernelRequest {
-    pub fn notebook_dir(&self) -> &str {
-        match self.notebook_path.rsplit_once('/') {
+    pub fn work_dir(&self) -> &str {
+        match self.path.rsplit_once('/') {
             Some(("", _)) | None => "/",
             Some((d, _)) => d,
         }
@@ -52,9 +52,9 @@ impl KernelRequest {
             memory_mib: r.memory_mib,
             time_limit_seconds: r.time_limit_seconds,
             job_name: JOB_NAME.into(),
-            working_dir: self.notebook_dir().into(),
+            working_dir: self.work_dir().into(),
             runner: Runner::Python,
-            program: self.notebook_path.clone(),
+            program: self.path.clone(),
             program_args: vec![],
             python_env: None,
             setup_source: None,
@@ -62,6 +62,9 @@ impl KernelRequest {
         }
     }
 }
+
+/// Files a kernel can be started for: notebooks, and the files the editor can run (ADR-031).
+pub const RUNNABLE: &[&str] = &[".ipynb", ".py", ".cu", ".cpp", ".cc", ".cxx", ".c"];
 
 pub fn is_interactive(partition: &str) -> bool {
     partition.to_ascii_lowercase().contains("interactive")
@@ -75,16 +78,18 @@ pub fn plan(r: &KernelRequest, cx: &Context) -> (Validation, Vec<Precheck>) {
     if !is_interactive(&r.resources.partition) {
         v.errors.push(issue("partition", "Interactive kernels run only on an Interactive partition. Use a batch notebook run for other partitions."));
     }
-    match check_abs_path(&r.notebook_path) {
-        Err(m) => v.errors.push(issue("notebookPath", format!("Notebook {m}."))),
-        Ok(()) if !under(&r.notebook_path, cx.home) => v.errors.push(issue("notebookPath", format!("The notebook must be inside your home ({}).", cx.home))),
-        Ok(()) if !r.notebook_path.ends_with(".ipynb") => v.errors.push(issue("notebookPath", "Only .ipynb notebooks can start a kernel.")),
-        Ok(()) => checks.push(Precheck::File(r.notebook_path.clone(), "notebook")),
+    match check_abs_path(&r.path) {
+        Err(m) => v.errors.push(issue("path", format!("File {m}."))),
+        Ok(()) if !under(&r.path, cx.home) => v.errors.push(issue("path", format!("The file must be inside your home ({}).", cx.home))),
+        Ok(()) if !RUNNABLE.iter().any(|ext| r.path.ends_with(ext)) => {
+            v.errors.push(issue("path", "A kernel runs notebooks and Python, CUDA, C++ or C files (.ipynb .py .cu .cpp .cc .cxx .c)."))
+        }
+        Ok(()) => checks.push(Precheck::File(r.path.clone(), "file")),
     }
     check_env(&r.interpreter, &r.toolchain, cx.home, &mut v, &mut checks);
     let gpus = r.resources.gpu_count;
     v.acknowledgements.push(format!(
-        "The kernel holds {gpus} GPU{} on '{}' until you stop it, leave the notebook or disconnect, after {IDLE_MINUTES} minutes without running a cell, or when the {} limit ends.",
+        "The kernel holds {gpus} GPU{} on '{}' until you stop it, leave the page or disconnect, after {IDLE_MINUTES} minutes without running code, or when the {} limit ends.",
         if gpus == 1 { "" } else { "s" },
         r.resources.partition,
         format_time_limit(r.resources.time_limit_seconds),

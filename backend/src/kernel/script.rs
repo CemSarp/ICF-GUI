@@ -30,7 +30,7 @@ PYBIN=$(dirname -- "$PY")
 if [ -f "$PYBIN/activate" ]; then . "$PYBIN/activate" || fail venv_activate_failed; fi
 "$PY" -c 'import ipykernel, jupyter_client' >/dev/null 2>&1 || fail ipykernel_missing
 "#;
-    s += &format!("cd {} || fail notebook_dir_missing\n", q(r.notebook_dir()));
+    s += &format!("cd {} || fail workdir_missing\n", q(r.work_dir()));
     s += "exec \"$PY\" -u -c \"$ICFCC_DRIVER\"\n";
     s
 }
