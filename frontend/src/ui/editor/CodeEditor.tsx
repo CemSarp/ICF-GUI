@@ -14,6 +14,7 @@ import {
   keymap,
   lineNumbers,
   MatchDecorator,
+  placeholder as placeholderText,
   ViewPlugin,
   type DecorationSet,
   type ViewUpdate,
@@ -80,12 +81,18 @@ function language(lang: Lang): Extension {
 }
 
 const theme = EditorView.theme({
-  '&': { color: 'var(--text)', backgroundColor: 'var(--surface)', fontSize: '13px', height: '100%' },
+  '&': { color: 'var(--text)', backgroundColor: 'var(--cm-bg, var(--surface))', fontSize: '13px', height: '100%' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.55' },
   '.cm-content': { caretColor: 'var(--primary)', padding: '10px 0' },
   '.cm-cursor': { borderLeftColor: 'var(--primary)', borderLeftWidth: '2px' },
-  '.cm-gutters': { backgroundColor: 'var(--surface)', color: 'var(--muted)', border: 'none', paddingLeft: '6px' },
+  '.cm-gutters': {
+    backgroundColor: 'var(--cm-bg, var(--surface))',
+    color: 'var(--muted)',
+    border: 'none',
+    paddingLeft: '6px',
+  },
+  '.cm-placeholder': { color: 'var(--muted)', fontStyle: 'italic' },
   '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, var(--fill) 45%, transparent)' },
   '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--text)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
@@ -101,48 +108,77 @@ const theme = EditorView.theme({
   '.cm-cuda': { color: 'var(--syn-cuda)', fontWeight: '600' },
 });
 const compactTheme = EditorView.theme({ '&': { height: 'auto' }, '.cm-scroller': { maxHeight: '640px' } });
+/** Notebook cells: the current line is only marked while the cell is being edited. */
+const cellTheme = EditorView.theme({
+  '.cm-content': { padding: '8px 0' },
+  '&:not(.cm-focused) .cm-activeLine, &:not(.cm-focused) .cm-activeLineGutter': { backgroundColor: 'transparent' },
+  '&:not(.cm-focused) .cm-matchingBracket, &:not(.cm-focused) .cm-selectionMatch': { backgroundColor: 'transparent' },
+});
 
 /**
  * One CodeMirror 6 editor. Uncontrolled: `initial` is read on mount (remount with a new `key` to
- * load other text); every change is reported through `onChange`. ⌘S calls `onSave`.
+ * load other text); every change is reported through `onChange`. ⌘S calls `onSave`. Notebook
+ * cells add the run keys (⇧/⌘/⌥ Enter → `onRun`), Esc → `onEscape`, and focus on `active`.
  */
 export function CodeEditor({
   initial,
   lang,
   onChange,
   onSave,
+  onRun,
+  onEscape,
+  onFocus,
+  active = false,
   readOnly = false,
   compact = false,
+  cell = false,
+  placeholder,
   label,
 }: {
   initial: string;
   lang: Lang;
   onChange: (text: string) => void;
   onSave?: () => void;
+  onRun?: (then: 'advance' | 'stay' | 'insert') => void;
+  onEscape?: () => void;
+  onFocus?: () => void;
+  /** Take keyboard focus whenever this becomes true. */
+  active?: boolean;
   readOnly?: boolean;
   /** Notebook cells: grows with its content, no fixed height. */
   compact?: boolean;
+  /** Notebook cell look: no line numbers, current line only while editing. */
+  cell?: boolean;
+  placeholder?: string;
   label: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onChange, onSave });
+  const view = useRef<EditorView | null>(null);
+  const cb = useRef({ onChange, onSave, onRun, onEscape, onFocus });
   useLayoutEffect(() => {
-    cb.current = { onChange, onSave };
+    cb.current = { onChange, onSave, onRun, onEscape, onFocus };
   });
+  useEffect(() => {
+    if (active && view.current && !view.current.hasFocus) view.current.focus();
+  }, [active]);
 
   useEffect(() => {
     // A shadow root makes CodeMirror use constructable stylesheets instead of a <style> tag,
     // which the app's CSP (`style-src 'self'`) would block. CSS variables still inherit in.
     const el = host.current!;
     const root = el.shadowRoot ?? el.attachShadow({ mode: 'open' });
-    const view = new EditorView({
+    const run = (then: 'advance' | 'stay' | 'insert') => () => {
+      if (!cb.current.onRun) return false;
+      cb.current.onRun(then);
+      return true;
+    };
+    const v = new EditorView({
       parent: root,
       root,
       state: EditorState.create({
         doc: initial,
         extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
+          cell ? [] : [lineNumbers(), highlightActiveLineGutter()],
           history(),
           drawSelection(),
           indentOnInput(),
@@ -156,10 +192,16 @@ export function CodeEditor({
           language(lang),
           theme,
           compact ? compactTheme : [],
+          cell ? cellTheme : [],
+          placeholder ? placeholderText(placeholder) : [],
           EditorState.readOnly.of(readOnly),
           EditorView.contentAttributes.of({ 'aria-label': label }),
           keymap.of([
             { key: 'Mod-s', preventDefault: true, run: () => (cb.current.onSave?.(), true) },
+            { key: 'Shift-Enter', run: run('advance') },
+            { key: 'Mod-Enter', run: run('stay') },
+            { key: 'Alt-Enter', run: run('insert') },
+            { key: 'Escape', run: () => (cb.current.onEscape ? (cb.current.onEscape(), true) : false) },
             ...defaultKeymap,
             ...historyKeymap,
             ...searchKeymap,
@@ -167,14 +209,20 @@ export function CodeEditor({
           ]),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());
+            if (u.focusChanged && u.view.hasFocus) cb.current.onFocus?.();
           }),
         ],
       }),
     });
-    return () => view.destroy();
+    view.current = v;
+    if (active) v.focus();
+    return () => {
+      view.current = null;
+      v.destroy();
+    };
     // Mount once per key: `initial`/`lang` changes arrive through a new `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div className={compact ? 'code-editor compact' : 'code-editor'} ref={host} />;
+  return <div className={`code-editor${compact ? ' compact' : ''}${cell ? ' cell' : ''}`} ref={host} />;
 }

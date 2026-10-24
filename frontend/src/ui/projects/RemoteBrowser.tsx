@@ -44,6 +44,7 @@ export function RemoteBrowser({
   fileAction,
   onOpenFile,
   fileFilter,
+  newFileType = 'python',
   title,
 }: {
   status: ConnectionStatus;
@@ -56,6 +57,8 @@ export function RemoteBrowser({
   fileFilter?: (e: Entry) => boolean;
   /** Opens a text file in the in-app editor; only regular files the editor supports. */
   onOpenFile?: (path: string) => void;
+  /** Type preselected in New file… */
+  newFileType?: NewFileType;
   title?: ReactNode;
 }) {
   const {
@@ -162,7 +165,7 @@ export function RemoteBrowser({
           Show hidden
         </label>
         {onOpenFile && listing?.writable && (
-          <button className="btn" onClick={() => setNewFile({ name: '', type: 'python', error: null })}>
+          <button className="btn" onClick={() => setNewFile({ name: '', type: newFileType, error: null })}>
             New file…
           </button>
         )}

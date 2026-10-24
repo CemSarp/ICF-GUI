@@ -3,18 +3,30 @@ import { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useSnapshot } from '../cluster/useSnapshot';
 import { isLive, useConnection } from '../connection/useConnection';
+import { fileKind } from '../editor/languages';
 import type { JobMode } from '../jobs/newJob';
+import type { NotebookGuard } from '../notebooks/useNotebookPage';
 import { usePersistentState } from '../persist';
 import { useApplyTheme, type Theme } from '../settings/theme';
 import type { WizardInit } from '../training/wizardDraft';
 import type { Settings } from '../../types';
 
 export type View =
-  'overview' | 'partitions' | 'nodes' | 'request' | 'jobs' | 'projects' | 'training' | 'transfers' | 'settings';
+  | 'overview'
+  | 'partitions'
+  | 'nodes'
+  | 'request'
+  | 'jobs'
+  | 'projects'
+  | 'notebooks'
+  | 'training'
+  | 'transfers'
+  | 'settings';
 
 /**
  * App-wide state: connection, settings, the cluster snapshot, which screen and item is open, and
- * navigation that is held back while the editor has unsaved changes (or VS Code uses the connection).
+ * navigation that is held back while the editor has unsaved changes, a notebook's kernel runs (or
+ * VS Code uses the connection), and the notebook's full-screen mode.
  */
 export function useAppShell() {
   const { status, challenges, setChallenges } = useConnection();
@@ -32,6 +44,9 @@ export function useAppShell() {
   const [uploadDir, setUploadDir] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
+  const [openNotebook, setOpenNotebook] = usePersistentState<string | null>('notebook.open', null);
+  const [notebookGuard, setNotebookGuard] = useState<NotebookGuard | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   /** Navigation (or disconnect) held back while the editor has unsaved changes. */
   const [pendingLeave, setPendingLeave] = useState<View | 'disconnect' | null>(null);
   const qc = useQueryClient();
@@ -53,9 +68,15 @@ export function useAppShell() {
   }, []);
   useApplyTheme(theme);
 
+  const setFocus = (on: boolean) => {
+    setFocusMode(on);
+    void api.setFullscreen(on);
+  };
   const go = (v: View) => {
     setEditingFile(null);
     setEditorDirty(false);
+    setNotebookGuard(null);
+    if (focusMode) setFocus(false);
     setSelectedNode(null);
     setSelectedJob(null);
     setRequestPartition(null);
@@ -70,11 +91,20 @@ export function useAppShell() {
   const disconnect = () => {
     setEditingFile(null);
     setEditorDirty(false);
+    setNotebookGuard(null);
+    if (focusMode) setFocus(false);
     void api.disconnect().then(() => qc.clear());
   };
-  /** Sidebar click: asks first while the editor has unsaved changes. */
-  const navigate = (v: View) => (editorDirty ? setPendingLeave(v) : go(v));
-  const requestDisconnect = () => (editorDirty || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
+  const guarded = editorDirty || !!notebookGuard;
+  /** Sidebar click: asks first while the editor has unsaved changes or a kernel runs. */
+  const navigate = (v: View) => (v === view && v === 'notebooks' ? undefined : guarded ? setPendingLeave(v) : go(v));
+  const requestDisconnect = () => (guarded || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
+  /** Project files: notebooks open in the Notebooks tab, other text files in the editor. */
+  const openFile = (path: string) => {
+    if (fileKind(path) !== 'notebook') return setEditingFile(path);
+    setOpenNotebook(path);
+    go('notebooks');
+  };
   const confirmLeave = () => {
     const target = pendingLeave;
     setPendingLeave(null);
@@ -143,6 +173,13 @@ export function useAppShell() {
     setEditingFile,
     editorDirty,
     setEditorDirty,
+    openNotebook,
+    setOpenNotebook,
+    notebookGuard,
+    setNotebookGuard,
+    focusMode,
+    toggleFocus: () => setFocus(!focusMode),
+    openFile,
     pendingLeave,
     setPendingLeave,
     startTraining,

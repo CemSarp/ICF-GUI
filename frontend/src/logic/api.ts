@@ -1,12 +1,16 @@
 // The only bridge to the Rust backend. No command here accepts shell text or URLs; V3 remote paths
 // are typed values that Rust validates and ICF re-resolves inside the home directory.
-import { invoke } from '@tauri-apps/api/core';
+import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type {
   AppError,
   EnvReport,
   FolderPick,
   ImportResult,
+  KernelEvent,
+  KernelPreview,
+  KernelRequest,
   LaunchResult,
   Listing,
   LocalPick,
@@ -141,6 +145,27 @@ export const api = {
   workflowFiles: (tag: string, which: '' | 'outputs' | '.outputs.partial' | 'checkpoints') =>
     invoke<Listing>('workflow_list_files', { tag, which }),
   workflowMetrics: (tag: string) => invoke<MetricsResponse>('workflow_metrics', { tag }),
+  kernelPreview: (request: KernelRequest) => invoke<KernelPreview>('kernel_preview', { request }),
+  /** Events of this kernel arrive on a channel owned by the caller, until `ended`. */
+  kernelStart: (previewId: string, acknowledged: boolean, onEvent: (e: KernelEvent) => void) => {
+    const events = new Channel<KernelEvent>();
+    events.onmessage = onEvent;
+    return invoke<{ kernelId: string }>('kernel_start', { previewId, acknowledged, events });
+  },
+  kernelExecute: (kernelId: string, requestId: string, code: string) =>
+    invoke<null>('kernel_execute', { kernelId, requestId, code }),
+  kernelInterrupt: (kernelId: string) => invoke<null>('kernel_interrupt', { kernelId }),
+  kernelRestart: (kernelId: string) => invoke<null>('kernel_restart', { kernelId }),
+  /** `null` stops whatever kernel runs (e.g. one left by a reloaded page). */
+  kernelStop: (kernelId: string | null) => invoke<null>('kernel_stop', { kernelId }),
+  /** Native full screen for the main window; outside Tauri (tests, preview) it does nothing. */
+  setFullscreen: async (on: boolean) => {
+    try {
+      await getCurrentWindow().setFullscreen(on);
+    } catch {
+      /* not running in Tauri */
+    }
+  },
 };
 
 export const events = {

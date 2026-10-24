@@ -299,8 +299,8 @@ export function TrainingWizard({
           {draft.kind === 'notebook' && (
             <Notice tone="info">
               The notebook is executed top to bottom on the compute node with <code>nbconvert</code> (must be installed
-              in the environment) and the executed copy is saved with the results. Interactive Jupyter sessions are not
-              offered (see Settings).
+              in the environment) and the executed copy is saved with the results. To run cells one at a time instead,
+              open the notebook in the Notebooks tab and start an interactive kernel.
             </Notice>
           )}
 

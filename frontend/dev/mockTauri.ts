@@ -74,6 +74,36 @@ const receipt = (o: Record<string, unknown>) => ({
   ...o,
 });
 
+// Preview kernel: echoes print("…") lines and a last bare expression; never runs code.
+let kernelSend: ((m: unknown) => void) | null = null;
+let kernelCount = 0;
+const kernelChannel = (ch: { id: number }) => {
+  let index = 0;
+  return (message: unknown) => callbacks.get(ch.id)?.({ index: index++, message });
+};
+const fakeKernelRun = (id: string, code: string) => {
+  const send = kernelSend;
+  if (!send) return;
+  const n = ++kernelCount;
+  const lines = code
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
+  setTimeout(() => {
+    if (printed.length)
+      send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text: printed.join('\n') + '\n' } });
+    const last = lines[lines.length - 1];
+    if (last && !last.startsWith('print(') && !last.includes('=') && !/^(import|from|def|for|if)\b/.test(last))
+      send({
+        event: 'output',
+        id,
+        output: { output_type: 'execute_result', execution_count: n, data: { 'text/plain': last }, metadata: {} },
+      });
+    send({ event: 'done', id, count: n, status: 'ok' });
+  }, 400);
+};
+
 const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   connection_status: status,
   connection_profiles_list: () => [
@@ -311,6 +341,28 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   transfers_upload: () => v3.transfer({ phase: 'queued', doneBytes: 0 }),
   transfers_download: () => null,
   workflow_preview: (a) => v3.workflowPreview(a.config as never),
+  kernel_preview: (a) => v3.kernelPreview(a.request as never),
+  kernel_start: (a) => {
+    const send = kernelChannel(a.events as { id: number });
+    kernelSend = send;
+    kernelCount = 0;
+    setTimeout(() => send({ event: 'starting' }), 100);
+    setTimeout(() => send({ event: 'queued', jobId: '5150' }), 500);
+    setTimeout(
+      () => send({ event: 'ready', jobId: '5150', node: 'landonia01', python: '3.11.9', endsAtMs: Date.now() + 3_600_000 }),
+      1500,
+    );
+    return { kernelId: 'k1' };
+  },
+  kernel_execute: (a) => (fakeKernelRun(a.requestId as string, a.code as string), null),
+  kernel_interrupt: () => null,
+  kernel_restart: () => ((kernelCount = 0), setTimeout(() => kernelSend?.({ event: 'restarted' }), 200), null),
+  kernel_stop: () => {
+    const send = kernelSend;
+    kernelSend = null;
+    if (send) setTimeout(() => send({ event: 'ended', reason: 'stopped', message: 'Kernel stopped; the GPU was released.' }), 200);
+    return null;
+  },
   workflow_refresh: () => v3.runs(),
   workflow_runs: () => v3.runs().runs,
   workflow_list_files: (a) => v3.listing(`${v3.PROJECT}/runs/train-4242/${a.which}`),

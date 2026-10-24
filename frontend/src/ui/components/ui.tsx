@@ -30,6 +30,17 @@ const PATHS = {
   chip: 'M7 7h10v10H7zM10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5',
   code: 'M8.5 7L3.5 12l5 5M15.5 7l5 5-5 5M13.5 5l-3 14',
   layers: 'M12 4l8.5 4.5L12 13 3.5 8.5zM3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5',
+  notebook: 'M6.5 3.5h11a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1h-11zM10 8h5.5M10 11.5h5.5M4 7h5M4 12h5M4 17h5',
+  play: 'M8 5.5v13l10-6.5z',
+  playAll: 'M4.5 6v12l7.5-6zM12.5 6v12l7.5-6z',
+  stop: 'M7 7h10v10H7z',
+  plus: 'M12 5v14M5 12h14',
+  trash: 'M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7',
+  clear: 'M4 6.5h10M4 12h7M4 17.5h7M14.5 13.5l5 5M19.5 13.5l-5 5',
+  expand: 'M14.5 4.5h5v5M19.5 4.5l-6 6M9.5 19.5h-5v-5M4.5 19.5l6-6',
+  collapse: 'M19.5 4.5l-6 6M13.5 5.5v5h5M4.5 19.5l6-6M10.5 18.5v-5h-5',
+  keyboard: 'M3.5 6.5h17v11h-17zM7 10h.01M10.5 10h.01M14 10h.01M17.5 10h.01M8 14h8',
+  chevron: 'M9.5 5.5L16 12l-6.5 6.5',
 } as const;
 export type IconName = keyof typeof PATHS;
 

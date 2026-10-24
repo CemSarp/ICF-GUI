@@ -2,7 +2,6 @@ import { EditorView } from '@codemirror/view';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { parseNotebook, serializeNotebook } from '../src/logic/editor/notebook';
 import { backend, connectedLive } from './mockBackend';
 import { renderApp } from './render';
 import * as v3 from './v3Fixtures';
@@ -90,23 +89,6 @@ describe('In-app editor', () => {
     expect(saves()).toHaveLength(0);
   });
 
-  it('edits a notebook cell and saves only that cell’s source', async () => {
-    const path = `${v3.PROJECT}/analysis.ipynb`;
-    await openFile('analysis.ipynb');
-    expect(screen.getByText('KeyError: 44')).toBeInTheDocument(); // read-only output, ANSI stripped
-    edit(1, '  # cell edited'); // second cell (the first code cell)
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await screen.findByText('Saved to ICF.');
-    const before = JSON.parse(v3.FILES[path]!);
-    const after = JSON.parse(saves()[0]!.args.content as string);
-    expect(after.cells[1].source).toEqual([
-      'for seed in (42, 43):\n',
-      '    print(f"seed {seed}: {score[seed]:.3f}")  # cell edited',
-    ]);
-    after.cells[1].source = before.cells[1].source;
-    expect(after).toEqual(before); // outputs, metadata, ids and execution counts untouched
-  });
-
   it('creates a new file without overwriting and opens it in the editor', async () => {
     await openProject();
     await userEvent.click(await screen.findByRole('button', { name: 'New file…' }));
@@ -124,17 +106,6 @@ describe('In-app editor', () => {
       { dir: v3.PROJECT, name: 'kernel.cu', content: '' },
       { dir: v3.PROJECT, name: 'saxpy.cu', content: '' },
     ]);
-  });
-
-  it('serialises an untouched notebook byte-for-byte', () => {
-    const text = v3.FILES[`${v3.PROJECT}/analysis.ipynb`]!;
-    const p = parseNotebook(text);
-    expect(
-      serializeNotebook(
-        p,
-        p.nb.cells.map((cell) => ({ cell, text: [cell.source].flat().join('') })),
-      ),
-    ).toBe(text);
   });
 });
 

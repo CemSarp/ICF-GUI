@@ -4,9 +4,12 @@ import { type Lang, KIND_LABEL } from '../../logic/editor/languages';
 import { useFileEditor } from '../../logic/editor/useFileEditor';
 import { bytes } from '../../logic/format';
 import { CodeEditor } from './CodeEditor';
-import { NotebookEditor } from './NotebookEditor';
+import { ConflictDialog } from './ConflictDialog';
 
-/** Edit one text file on ICF; loading, dirty tracking and conflict-checked saving live in useFileEditor. */
+/**
+ * Edit one text file on ICF; loading, dirty tracking and conflict-checked saving live in useFileEditor.
+ * Notebooks open in the Notebooks tab instead.
+ */
 export function EditorView({
   path,
   onClose,
@@ -16,23 +19,8 @@ export function EditorView({
   onClose: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
-  const {
-    kind,
-    file,
-    notebook,
-    loadError,
-    generation,
-    dirty,
-    busy,
-    note,
-    conflict,
-    setConflict,
-    serialize,
-    markDirty,
-    load,
-    save,
-    onTextChange,
-  } = useFileEditor(path, onDirtyChange);
+  const { kind, file, loadError, generation, dirty, busy, note, conflict, setConflict, load, save, onTextChange } =
+    useFileEditor(path, onDirtyChange);
   const [leaving, setLeaving] = useState(false);
   const back = () => (dirty ? setLeaving(true) : onClose());
   const name = path.split('/').pop() ?? path;
@@ -74,7 +62,7 @@ export function EditorView({
         <Notice tone="info">You can read this file but not change it (no write permission).</Notice>
       )}
       {note && <Notice tone={note.tone}>{note.text}</Notice>}
-      {file && kind !== 'notebook' && (
+      {file && (
         <div className="card editor-card">
           <CodeEditor
             key={generation}
@@ -87,43 +75,22 @@ export function EditorView({
           />
         </div>
       )}
-      {file && notebook && (
-        <NotebookEditor
-          key={generation}
-          parsed={notebook}
-          serializeRef={serialize}
-          onDirty={() => markDirty(true)}
-          onSave={() => void save()}
-        />
-      )}
       <p className="muted small">
         Tab indents; press Esc, then Tab, to leave the editor. ⌘F searches, ⌘S saves. Saving replaces the file on ICF
         only if nobody changed it since you opened it.
       </p>
 
       {conflict && (
-        <Dialog title="The file changed on ICF" labelledBy="conflict-title" onClose={() => setConflict(false)}>
-          <p>
-            <code>{name}</code> was changed on ICF after you opened it, for example in VS Code. Nothing was saved.
-          </p>
-          <div className="actions">
-            <button className="btn" onClick={() => setConflict(false)} data-autofocus>
-              Cancel
-            </button>
-            <button
-              className="btn"
-              onClick={() => {
-                setConflict(false);
-                void load();
-              }}
-            >
-              Reload from ICF (discard my edits)
-            </button>
-            <button className="btn danger" onClick={() => void save(true)} disabled={busy}>
-              Overwrite the version on ICF
-            </button>
-          </div>
-        </Dialog>
+        <ConflictDialog
+          name={name}
+          busy={busy}
+          onCancel={() => setConflict(false)}
+          onReload={() => {
+            setConflict(false);
+            void load();
+          }}
+          onOverwrite={() => void save(true)}
+        />
       )}
       {leaving && (
         <Dialog title="Discard unsaved changes?" labelledBy="leave-title" onClose={() => setLeaving(false)}>

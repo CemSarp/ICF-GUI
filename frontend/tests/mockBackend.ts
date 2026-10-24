@@ -5,6 +5,8 @@ import type {
   ConnectionProfile,
   ConnectionStatus,
   JobRow,
+  KernelEvent,
+  KernelRequest,
   SnapshotResponse,
   WorkflowConfig,
 } from '../src/types';
@@ -76,11 +78,54 @@ export const jobRow = (o: Partial<JobRow>): JobRow => ({
 });
 
 type Handler = (args: Record<string, unknown>) => unknown;
+type KernelChannel = { onmessage: (e: KernelEvent) => void };
+
+/**
+ * Fake kernel: `print("x")` lines print x, a last bare expression becomes an execute_result,
+ * `raise`/`1/0` fails. Events arrive asynchronously, like the real channel.
+ */
+function fakeRun(ch: KernelChannel, id: string, code: string, count: number) {
+  const lines = code
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.some((l) => l.startsWith('raise') || l.includes('1/0'))) {
+    ch.onmessage({
+      event: 'output',
+      id,
+      output: {
+        output_type: 'error',
+        ename: 'ZeroDivisionError',
+        evalue: 'division by zero',
+        traceback: ['\u001b[0;31mZeroDivisionError\u001b[0m: division by zero'],
+      },
+    });
+    ch.onmessage({ event: 'done', id, count, status: 'error' });
+    return;
+  }
+  const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
+  if (printed.length)
+    ch.onmessage({
+      event: 'output',
+      id,
+      output: { output_type: 'stream', name: 'stdout', text: printed.join('\n') + '\n' },
+    });
+  const last = lines[lines.length - 1];
+  if (last && !last.startsWith('print(') && !last.includes('=') && !/^(import|from|def|for|if)\b/.test(last))
+    ch.onmessage({
+      event: 'output',
+      id,
+      output: { output_type: 'execute_result', execution_count: count, data: { 'text/plain': last }, metadata: {} },
+    });
+  ch.onmessage({ event: 'done', id, count, status: 'ok' });
+}
 
 export const backend = {
   calls: [] as { cmd: string; args: Record<string, unknown> }[],
   handlers: {} as Record<string, Handler>,
   listeners: {} as Record<string, (e: { payload: unknown }) => void>,
+  /** Event channel of the running fake kernel (tests can push their own events). */
+  kernel: null as KernelChannel | null,
   emit(name: string, payload: unknown) {
     this.listeners[name]?.({ payload });
   },
@@ -90,6 +135,8 @@ export const backend = {
   reset(status: ConnectionStatus, overrides: Record<string, Handler> = {}) {
     this.calls = [];
     this.listeners = {};
+    this.kernel = null;
+    let execCount = 0;
     const files: Record<string, string> = { ...v3.FILES }; // editor saves stay within one test
     let shared = false;
     const snap: SnapshotResponse = {
@@ -188,6 +235,44 @@ export const backend = {
       vscode_share_disable: () => ((shared = false), v3.shareStatus(false)),
       transfers_list: () => [v3.transfer()],
       workflow_preview: (a) => v3.workflowPreview(a.config as WorkflowConfig),
+      kernel_preview: (a) => v3.kernelPreview(a.request as KernelRequest),
+      kernel_start: (a) => {
+        const ch = a.events as KernelChannel;
+        this.kernel = ch;
+        setTimeout(() => {
+          ch.onmessage({ event: 'starting' });
+          ch.onmessage({
+            event: 'ready',
+            jobId: '5150',
+            node: 'landonia01',
+            python: '3.11.9',
+            endsAtMs: Date.now() + 3_600_000,
+          });
+        }, 0);
+        return { kernelId: 'k1' };
+      },
+      kernel_execute: (a) => {
+        const ch = this.kernel!;
+        const n = ++execCount;
+        setTimeout(() => fakeRun(ch, a.requestId as string, a.code as string, n), 0);
+        return null;
+      },
+      kernel_interrupt: () => null,
+      kernel_restart: () => {
+        execCount = 0;
+        setTimeout(() => this.kernel?.onmessage({ event: 'restarted' }), 0);
+        return null;
+      },
+      kernel_stop: () => {
+        const ch = this.kernel;
+        this.kernel = null;
+        if (ch)
+          setTimeout(
+            () => ch.onmessage({ event: 'ended', reason: 'stopped', message: 'Kernel stopped; the GPU was released.' }),
+            0,
+          );
+        return null;
+      },
       workflow_refresh: () => v3.runs(),
       workflow_list_files: () => v3.listing(`${v3.PROJECT}/runs/train-4242/outputs`),
       jobs_get_detail: (a) => ({
