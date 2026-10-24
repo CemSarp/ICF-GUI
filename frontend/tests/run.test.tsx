@@ -75,6 +75,18 @@ describe('Run on GPU in the editor', () => {
     expect(backend.count('files_write')).toBe(0); // running never saves
   });
 
+  it('shows Running, not waiting, while the program runs on a ready kernel', async () => {
+    await openFile('kernel.cu');
+    const bar = screen.getByRole('toolbar', { name: 'Run on a GPU node' });
+    await userEvent.click(within(bar).getByRole('button', { name: /Start kernel/ }));
+    await startKernel();
+    backend.handlers.kernel_execute = () => null; // the program never finishes
+    await userEvent.click(within(bar).getByRole('button', { name: /Run on GPU/ }));
+    const out = await screen.findByRole('region', { name: 'Output' });
+    expect(await within(out).findByText('Running')).toBeInTheDocument();
+    expect(within(out).queryByText('Waiting for the kernel…')).toBeNull();
+  });
+
   it('runs a Python file as a script with its path', async () => {
     backend.reset(connectedLive);
     await openFile('train.py');

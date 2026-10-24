@@ -193,9 +193,7 @@ export function useNotebookCells(
     const text = withFlavor(textOf(key), kind);
     texts.current.set(key, text);
     change((rs) =>
-      rs.map((x) =>
-        x.key === key ? { ...x, cell: convertCell(x.cell, 'code'), text, rev: (x.rev ?? 0) + 1 } : x,
-      ),
+      rs.map((x) => (x.key === key ? { ...x, cell: convertCell(x.cell, 'code'), text, rev: (x.rev ?? 0) + 1 } : x)),
     );
   };
   const setText = (key: number, text: string) => {

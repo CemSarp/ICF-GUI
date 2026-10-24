@@ -89,12 +89,21 @@ function fakeRun(ch: KernelChannel, id: string, code: string, count: number) {
   const magic = /^%%(cuda|cpp|c)\b/.exec(code)?.[1];
   if (magic) {
     const fails = code.includes('return 1;');
-    ch.onmessage({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text: `ran the ${magic} program\n` } });
+    ch.onmessage({
+      event: 'output',
+      id,
+      output: { output_type: 'stream', name: 'stdout', text: `ran the ${magic} program\n` },
+    });
     if (fails)
       ch.onmessage({
         event: 'output',
         id,
-        output: { output_type: 'error', ename: 'IcfccError', evalue: '', traceback: ['The program exited with code 1.'] },
+        output: {
+          output_type: 'error',
+          ename: 'IcfccError',
+          evalue: '',
+          traceback: ['The program exited with code 1.'],
+        },
       });
     ch.onmessage({ event: 'done', id, count, status: fails ? 'error' : 'ok' });
     return;

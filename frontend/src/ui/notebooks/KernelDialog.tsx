@@ -30,8 +30,8 @@ export function KernelDialog({
     <Dialog title="Start an interactive kernel" labelledBy="kernel-title" onClose={onClose}>
       <p className="muted">
         The kernel runs on a GPU node through <code>srun</code> on an Interactive partition. It holds the GPU until you
-        stop it, leave this page or disconnect, after 30 minutes without running code, or at the time limit. Cells
-        and files in Python run in the kernel; CUDA, C++ and C are compiled and run on the same node.
+        stop it, leave this page or disconnect, after 30 minutes without running code, or at the time limit. Cells and
+        files in Python run in the kernel; CUDA, C++ and C are compiled and run on the same node.
       </p>
       {!snapshot && (
         <Notice tone="warn">Cluster data has not loaded yet. Open Overview and refresh, then try again.</Notice>

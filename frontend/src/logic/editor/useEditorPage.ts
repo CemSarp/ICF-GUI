@@ -42,7 +42,9 @@ export function useEditorPage(path: string, onGuard: (g: PageGuard | null) => vo
         }),
       clear: (wait) => (wait ? (clearPending.current = true) : setOutputs([])),
       done: (_count, status) =>
-        setRun(status === 'aborted' ? null : { state: 'done', ok: status === 'ok', ms: since ? Date.now() - since : 0 }),
+        setRun(
+          status === 'aborted' ? null : { state: 'done', ok: status === 'ok', ms: since ? Date.now() - since : 0 },
+        ),
     });
     if (!ok) return setKernelSheet(true);
     clearPending.current = false;

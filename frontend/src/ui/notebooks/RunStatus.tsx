@@ -25,4 +25,3 @@ export function RunStatus({ run }: { run: CellRun | undefined }) {
     </span>
   );
 }
-

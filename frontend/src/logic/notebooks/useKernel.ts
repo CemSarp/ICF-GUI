@@ -11,7 +11,7 @@ export type KernelState =
 
 /** Where the live results of one execution go (one code cell). */
 export interface ExecSink {
-  /** The kernel is now running this request (earlier ones finished). */
+  /** The kernel is now running this request (earlier ones finished); never called inside exec(). */
   started(): void;
   output(o: NotebookOutput): void;
   clear(wait: boolean): void;
@@ -52,7 +52,8 @@ export function useKernel() {
     const k = id.current;
     if (!k) return sink.done(null, 'aborted');
     queue.current.push({ rid, sink });
-    if (queue.current.length === 1) sink.started();
+    // Deferred: callers mark the run as queued right after exec() returns.
+    if (queue.current.length === 1) queueMicrotask(() => sink.started());
     api.kernelExecute(k, rid, code).catch((e) => {
       queue.current = queue.current.filter((q) => q.rid !== rid);
       sink.done(null, 'aborted');
@@ -69,7 +70,15 @@ export function useKernel() {
         set({ phase: 'queued', jobId: e.jobId });
         break;
       case 'ready': {
-        set({ phase: 'ready', jobId: e.jobId, node: e.node, python: e.python, tools: e.tools, endsAtMs: e.endsAtMs, busy: false });
+        set({
+          phase: 'ready',
+          jobId: e.jobId,
+          node: e.node,
+          python: e.python,
+          tools: e.tools,
+          endsAtMs: e.endsAtMs,
+          busy: false,
+        });
         const waiting = held.current;
         held.current = [];
         for (const h of waiting) send(h.rid, h.code, h.sink);

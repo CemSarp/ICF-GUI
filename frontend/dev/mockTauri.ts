@@ -99,9 +99,9 @@ const fakeKernelRun = (id: string, code: string) => {
   const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
   const magic = /^%%(cuda|cpp|c)\b/.exec(code)?.[1];
   if (magic) {
-    const n = /--\s*(\d+)/.exec(code.slice(0, code.indexOf('\n')))?.[1] ?? '1048576';
+    const size = /--\s*(\d+)/.exec(code.slice(0, code.indexOf('\n')))?.[1] ?? '1048576';
     const text = code.includes('saxpy')
-      ? `saxpy on ${n} elements, max error 0.000000\n`
+      ? `saxpy on ${size} elements, max error 0.000000\n`
       : `Hello from ${magic === 'cuda' ? 'the GPU' : 'the node'}\n`;
     setTimeout(() => {
       send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text } });
