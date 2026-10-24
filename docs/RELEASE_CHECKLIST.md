@@ -63,16 +63,26 @@
 - [ ] A real sign-in still works with the 0.4.1 build
 - [x] Publish the draft release
 
-## Next release (Notebooks tab and interactive kernels, ADR-031)
+## v0.5.0 (Notebooks tab, interactive kernels, CUDA/C++/C cells, Run on GPU in the editor; ADR-031)
 
-- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 81 UI tests, production build
+- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 89 UI tests, production build
 - [x] Rust: fmt, clippy `-D warnings` and tests run locally on Linux (macOS-only modules stubbed);
-      the real driver + ipykernel relay test passes
-- [x] Rust gates on macos-14 CI (run 27): fmt, clippy, 136 unit tests incl. the real driver + ipykernel relay, auth and job flows
+      the real driver + ipykernel relay test passes, including compiled cells with g++/gcc
+- [x] Rust gates on macos-14 CI (run 27, before compiled cells): fmt, clippy, 136 unit tests incl. the real driver + ipykernel relay, auth and job flows
+- [ ] Rust gates on macos-14 CI for the 0.5.0 head (compiled cells with Apple clang as g++/gcc)
+- [ ] Opt-in: `cargo test --test real_openssh -- --ignored` and `cargo test --lib keychain_roundtrip -- --ignored`
+- [ ] Built `.app` (demo data): Notebooks tab, a CUDA cell, editor run bar, full screen (button and
+      ⌃⌘F) in WebKit, notebook CSS loads under the CSP, light and dark
 - [ ] **Approved live kernel test** (needs explicit consent): open a notebook, start a kernel on
-      Interactive (1 GPU, 15 min), run `import torch; torch.cuda.is_available()` and a cell that prints;
-      Stop; `squeue -u $USER` shows no job left. Repeat with Disconnect instead of Stop, and once
-      leaving the kernel idle until the 30-minute shutdown (or a short time limit)
+      Interactive (1 GPU, 15 min) with the project's CUDA toolchain; run
+      `import torch; torch.cuda.is_available()`, a `%%cuda` saxpy, a `%%cpp` hello, Interrupt, Restart;
+      Stop; `squeue -u $USER` shows no job left. Repeat with Disconnect instead of Stop, and once with
+      **Run on GPU** for a `.cu` file in the editor
 - [ ] Confirm students may `srun` on Interactive from the login node; note typical queue times
-- [ ] Built `.app`: full screen (button and ⌃⌘F) works in WebKit; notebook CSS loads under the CSP
-- [ ] Bump versions, changelog date, tag
+- [ ] Confirm the ICF CUDA toolchains support `nvcc -arch=native` (CUDA 11.6+)
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [ ] Merge the PR (merge commit), set the CHANGELOG date to the tag date, tag `v0.5.0` on `main`, push the tag
+- [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
+      zip + SHA-256 attached to the draft release
+- [ ] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.5.0**; demo data works
+- [ ] Publish the draft release

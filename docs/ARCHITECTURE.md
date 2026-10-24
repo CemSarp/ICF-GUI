@@ -14,11 +14,12 @@ logic/    .ts only: what each screen knows and does
   api.ts             the only invoke()/listen() wrapper (typed IPC to the backend)
   format.ts          display formatting and state labels
   persist.ts         remembered UI preferences (localStorage, never secrets)
-  app/               useAppShell: connection, settings, snapshot, navigation, guarded disconnect
+  app/               useAppShell: connection, settings, snapshot, navigation, leave guard (guard.ts),
+                     guarded disconnect
   cluster/           useSnapshot (polling budget), node/partition filters, fleet totals, GPU limits
   connection/        useConnection (status + SSH prompts), useLogin, useChallenge
   jobs/              useJobs, script-job draft + preview/submit, My Jobs, job detail + cancel, log stream
-  editor/            file editor (hash-checked save), languages
+  editor/            file editor (hash-checked save), languages, Run on GPU (useEditorPage, runFile)
   notebooks/         notebook parse/serialize + cells and modes, Jupyter keys, Markdown/HTML → safe
                      element tree, ANSI, outputs, kernel (useKernel, start sheet), recent notebooks
   projects/          remote browser, recent projects, VS Code status/sharing, Python environment
@@ -97,7 +98,7 @@ monitoring: workflow_refresh ─▶ jobs_list_mine (shared, rate-limited) + one 
 ## Interactive kernel (ADR-031)
 
 ```text
-Notebooks page ─kernel_preview(request)─▶ Interactive partition only + resource/interpreter checks
+Notebook or editor page ─kernel_preview(request)─▶ Interactive partition only + resource/interpreter checks
        ◀─ srun line + notices (stored like a V2 preview)
 Start ─kernel_start(previewId, ack, Channel)─▶ take preview (consumed) ─▶ re-validate
        ─▶ Session::spawn_stream: ssh -T … sh -s  (one long-lived mux session, stdin kept open)
@@ -105,6 +106,8 @@ login node:  prechecks ─▶ @@starting ─▶ exec srun … /bin/bash -c "$ICF
 compute node: toolchain, venv, import check ─▶ python -u driver.py ─ipc (0700 dir)─▶ ipykernel
        ◀─ srun stderr: queued (job id) | error;  driver stdout: ready / out / done / bye (JSON lines)
 cells ─kernel_execute(id, code)─▶ one JSON line on stdin ─▶ outputs stream back on the Channel
+       %%cuda/%%cpp/%%c: compile in a 0700 mkdtemp on the node, run, remove (driver MAGICS)
+       editor Run on GPU: the buffer as one cell (%%cuda… or %%icfcc_script '<path>' for Python)
 end:  Stop | leave page | Disconnect/quit | 30 min idle | --time | SSH drop ─▶ driver exits, srun ends
        kernel_stop: stop line + EOF, then owner-checked scancel if the job is still there, then kill
 ```

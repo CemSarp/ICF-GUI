@@ -378,7 +378,7 @@ prints `ready`:
 ```sh
 # icfcc:kernel
 umask 077
-<need_file '<notebook>' notebook home; need_exec '<python>' interpreter; need_file '<rc>' toolchain any>
+<need_file '<file>' file home; need_exec '<python>' interpreter; need_file '<rc>' toolchain any>
 command -v srun …  ||  printf '@@err nosrun'          # prechecks print @@err … and exit 0
 ICFCC_DRIVER=$(cat <<'ICFCC_PY_<tag>'                # driver.py, embedded in the app
 …
@@ -388,7 +388,7 @@ export ICFCC_DRIVER
 ICFCC_STEP=$(cat <<'ICFCC_STEP_<tag>'                # runs on the node under bash
 source '<rc>' / module load … ; PY='<python>' ; . "$(dirname "$PY")/activate"
 "$PY" -c 'import ipykernel, jupyter_client' || fail ipykernel_missing
-cd '<notebook folder>' && exec "$PY" -u -c "$ICFCC_DRIVER"
+cd '<the file's folder>' || fail workdir_missing ; exec "$PY" -u -c "$ICFCC_DRIVER"
 ICFCC_STEP_<tag>
 )
 printf '@@starting\n'
@@ -399,11 +399,25 @@ exec srun --job-name=icfcc-notebook-<tag> --partition=<Interactive…> --nodes=1
 
 On the node, the driver writes a connection file with a random key in a private `mkdtemp` (0700) and
 starts `python -m ipykernel_launcher -f <file>` over **IPC sockets** (no TCP port). It relays JSON
-lines: in `exec{id,code}`, `interrupt` (SIGINT to the kernel), `restart`, `stop`; out `ready{job,node,python}`,
+lines: in `exec{id,code}`, `interrupt` (SIGINT to the kernel), `restart`, `stop`; out `ready{job,node,python,tools}`,
 `out{id,output}` (nbformat output dicts; one payload over 2 MiB becomes a notice), `clear`, `done{id,count,status}`,
 `status{busy}`, `restarted`, `bye{reason}`. It exits on stdin EOF, `stop`, SIGTERM/SIGHUP, kernel death, or 30
 minutes without an execution, and removes its directory. srun's own stderr (`srun: job N queued …`,
 `srun: error: …`) gives the job id and any refusal.
+
+`<file>` is the open notebook, or the source file the editor runs (`.py .cu .cpp .cc .cxx .c`). Before
+`ready`, the driver runs one fixed, silent snippet in the kernel (`MAGICS`, again after each restart)
+that adds the cell magics the app uses:
+
+| Magic (first line of the code sent) | On the node |
+|---|---|
+| `%%cuda` / `%%cu`, `%%cpp`, `%%c` `[flags] [-- args]` | write the cell to a private `mkdtemp` (0700); `nvcc -O2 [-arch=native]`, `g++ -std=c++17 -O2` or `gcc -O2` with the flags, `-I <folder>` and `-l…` after the source; run the binary in the folder with the args; remove the directory |
+| `%%icfcc_script '<path>' [-- args]` (editor, Python files) | run the text as `__main__` with `__file__` and `sys.argv` set, restored afterwards |
+
+The compilers come from `PATH` after the project's toolchain lines, so `nvcc` is the selected CUDA
+toolchain's. `tools` in `ready` names those found (`nvcc 12.8 · g++ 11.4.0`, each from `--version`
+with a 5 s limit). The magic line and the cell are the user's own code, run by their own kernel in
+their allocation; nothing is interpolated into a shell (`subprocess` with an argument list).
 
 ---
 

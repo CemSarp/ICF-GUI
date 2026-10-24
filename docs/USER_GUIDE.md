@@ -120,6 +120,15 @@ without VS Code:
 - **Keys:** Tab indents (press Esc, then Tab, to leave the editor). ⌘F searches and ⌘S saves.
 - **Notebooks** (`.ipynb`) open in the [Notebooks](#notebooks) tab instead.
 
+**Run on GPU (experimental).** Python (`.py`), CUDA (`.cu`), C++ (`.cpp`, `.cc`, `.cxx`) and C (`.c`)
+files have a run bar above the editor. **Start kernel…** reviews an interactive kernel exactly as in
+the [Notebooks](#notebooks) tab; then type the program's arguments and press **Run on GPU** (⌘⇧Enter).
+The text in the editor runs, saved or not, in the file's folder on the GPU node: Python as a script
+(`__name__ == "__main__"`, `sys.argv` set), CUDA/C++/C compiled first (see
+[compiled cells](#cuda-c-and-c-cells) for the compiler options). Output appears below the editor; a
+compile error or a non-zero exit code is shown in red. The kernel keeps running between runs and stops
+when you leave the file (the app asks first), like a notebook's.
+
 **Saving.** Save writes to ICF only if nobody changed the file since you opened it, for example in
 VS Code. If someone did, you choose **Reload from ICF** or **Overwrite the version on ICF**. Leaving
 with unsaved edits asks first.
@@ -256,6 +265,28 @@ them into the notebook, as Jupyter does.
 The kernel holds the GPU until you **Stop** it, leave the notebook or disconnect (the app asks first),
 after 30 minutes without running a cell, or at its time limit. **Interrupt** stops the running cell;
 **Restart** clears all variables. *Run all* stops at the first error.
+
+### CUDA, C and C++ cells
+
+Choose **CUDA**, **C++** or **C** in a cell's type menu, or start a code cell with `%%cuda`, `%%cpp` or
+`%%c` (the notebook stays an ordinary Jupyter notebook). Running the cell compiles it on the GPU node
+and runs the program there; its output streams into the cell:
+
+```
+%%cuda -O3 -lcublas -- 1048576
+#include <cstdio>
+int main(int argc, char **argv) { … }
+```
+
+- **First line:** compiler flags, then `--` and the program's arguments.
+- **Compilers:** `nvcc -O2 -arch=native` (the GPU of your allocation; pass `-arch=sm_75` or
+  `-gencode …` to choose, e.g. for CUDA older than 11.6), `g++ -std=c++17 -O2`, `gcc -O2`. Headers in
+  the notebook's folder are found (`-I`), and the program runs in that folder.
+- **`nvcc` comes from the project's CUDA toolchain** (Projects → Python environment); choose one before
+  starting the kernel. The kernel chip's tooltip lists the compilers it found.
+- **Errors:** compiler messages appear in the cell, and a failed build or a non-zero exit code marks the
+  cell as an error, so *Run all* stops there. **Interrupt** stops a running program.
+- Each run is a new process: C/C++ variables do not persist between cells, unlike Python's.
 
 **Full screen.** The ⤢ button (or ⌃⌘F) hides the sidebar and status bar and makes the window full
 screen, like an editor's zen mode.

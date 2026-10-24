@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] — 2026-10-24 · Notebooks
 
 ### Added
 - **Notebooks tab** (Workspace). Opens `.ipynb` files from Projects or its own browser, with recent
@@ -16,11 +16,20 @@
   minutes without running a cell, or at its time limit; Interrupt and Restart work as in Jupyter.
 - **Full screen** for notebooks (button or ⌃⌘F): hides the sidebar and status bar and makes the
   window full screen.
+- **CUDA, C++ and C cells.** Pick CUDA, C++ or C in a cell's type menu (or start the cell with
+  `%%cuda`, `%%cpp` or `%%c`): the cell is compiled with `nvcc`, `g++` or `gcc` on the GPU node and run
+  there, with its output streamed into the notebook. Compiler flags go on the first line, program
+  arguments after `--`; headers next to the notebook are found. `nvcc` targets the allocated GPU
+  (`-arch=native`) unless you pass an architecture. The kernel chip lists the compilers it found.
+- **Run on GPU in the file editor.** Python, CUDA, C++ and C files get a run bar: start a kernel,
+  type program arguments and press **Run on GPU** (⌘⇧Enter). The current text runs, saved or not, and
+  the output appears below the editor. Leaving the file stops the kernel (asked first).
 
 ### Changed
 - `.ipynb` files open in the Notebooks tab instead of the file editor.
 - Settings → Jupyter and the batch-notebook notice describe interactive kernels instead of "disabled".
-- The app now uses `srun` for exactly one thing, the notebook kernel you start (docs updated).
+- The app now uses `srun` for exactly one thing, the kernel you start from a notebook or the editor
+  (docs updated).
 
 ### Internal
 - New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.

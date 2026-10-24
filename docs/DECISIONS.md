@@ -266,8 +266,26 @@ host-key-changed errors (ADR-003), and a second login.
 - **Rendering.** Markdown (markdown-it, parser only, `html: false`) and HTML outputs are converted to
   a whitelisted element tree, never inserted as HTML: raw HTML stays text, links do not navigate,
   images must be `data:` (inline outputs or cell attachments), SVG is shown through `<img>`.
+- **Compiled languages (0.5.0).** CUDA, C++ and C run on the same Python kernel, not on kernels of
+  their own. At start and after each restart the driver loads a fixed IPython snippet (`MAGICS`) with
+  the cell magics `%%cuda`/`%%cu`, `%%cpp` and `%%c`: the cell is written to a private `mkdtemp`
+  (0700), compiled with `nvcc` (`-O2 -arch=native` unless an `-arch`/`-gencode` flag is given),
+  `g++ -std=c++17 -O2` or `gcc -O2`, always with `-I <the file's folder>`, and the binary runs in that
+  folder; its output streams line by line, Interrupt terminates it, and the directory is removed.
+  Flags come first on the magic line and program arguments after `--`. Notebooks stay plain Jupyter
+  (the magic is the cell's first line). `ready` reports the compilers found (`tools`), and the
+  project's CUDA toolchain is sourced before the driver starts, so `nvcc` is on `PATH`.
+- **Editor runs (0.5.0).** The file editor's **Run on GPU** starts the same kind of kernel for a
+  `.py`, `.cu`, `.cpp`, `.cc`, `.cxx` or `.c` file (`KernelRequest.path`; the kernel runs in the
+  file's folder) and sends the unsaved buffer as one cell: `%%cuda|%%cpp|%%c -- <args>`, or for
+  Python `%%icfcc_script '<path>' -- <args>`, which runs the text as `__main__` with `sys.argv` set.
+  No new backend command or capability; the editor page owns the kernel like the notebook page.
+- **Not chosen.** Separate Jupyter kernels (xeus-cling for C++, a CUDA kernel): they need conda
+  installs on ICF, support CUDA poorly, and would add a kernel picker for little gain over compiling
+  each cell. A persistent C++ interpreter state is the one thing lost.
 - **Open.** Live check on ICF (needs your consent): that students may `srun` on Interactive from the
-  login node, and how long allocations queue there.
+  login node, how long allocations queue there, and which CUDA toolchains support `-arch=native`
+  (CUDA 11.6+).
 
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).

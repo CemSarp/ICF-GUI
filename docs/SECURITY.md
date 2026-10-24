@@ -185,6 +185,11 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   runs the owner-checked `scancel` for its id. Code sent to the kernel is the user's own cell text and
   runs with their account, like a batch job; it is capped at 1 MiB per cell and is never logged.
   Batch notebooks still run inside the normal workflow wrapper.
+- **Compiled cells and editor runs (0.5.0).** CUDA/C++/C cells and the editor's Run on GPU add no
+  backend command, capability or remote script: they are kernel code like any cell. The driver
+  compiles with an argument list (no shell) in a private 0700 `mkdtemp` it always removes, runs the
+  binary as the user inside their allocation, and kills it on Interrupt. A kernel can be started only
+  for a notebook or a `.py/.cu/.cpp/.cc/.cxx/.c` file inside home (checked in Rust and again on ICF).
 - **Storage limits are stated, not hidden.** `/home` is NFS and not backed up; scratch is node-local and
   deleted at job end; nothing survives a node failure unless it was synced to `/home` first.
 
