@@ -68,7 +68,7 @@
 - [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 81 UI tests, production build
 - [x] Rust: fmt, clippy `-D warnings` and tests run locally on Linux (macOS-only modules stubbed);
       the real driver + ipykernel relay test passes
-- [ ] Rust gates on macos-14 CI, including the relay test with ipykernel
+- [x] Rust gates on macos-14 CI (run 27): fmt, clippy, 136 unit tests incl. the real driver + ipykernel relay, auth and job flows
 - [ ] **Approved live kernel test** (needs explicit consent): open a notebook, start a kernel on
       Interactive (1 GPU, 15 min), run `import torch; torch.cuda.is_available()` and a cell that prints;
       Stop; `squeue -u $USER` shows no job left. Repeat with Disconnect instead of Stop, and once
