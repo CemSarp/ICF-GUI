@@ -1470,7 +1470,7 @@ pre.log {
   height: auto;
   min-height: 0;
 }
-.row-actions {
+.table td.row-actions {
   text-align: right;
   white-space: nowrap;
 }

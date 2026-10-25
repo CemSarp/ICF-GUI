@@ -287,6 +287,19 @@ host-key-changed errors (ADR-003), and a second login.
   login node, how long allocations queue there, and which CUDA toolchains support `-arch=native`
   (CUDA 11.6+).
 
+## ADR-032 — Deleting files and folders on ICF
+*Status: accepted (0.5.0).* The user asked to delete from the app's file lists.
+- **Command.** `files_delete` (file-mutations) takes the listed folder, one entry name and the kind
+  the listing showed. Rust checks the folder like browsing (absolute, no `.`/`..`) and the name as
+  one printable segment (spaces and Unicode allowed, no `/` or control characters); values are
+  single-quoted in a fixed script.
+- **On ICF.** The folder is resolved with `cd -P` and must be inside home. The entry must still be
+  the kind the user saw, otherwise nothing is deleted. Files and links go with `rm -f` (a link, never
+  its target); folders with `rm -rf`, which does not follow links inside. Anything left afterwards
+  (no permission) is reported, not hidden.
+- **No trash.** ICF has none, and a copy would fill the quota, so the confirmation says it cannot
+  be undone and Cancel has the focus.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

@@ -163,6 +163,7 @@ export const backend = {
     let execCount = 0;
     const files: Record<string, string> = { ...v3.FILES }; // editor saves stay within one test
     let shared = false;
+    const deleted = new Set<string>(); // files_delete, until the next reset
     const snap: SnapshotResponse = {
       snapshot,
       lastError: null,
@@ -222,7 +223,14 @@ export const backend = {
       }),
       // V3 defaults (synthetic). Tests override what they exercise.
       projects_recent: () => [v3.project()],
-      projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+      projects_browse: (a) => {
+        const l = v3.listing((a.path as string | null) ?? null);
+        return { ...l, entries: l.entries.filter((e) => !deleted.has(`${l.path}/${e.name}`)) };
+      },
+      files_delete: (a) => {
+        deleted.add(`${a.dir}/${a.name}`);
+        return `${a.dir}/${a.name}`;
+      },
       files_create: (a) => {
         const path = `${a.dir}/${a.name}`;
         if (files[path] !== undefined)

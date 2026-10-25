@@ -73,6 +73,7 @@ pub fn run() {
             projects::commands::files_read,
             projects::commands::files_write,
             projects::commands::files_create,
+            projects::commands::files_delete,
             projects::commands::python_discover,
             projects::commands::python_check_imports,
             projects::commands::toolchains_list,

@@ -86,6 +86,7 @@ export function NotebooksView({
         title="Open a notebook on ICF"
         fileFilter={(e) => isNotebook(e.name)}
         onOpenFile={onOpen}
+        allowDelete
         newFileType="notebook"
       />
       <section className="card inset nb-about" aria-label="About interactive kernels">

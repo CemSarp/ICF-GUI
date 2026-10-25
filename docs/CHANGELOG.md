@@ -24,6 +24,9 @@
 - **Run on GPU in the file editor.** Python, CUDA, C++ and C files get a run bar: start a kernel,
   type program arguments and press **Run on GPU** (⌘⇧Enter). The current text runs, saved or not, and
   the output appears below the editor. Leaving the file stops the kernel (asked first).
+- **Delete files and folders on ICF.** The project and notebook file lists have **Delete…** on each
+  file, folder and link. A confirmation names the full path and says it cannot be undone; a folder
+  goes with everything in it, and deleting a link never touches what it points to (ADR-032).
 
 ### Changed
 - `.ipynb` files open in the Notebooks tab instead of the file editor.
@@ -40,6 +43,7 @@
   only when its process has exited. A kernel that does fail to start shows Python's own error line.
 
 ### Internal
+- New command `files_delete` in `file-mutations.json`.
 - New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.
 - New dependency: `markdown-it` 14.1.0 (used as a parser only).
 - CI installs `ipykernel` in a throwaway venv so the real relay test runs.

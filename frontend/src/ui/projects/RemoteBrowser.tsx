@@ -39,6 +39,7 @@ export function RemoteBrowser({
   status,
   start,
   allowMkdir = false,
+  allowDelete = false,
   onSelectDir,
   selectDirLabel = 'Use this folder',
   fileAction,
@@ -50,6 +51,8 @@ export function RemoteBrowser({
   status: ConnectionStatus;
   start: string | null;
   allowMkdir?: boolean;
+  /** Delete… on each file, folder and link (after a confirmation that names what goes). */
+  allowDelete?: boolean;
   onSelectDir?: (path: string, listing: Listing) => void;
   selectDirLabel?: string;
   /** Per-file action button (e.g. Select, Download). */
@@ -87,7 +90,14 @@ export function RemoteBrowser({
     newFile,
     setNewFile,
     createFile,
+    toDelete,
+    askDelete,
+    cancelDelete,
+    deleteEntry,
   } = useRemoteBrowser({ status, start, fileFilter, onOpenFile });
+  const canDelete = (e: Entry) =>
+    allowDelete && !!listing?.writable && !e.unsupported && ['dir', 'file', 'symlink'].includes(e.kind);
+  const hasActions = !!(fileAction || onOpenFile || allowDelete);
 
   return (
     <section className="card browser" aria-label="Remote folder browser">
@@ -215,7 +225,7 @@ export function RemoteBrowser({
                 </th>
                 <th scope="col">Modified</th>
                 <th scope="col">Mode</th>
-                {(fileAction || onOpenFile) && (
+                {hasActions && (
                   <th scope="col">
                     <span className="sr-only">Action</span>
                   </th>
@@ -256,7 +266,7 @@ export function RemoteBrowser({
                     {e.mode}
                     {!e.mine && <span className="muted"> (not yours)</span>}
                   </td>
-                  {(fileAction || onOpenFile) && (
+                  {hasActions && (
                     <td className="row-actions">
                       {onOpenFile && editable(e) && (
                         <button className="btn small-btn" onClick={() => onOpenFile(joinPath(listing.path, e.name))}>
@@ -269,6 +279,15 @@ export function RemoteBrowser({
                           onClick={() => fileAction.run(joinPath(listing.path, e.name), e)}
                         >
                           {fileAction.label}
+                        </button>
+                      )}
+                      {canDelete(e) && (
+                        <button
+                          className="btn ghost danger small-btn"
+                          aria-label={`Delete ${e.name}`}
+                          onClick={() => askDelete(e)}
+                        >
+                          Delete…
                         </button>
                       )}
                     </td>
@@ -323,6 +342,38 @@ export function RemoteBrowser({
             </button>
             <button className="btn primary" onClick={() => void createFile()} disabled={!newFile.name.trim()}>
               Create and edit
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {toDelete && listing && (
+        <Dialog
+          title={
+            toDelete.entry.kind === 'dir'
+              ? 'Delete this folder?'
+              : toDelete.entry.kind === 'symlink'
+                ? 'Delete this link?'
+                : 'Delete this file?'
+          }
+          labelledBy="delete-title"
+          onClose={cancelDelete}
+        >
+          <p>
+            <code>{joinPath(listing.path, toDelete.entry.name)}</code>
+            {toDelete.entry.kind === 'dir'
+              ? ' and everything inside it will be deleted from ICF.'
+              : toDelete.entry.kind === 'symlink'
+                ? ' will be deleted from ICF. Only the link goes; what it points to is kept.'
+                : ' will be deleted from ICF.'}
+          </p>
+          <Notice tone="warn">This cannot be undone: ICF has no trash, and the app keeps no copy.</Notice>
+          {toDelete.error && <Notice tone="bad">{toDelete.error}</Notice>}
+          <div className="actions">
+            <button className="btn" data-autofocus onClick={cancelDelete}>
+              Cancel
+            </button>
+            <button className="btn danger" onClick={() => void deleteEntry()} disabled={toDelete.busy}>
+              {toDelete.busy ? 'Deleting…' : toDelete.entry.kind === 'dir' ? 'Delete folder' : 'Delete'}
             </button>
           </div>
         </Dialog>

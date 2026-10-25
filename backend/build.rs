@@ -77,6 +77,7 @@ const COMMANDS: &[&str] = &[
     "transfers_discard",
     "files_write",
     "files_create",
+    "files_delete",
     "vscode_share_apply",
     "vscode_share_disable",
 ];

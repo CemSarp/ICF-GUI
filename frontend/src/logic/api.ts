@@ -46,6 +46,7 @@ import type {
   SshConfigReport,
   FileContent,
   FileSaved,
+  EntryKind,
   SharePreview,
   ShareStatus,
 } from '../types';
@@ -108,6 +109,7 @@ export const api = {
   filesRead: (path: string) => invoke<FileContent>('files_read', { path }),
   filesCreate: (dir: string, name: string, content: string) =>
     invoke<FileSaved>('files_create', { dir, name, content }),
+  filesDelete: (dir: string, name: string, kind: EntryKind) => invoke<string>('files_delete', { dir, name, kind }),
   filesWrite: (path: string, content: string, expectedSha256: string) =>
     invoke<FileSaved>('files_write', { path, content, expectedSha256 }),
   pythonCheckImports: (interpreter: string, modules: string[]) =>

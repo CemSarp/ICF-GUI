@@ -109,6 +109,52 @@ describe('In-app editor', () => {
   });
 });
 
+describe('Deleting files and folders', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('deletes a file only after confirmation, and says a folder goes with everything in it', async () => {
+    await openProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    let sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    expect(within(sheet).getByText(`${v3.PROJECT}/train.py`)).toBeInTheDocument();
+    expect(within(sheet).getByText(/cannot be undone/)).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+    expect(backend.count('files_delete')).toBe(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete train.py' })).not.toBeInTheDocument());
+    expect(backend.calls.find((c) => c.cmd === 'files_delete')!.args).toEqual({
+      dir: v3.PROJECT,
+      name: 'train.py',
+      kind: 'file',
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete data' }));
+    sheet = screen.getByRole('dialog', { name: 'Delete this folder?' });
+    expect(within(sheet).getByText(/everything inside it/)).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete folder' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete data' })).not.toBeInTheDocument());
+    expect(backend.count('files_delete')).toBe(2);
+  });
+
+  it('shows why a delete failed and keeps the sheet open', async () => {
+    backend.reset(connectedLive, {
+      files_delete: () => {
+        throw { code: 'INVALID_INPUT', message: 'It changed on ICF since the folder was listed. Nothing was deleted.' };
+      },
+    });
+    await openProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    const sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete' }));
+    expect(await within(sheet).findByText(/Nothing was deleted/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete train.py' })).toBeInTheDocument();
+  });
+});
+
 describe('Sign VS Code in through this app', () => {
   beforeEach(() => backend.reset(connectedLive));
 

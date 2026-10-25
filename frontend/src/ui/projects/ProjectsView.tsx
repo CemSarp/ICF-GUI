@@ -90,6 +90,7 @@ export function ProjectsView({
         status={status}
         start={null}
         allowMkdir
+        allowDelete
         onSelectDir={(p) => void open(p)}
         selectDirLabel="Open as project"
         title="Browse your ICF home"
@@ -164,6 +165,7 @@ function ProjectDetail({
         status={status}
         start={project.path}
         allowMkdir
+        allowDelete
         title="Project files"
         onSelectDir={(p) => nav.onUpload(p)}
         selectDirLabel="Upload here…"

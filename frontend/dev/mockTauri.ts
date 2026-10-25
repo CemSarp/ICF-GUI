@@ -3,6 +3,7 @@ import demo from '../fixtures/slurm/demo_snapshot.json';
 import * as v3 from '../tests/v3Fixtures';
 
 let shareOn = false;
+const deleted = new Set<string>(); // files_delete, until the page reloads
 
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
@@ -293,11 +294,21 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
     };
   },
   projects_recent: () => [v3.project()],
-  projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+  projects_browse: (a) => {
+    const l = v3.listing((a.path as string | null) ?? null);
+    return { ...l, entries: l.entries.filter((e) => !deleted.has(`${l.path}/${e.name}`)) };
+  },
+  files_delete: (a) => {
+    deleted.add(`${a.dir}/${a.name}`);
+    return `${a.dir}/${a.name}`;
+  },
   files_create: (a) => {
     const path = `${a.dir}/${a.name}`;
     if (v3.FILES[path] !== undefined)
-      throw { code: 'INVALID_INPUT', message: 'Something with that name already exists there. Nothing was overwritten.' };
+      throw {
+        code: 'INVALID_INPUT',
+        message: 'Something with that name already exists there. Nothing was overwritten.',
+      };
     v3.FILES[path] = a.content as string;
     return { path, sha256: v3.fakeSha(a.content as string) };
   },
@@ -305,7 +316,10 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   files_write: (a) => {
     const cur = v3.FILES[a.path as string];
     if (cur === undefined || v3.fakeSha(cur) !== a.expectedSha256)
-      throw { code: 'CONFLICT', message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.' };
+      throw {
+        code: 'CONFLICT',
+        message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.',
+      };
     v3.FILES[a.path as string] = a.content as string;
     return { path: a.path, sha256: v3.fakeSha(a.content as string) };
   },
@@ -378,8 +392,15 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
     setTimeout(() => send({ event: 'starting' }), 100);
     setTimeout(() => send({ event: 'queued', jobId: '5150' }), 500);
     setTimeout(
-      () => send({ event: 'ready', jobId: '5150', node: 'landonia01', python: '3.11.9',
-            tools: 'nvcc 12.8 · g++ 11.4.0 · gcc 11.4.0', endsAtMs: Date.now() + 3_600_000 }),
+      () =>
+        send({
+          event: 'ready',
+          jobId: '5150',
+          node: 'landonia01',
+          python: '3.11.9',
+          tools: 'nvcc 12.8 · g++ 11.4.0 · gcc 11.4.0',
+          endsAtMs: Date.now() + 3_600_000,
+        }),
       1500,
     );
     return { kernelId: 'k1' };
@@ -390,7 +411,11 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   kernel_stop: () => {
     const send = kernelSend;
     kernelSend = null;
-    if (send) setTimeout(() => send({ event: 'ended', reason: 'stopped', message: 'Kernel stopped; the GPU was released.' }), 200);
+    if (send)
+      setTimeout(
+        () => send({ event: 'ended', reason: 'stopped', message: 'Kernel stopped; the GPU was released.' }),
+        200,
+      );
     return null;
   },
   workflow_refresh: () => v3.runs(),

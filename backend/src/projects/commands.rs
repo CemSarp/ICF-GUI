@@ -293,5 +293,22 @@ pub async fn files_create(state: State<'_, AppState>, dir: String, name: String,
     super::files::parse_create(&session.run(&script, COMMAND_TIMEOUT, 16 * 1024).await?)
 }
 
+/// Delete one entry of a listed folder (explicit, confirmed user action; folders go with everything
+/// in them). `kind` is what the listing showed; if the entry changed since, nothing is deleted.
+#[tauri::command]
+pub async fn files_delete(state: State<'_, AppState>, dir: String, name: String, kind: remote::EntryKind) -> AppResult<String> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    if !remote::valid_entry_name(&name) {
+        return Err(AppError::invalid("That name cannot be deleted from the app."));
+    }
+    if !matches!(kind, remote::EntryKind::Dir | remote::EntryKind::File | remote::EntryKind::Symlink) {
+        return Err(AppError::invalid("Only files, folders and links can be deleted from the app."));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "deleting files")?;
+    // A big folder can take a while to remove on NFS.
+    remote::parse_ok(&session.run(&remote::delete_script(&dir, &name, kind), FILE_TIMEOUT, 16 * 1024).await?)
+}
+
 /// Large notebooks over a slow link need longer than the usual 15 s command budget.
 const FILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
