@@ -192,6 +192,22 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     expect(screen.getByRole('button', { name: 'Review script' })).toBeInTheDocument();
   });
 
+  it('number fields can be emptied while typing a new value', async () => {
+    await openWizard();
+    const ram = screen.getByLabelText('RAM (GB)');
+    await userEvent.clear(ram);
+    expect(ram).toHaveValue(null);
+    await userEvent.type(ram, '8');
+    expect(ram).toHaveValue(8);
+    await userEvent.clear(ram);
+    await userEvent.tab();
+    expect(ram).toHaveValue(8); // left empty: back to the last number
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    const req = backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest;
+    expect(req.memoryMib).toBe(8 * 1024);
+  });
+
   it('editing after review invalidates the preview', async () => {
     await openWizard();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));

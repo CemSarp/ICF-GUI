@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Badge, Dialog, EmptyState, Notice } from '../components/ui';
+import { Badge, Dialog, EmptyState, Notice, NumberInput } from '../components/ui';
 import { granularityLabel } from '../../logic/cluster/gpu';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
 import { resolveWorkingDir, useRequestGpu, type Draft } from '../../logic/jobs/jobRequest';
@@ -285,50 +285,30 @@ export function RequestGpuView({
 
           <div className="grid-4">
             <Field label="GPUs" field="gpuCount" issues={issues} help={`Max ${maxGpus} on one node`}>
-              <input
+              <NumberInput
                 id="f-gpuCount"
-                type="number"
                 min={1}
                 max={maxGpus}
                 value={draft.gpuCount}
-                onChange={(e) => set('gpuCount', Number(e.target.value))}
+                onChange={(n) => set('gpuCount', n)}
               />
             </Field>
             <Field label="CPUs" field="cpus" issues={issues}>
-              <input
-                id="f-cpus"
-                type="number"
-                min={1}
-                value={draft.cpus}
-                onChange={(e) => set('cpus', Number(e.target.value))}
-              />
+              <NumberInput id="f-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
             </Field>
             <Field label="RAM (GB)" field="memoryMib" issues={issues}>
-              <input
-                id="f-memoryMib"
-                type="number"
-                min={1}
-                value={draft.memoryGb}
-                onChange={(e) => set('memoryGb', Number(e.target.value))}
-              />
+              <NumberInput id="f-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
             </Field>
             <Field label="Wall time" field="timeLimitSeconds" issues={issues}>
               <div className="input-row" id="f-timeLimitSeconds">
-                <input
-                  aria-label="Hours"
-                  type="number"
-                  min={0}
-                  value={draft.hours}
-                  onChange={(e) => set('hours', Number(e.target.value))}
-                />
+                <NumberInput aria-label="Hours" min={0} value={draft.hours} onChange={(n) => set('hours', n)} />
                 <span className="muted">h</span>
-                <input
+                <NumberInput
                   aria-label="Minutes"
-                  type="number"
                   min={0}
                   max={59}
                   value={draft.minutes}
-                  onChange={(e) => set('minutes', Number(e.target.value))}
+                  onChange={(n) => set('minutes', n)}
                 />
                 <span className="muted">m</span>
               </div>

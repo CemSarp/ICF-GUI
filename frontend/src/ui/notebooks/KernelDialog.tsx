@@ -1,6 +1,6 @@
 import { useKernelSetup } from '../../logic/notebooks/useKernelSetup';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
-import { Dialog, Notice } from '../components/ui';
+import { Dialog, Notice, NumberInput } from '../components/ui';
 
 const hours = (m: number) => (m < 60 ? `${m} min` : `${m / 60} h`);
 
@@ -70,33 +70,25 @@ export function KernelDialog({
         </div>
         <div className="field">
           <label htmlFor="k-gpus">GPUs</label>
-          <input
+          <NumberInput
             id="k-gpus"
-            type="number"
             min={1}
             max={s.maxGpus}
             value={d.gpuCount}
-            onChange={(e) => s.setDraft({ gpuCount: Math.max(1, Number(e.target.value) || 1) })}
+            onChange={(n) => s.setDraft({ gpuCount: Math.max(1, n) })}
           />
         </div>
         <div className="field">
           <label htmlFor="k-cpus">CPUs</label>
-          <input
-            id="k-cpus"
-            type="number"
-            min={1}
-            value={d.cpus}
-            onChange={(e) => s.setDraft({ cpus: Math.max(1, Number(e.target.value) || 1) })}
-          />
+          <NumberInput id="k-cpus" min={1} value={d.cpus} onChange={(n) => s.setDraft({ cpus: Math.max(1, n) })} />
         </div>
         <div className="field">
           <label htmlFor="k-mem">Memory (GB)</label>
-          <input
+          <NumberInput
             id="k-mem"
-            type="number"
             min={1}
             value={d.memoryGb}
-            onChange={(e) => s.setDraft({ memoryGb: Math.max(1, Number(e.target.value) || 1) })}
+            onChange={(n) => s.setDraft({ memoryGb: Math.max(1, n) })}
           />
         </div>
         <div className="field">

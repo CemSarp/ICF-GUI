@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 
 /** Outline icons drawn on a 24-pt grid with SF Symbols-like proportions (1.75 stroke, round caps). */
 const PATHS = {
@@ -71,6 +71,43 @@ export function BackButton({ label, onClick }: { label: string; onClick: () => v
       <Icon name="back" />
       {label}
     </button>
+  );
+}
+
+/**
+ * A number field that can be emptied while typing: `onChange` gets only real numbers, so clearing
+ * "12" to type "8" never shows 0 or 08. Left empty, it shows the last number again on blur.
+ */
+export function NumberInput({
+  value,
+  onChange,
+  onBlur,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> & {
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    // Changed from outside (a preset, a reset): show it.
+    setShown(value);
+    setText(String(value));
+  }
+  return (
+    <input
+      {...rest}
+      type="number"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (e.target.value !== '' && Number.isFinite(e.target.valueAsNumber)) onChange(e.target.valueAsNumber);
+      }}
+      onBlur={(e) => {
+        if (e.target.value === '') setText(String(value));
+        onBlur?.(e);
+      }}
+    />
   );
 }
 

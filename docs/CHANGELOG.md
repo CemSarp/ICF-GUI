@@ -31,6 +31,12 @@
 - The app now uses `srun` for exactly one thing, the kernel you start from a notebook or the editor
   (docs updated).
 
+### Fixed
+- Number fields (GPUs, CPUs, RAM, wall time, kernel resources, workflow settings) can be emptied
+  while typing: clearing "12" to type "8" no longer shows 0 or 08.
+- A kernel that dies while starting now shows Python's own error line (for example an `ImportError`)
+  instead of only `RuntimeError`.
+
 ### Internal
 - New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.
 - New dependency: `markdown-it` 14.1.0 (used as a parser only).
