@@ -472,3 +472,29 @@ async fn missing_notebook_is_rejected_before_srun() {
     assert_eq!(end, KernelEvent::Ended { reason: "rejected".into(), message: "Not started: The file does not exist on ICF or is not readable.".into() });
     assert!(!events.lock().unwrap().iter().any(|v| v["event"] == "starting"), "srun never ran");
 }
+
+#[test]
+fn a_kernel_that_dies_at_start_names_its_python_error() {
+    let Some(py) = kernel_python() else {
+        eprintln!("skipped: no python3 with ipykernel + jupyter_client");
+        return;
+    };
+    // A broken IPython ahead on PYTHONPATH (e.g. from a toolchain): jupyter_client still imports,
+    // so the driver runs, but ipykernel dies before replying.
+    let sb = sandbox();
+    std::fs::create_dir_all(sb.root.join("bad/IPython")).unwrap();
+    std::fs::write(sb.root.join("bad/IPython/__init__.py"), "raise ImportError('broken IPython')\n").unwrap();
+    let out = std::process::Command::new(&py)
+        .args(["-u", "-c", super::script::DRIVER_PY])
+        .current_dir(&sb.root)
+        .env("PYTHONPATH", sb.root.join("bad"))
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let reason = stdout.lines().find_map(|l| match parse_driver_line(l) {
+        Some(DriverMsg::Bye(r)) => Some(r),
+        _ => None,
+    });
+    assert_eq!(reason.as_deref(), Some("kernel_start_failed: ImportError: broken IPython"), "{stdout}");
+}

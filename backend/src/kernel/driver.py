@@ -218,14 +218,16 @@ class Kernel:
         write_connection_file(cf, transport="ipc", ip=os.path.join(self.dir, "k"), key=secrets.token_hex(32).encode())
         env = dict(os.environ)
         env.pop("ICFCC_DRIVER", None)
-        self.proc = subprocess.Popen(
-            [sys.executable, "-m", "ipykernel_launcher", "-f", cf],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            cwd=os.getcwd(),
-        )
+        # stderr goes to a private file so a kernel that dies at start can say why (start_error).
+        with open(os.path.join(self.dir, "kernel.err"), "wb") as err:
+            self.proc = subprocess.Popen(
+                [sys.executable, "-m", "ipykernel_launcher", "-f", cf],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=err,
+                env=env,
+                cwd=os.getcwd(),
+            )
         self.client = BlockingKernelClient(connection_file=cf)
         self.client.load_connection_file()
         self.client.start_channels()
@@ -271,6 +273,16 @@ class Kernel:
                 self.proc.wait()
             self.proc = None
 
+    def start_error(self, e):
+        """The kernel's last stderr line (e.g. "ImportError: …"), else the exception's type."""
+        try:
+            with open(os.path.join(self.dir, "kernel.err"), "rb") as f:
+                f.seek(max(0, os.fstat(f.fileno()).st_size - 4096))
+                lines = [l.strip() for l in f.read().decode("utf-8", "replace").splitlines() if l.strip()]
+        except OSError:
+            lines = []
+        return lines[-1] if lines else type(e).__name__
+
     def cleanup(self):
         self.shutdown()
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -299,7 +311,7 @@ def main():
         try:
             k.start()
         except Exception as e:
-            bye("kernel_start_failed: " + type(e).__name__, 3)
+            bye("kernel_start_failed: " + k.start_error(e), 3)
         tools = tool_versions()
         emit({
             "t": "ready",
@@ -343,7 +355,7 @@ def loop(k, commands):
                 try:
                     k.start()
                 except Exception as e:
-                    bye("kernel_start_failed: " + type(e).__name__, 3)
+                    bye("kernel_start_failed: " + k.start_error(e), 3)
                 busy = False
                 emit({"t": "restarted"})
                 last_activity = time.monotonic()
