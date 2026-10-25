@@ -498,3 +498,33 @@ fn a_kernel_that_dies_at_start_names_its_python_error() {
     });
     assert_eq!(reason.as_deref(), Some("kernel_start_failed: ImportError: broken IPython"), "{stdout}");
 }
+
+#[test]
+fn a_kernel_that_starts_slowly_is_waited_for() {
+    let Some(py) = kernel_python() else {
+        eprintln!("skipped: no python3 with ipykernel + jupyter_client");
+        return;
+    };
+    // A cold start on a busy node (imports from NFS) can take seconds before the kernel answers
+    // heartbeats; jupyter_client's 1 s heartbeat must not count that as a dead kernel.
+    let sb = sandbox();
+    std::fs::create_dir_all(sb.root.join("slow")).unwrap();
+    std::fs::write(
+        sb.root.join("slow/ipykernel_launcher.py"),
+        "import time\ntime.sleep(3)\nfrom ipykernel import kernelapp\nkernelapp.launch_new_instance()\n",
+    )
+    .unwrap();
+    let mut child = std::process::Command::new(&py)
+        .args(["-u", "-c", super::script::DRIVER_PY])
+        .current_dir(&sb.root)
+        .env("PYTHONPATH", sb.root.join("slow"))
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut first = String::new();
+    std::io::BufRead::read_line(&mut std::io::BufReader::new(child.stdout.take().unwrap()), &mut first).unwrap();
+    drop(child.stdin.take()); // EOF ends the driver
+    let _ = child.wait();
+    assert!(matches!(parse_driver_line(first.trim()), Some(DriverMsg::Ready { .. })), "{first}");
+}

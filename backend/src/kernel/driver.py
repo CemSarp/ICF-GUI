@@ -230,8 +230,20 @@ class Kernel:
             )
         self.client = BlockingKernelClient(connection_file=cf)
         self.client.load_connection_file()
-        self.client.start_channels()
-        self.client.wait_for_ready(timeout=120)
+        # No heartbeat channel: jupyter_client counts a kernel as dead after one missed 1 s beat,
+        # which a cold start on a busy node misses. This process owns the kernel, so it waits for
+        # kernel_info itself and calls the kernel dead only when its process has exited.
+        self.client.start_channels(hb=False)
+        deadline = time.monotonic() + 120
+        while True:
+            try:
+                self.client.wait_for_ready(timeout=2)
+                break
+            except RuntimeError:
+                if self.proc.poll() is not None:
+                    raise RuntimeError("kernel exited with code %s" % self.proc.returncode) from None
+                if time.monotonic() > deadline:
+                    raise RuntimeError("no reply from the kernel in 120 s") from None
         self.magics = self.setup()
 
     def setup(self):
@@ -274,14 +286,14 @@ class Kernel:
             self.proc = None
 
     def start_error(self, e):
-        """The kernel's last stderr line (e.g. "ImportError: …"), else the exception's type."""
+        """The kernel's last stderr line (e.g. "ImportError: …"), else the start error itself."""
         try:
             with open(os.path.join(self.dir, "kernel.err"), "rb") as f:
                 f.seek(max(0, os.fstat(f.fileno()).st_size - 4096))
                 lines = [l.strip() for l in f.read().decode("utf-8", "replace").splitlines() if l.strip()]
         except OSError:
             lines = []
-        return lines[-1] if lines else type(e).__name__
+        return lines[-1] if lines else "%s: %s" % (type(e).__name__, e)
 
     def cleanup(self):
         self.shutdown()

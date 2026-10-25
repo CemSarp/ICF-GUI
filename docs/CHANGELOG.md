@@ -34,8 +34,10 @@
 ### Fixed
 - Number fields (GPUs, CPUs, RAM, wall time, kernel resources, workflow settings) can be emptied
   while typing: clearing "12" to type "8" no longer shows 0 or 08.
-- A kernel that dies while starting now shows Python's own error line (for example an `ImportError`)
-  instead of only `RuntimeError`.
+- Kernels that take more than about a second to start (a cold start on a busy node) no longer end
+  with `kernel_start_failed: RuntimeError`: the driver waited on jupyter_client's 1 s heartbeat,
+  which counted a slow start as a dead kernel. It now waits up to 2 minutes and calls a kernel dead
+  only when its process has exited. A kernel that does fail to start shows Python's own error line.
 
 ### Internal
 - New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.
