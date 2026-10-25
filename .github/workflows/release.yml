@@ -99,5 +99,5 @@ jobs:
             echo "\`$(cut -d ' ' -f 1 "$ZIP.sha256")\`"
           } > notes.md
           cat notes.md
-          gh release create "$GITHUB_REF_NAME" "$ZIP" --draft --verify-tag \
+          gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --draft --verify-tag \
             --title "ICF Control Center $VERSION — $subtitle" --notes-file notes.md
