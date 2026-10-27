@@ -79,7 +79,7 @@ jobs (`sacct`, when the site provides it). Open a job for scheduler details, fai
 ## Projects and VS Code
 
 **Projects** (sidebar) lists folders you opened before and lets you browse your ICF home one folder
-at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder…*). Very large folders show the first
+at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder*). Very large folders show the first
 1000 entries. Folders reached through a symlink must still be inside your home. Choose **Open as
 project** on a folder to see its detail page.
 

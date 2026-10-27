@@ -78,7 +78,7 @@ export function useRemoteBrowser({
     }
   };
 
-  /** Deletes the entry chosen with Delete… (after the user confirmed it), then refreshes. */
+  /** Deletes the entry chosen with Delete (after the user confirmed it), then refreshes. */
   const deleteEntry = async () => {
     if (!listing || !toDelete) return;
     setToDelete({ ...toDelete, busy: true, error: null });

@@ -51,7 +51,7 @@ export function RemoteBrowser({
   status: ConnectionStatus;
   start: string | null;
   allowMkdir?: boolean;
-  /** Delete… on each file, folder and link (after a confirmation that names what goes). */
+  /** Delete on each file, folder and link (after a confirmation that names what goes). */
   allowDelete?: boolean;
   onSelectDir?: (path: string, listing: Listing) => void;
   selectDirLabel?: string;
@@ -181,7 +181,7 @@ export function RemoteBrowser({
         )}
         {allowMkdir && listing?.writable && (
           <button className="btn" onClick={() => setMkdirOpen(true)}>
-            New folder…
+            New folder
           </button>
         )}
         {onSelectDir && listing && (
@@ -287,7 +287,7 @@ export function RemoteBrowser({
                           aria-label={`Delete ${e.name}`}
                           onClick={() => askDelete(e)}
                         >
-                          Delete…
+                          Delete
                         </button>
                       )}
                     </td>

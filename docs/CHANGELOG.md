@@ -24,7 +24,7 @@
 - **Run on GPU in the file editor.** Python, CUDA, C++ and C files get a run bar: start a kernel,
   type program arguments and press **Run on GPU** (⌘⇧Enter). The current text runs, saved or not, and
   the output appears below the editor. Leaving the file stops the kernel (asked first).
-- **Delete files and folders on ICF.** The project and notebook file lists have **Delete…** on each
+- **Delete files and folders on ICF.** The project and notebook file lists have **Delete** on each
   file, folder and link. A confirmation names the full path and says it cannot be undone; a folder
   goes with everything in it, and deleting a link never touches what it points to (ADR-032).
 
