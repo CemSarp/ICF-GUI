@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_DRAFT, expandHome, fromConfig, toConfig } from '../src/logic/training/wizardDraft';
 import { safeName } from '../src/logic/transfers/transfers';
-import type { WorkflowConfig } from '../src/types';
+import type { Preset, WorkflowConfig } from '../src/types';
 import { backend, connectedDemo, connectedLive } from './mockBackend';
 import { renderApp } from './render';
 import * as v3 from './v3Fixtures';
@@ -157,18 +157,33 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
   async function wizardFromProject() {
     await openProject();
     await userEvent.click(screen.getByRole('button', { name: 'New training workflow…' }));
-    await screen.findByLabelText('Project folder on ICF');
+    await screen.findByRole('button', { name: 'Review workflow' });
+  }
+
+  async function choose(dialogName: string, folders: string[], pick: string) {
+    const dialog = await screen.findByRole('dialog', { name: dialogName });
+    for (const f of folders) await userEvent.click(await within(dialog).findByRole('button', { name: f }));
+    if (pick === 'folder') return userEvent.click(within(dialog).getByRole('button', { name: 'Choose this folder' }));
+    const row = (await within(dialog).findByText(pick)).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
   }
 
   it('is prefilled from the project and previews the exact config', async () => {
     await wizardFromProject();
-    expect(screen.getByLabelText('Project folder on ICF')).toHaveValue(v3.PROJECT);
-    expect(screen.getByLabelText('Python interpreter on ICF')).toHaveValue(v3.VENV_PY);
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    const env = screen.getByRole('group', { name: 'Python environment' });
+    expect(within(env).getByText(/projects\/icf-env\/bin\/python$/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await choose('Choose the script', [], 'train.py');
+    expect(screen.getByLabelText('Job name')).toHaveValue('train');
+    expect(screen.getByText(/Results and checkpoints go to/)).toHaveTextContent(/semeval\/runs\/train-<job id>/);
     await userEvent.type(screen.getByLabelText('Arguments (one per line)'), '--data={{data}/semeval{enter}--epochs=3');
     await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
     await screen.findByRole('heading', { name: 'Review the exact batch script' });
     const cfg = backend.calls.find((c) => c.cmd === 'workflow_preview')?.args.config as WorkflowConfig;
     expect(cfg.args).toEqual(['--data={data}/semeval', '--epochs=3']);
+    expect(cfg.entry).toBe('train.py');
+    expect(cfg.projectDir).toBe(v3.PROJECT);
     expect(cfg.resultsRoot).toBe(`${v3.PROJECT}/runs`);
     expect(cfg.toolchain).toEqual({ kind: 'rc', path: '/home/htang2/toolchain-20251006/toolchain.rc' });
     expect(cfg.resources.partition).toBe('Teaching');
@@ -218,8 +233,9 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     await openProject();
     await expand('Python environment');
     await userEvent.click(screen.getByRole('button', { name: /Run the GPU smoke test/ }));
-    await screen.findByLabelText('Project folder on ICF');
+    await screen.findByRole('button', { name: 'Review workflow' });
     expect(screen.getByLabelText('GPU test')).toBeChecked();
+    expect(screen.getByLabelText('Job name')).toHaveValue('gpu-test'); // shown, and the user can change it
     expect(screen.getByText(/Checks that a GPU node works with your Python/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
     await screen.findByRole('heading', { name: 'Review the exact batch script' });
@@ -229,16 +245,57 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     expect(cfg.resources.timeLimitSeconds).toBe(600);
   });
 
-  it('expands ~ in path fields to the remote home and shows the resolved path', async () => {
+  it('takes the Python environment as a folder and runs its bin/python', async () => {
     await wizardFromProject();
-    const py = screen.getByLabelText('Python interpreter on ICF');
-    await userEvent.clear(py);
-    await userEvent.type(py, '~/projects/icf-env/bin/python');
-    expect(screen.getByText('/home/s1/projects/icf-env/bin/python')).toBeInTheDocument();
+    const env = screen.getByRole('group', { name: 'Python environment' });
+    await userEvent.click(within(env).getByRole('button', { name: 'Change…' }));
+    // It opens in the current environment; start from the home folder and choose another one.
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the Python environment folder' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Home folder' }));
+    await choose('Choose the Python environment folder', ['projects', 'semeval'], 'folder');
     await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
     await screen.findByRole('heading', { name: 'Review the exact batch script' });
     const cfg = backend.calls.find((c) => c.cmd === 'workflow_preview')?.args.config as WorkflowConfig;
-    expect(cfg.interpreter).toBe('/home/s1/projects/icf-env/bin/python');
+    expect(cfg.interpreter).toBe(`${v3.PROJECT}/bin/python`);
+  });
+
+  it('creates, updates, renames and deletes presets', async () => {
+    let saved: Preset[] = [];
+    backend.handlers.presets_list = () => saved;
+    backend.handlers.presets_save = (a) => {
+      const id = (a.id as string | null) ?? `p${saved.length + 1}`;
+      const p = {
+        id,
+        label: a.label as string,
+        profileId: 'default',
+        user: 's1',
+        config: a.config as WorkflowConfig,
+        savedAt: new Date().toISOString(),
+      };
+      saved = [...saved.filter((x) => x.id !== id), p];
+      return saved;
+    };
+    backend.handlers.presets_delete = (a) => (saved = saved.filter((x) => x.id !== a.id));
+    await wizardFromProject();
+    await userEvent.click(screen.getByRole('button', { name: 'New preset…' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'A6000 short{Enter}');
+    await waitFor(() => expect(screen.getByLabelText('Preset')).toHaveDisplayValue('A6000 short'));
+    expect(backend.count('workflow_preview')).toBe(0); // Enter saved the preset, not the form
+    await userEvent.click(screen.getByRole('button', { name: 'More CPUs' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(saved[0]?.config.resources.cpus).toBe(5));
+    await userEvent.click(screen.getByRole('button', { name: 'Rename…' }));
+    const name = screen.getByLabelText('Preset name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Teaching 5 CPUs');
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    await waitFor(() => expect(saved.map((p) => p.label)).toEqual(['Teaching 5 CPUs']));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete the preset “Teaching 5 CPUs”?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete preset' }));
+    await waitFor(() => expect(saved).toEqual([]));
+    expect(screen.getByLabelText('Preset')).toHaveDisplayValue('No presets yet');
+    expect(backend.count('jobs_submit')).toBe(0);
   });
 
   it('checks the environment on the login node only on request and reports each import', async () => {
@@ -325,8 +382,10 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     expect(screen.getByText(/resume from it/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Checkpoints' }));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Resume from this…' }))[0]!);
-    await screen.findByLabelText('Project folder on ICF');
-    expect(screen.getByLabelText('Resume from checkpoint (optional)')).not.toHaveValue('');
+    await screen.findByRole('button', { name: 'Review workflow' });
+    const resume = screen.getByRole('group', { name: 'Resume from a checkpoint' });
+    expect(within(resume).queryByText('Start fresh')).toBeNull();
+    expect(within(resume).getByText(/\/runs\//)).toBeInTheDocument();
   });
 
   it('cancels a running workflow from its run detail with the same confirmation and token', async () => {

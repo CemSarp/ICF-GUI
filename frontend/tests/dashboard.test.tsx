@@ -17,7 +17,7 @@ describe('dashboard (V1-AC04..AC09)', () => {
     renderApp();
     expect(await screen.findByText(/DEMO MODE — synthetic data, not live ICF/)).toBeInTheDocument();
     for (const p of ['Interactive', 'Teaching', 'ICF-Free', 'ICF-Research', 'Open-Research']) {
-      expect(await screen.findByRole('rowheader', { name: (n) => n.startsWith(p) })).toBeInTheDocument();
+      expect(await screen.findByRole('article', { name: (n) => n.startsWith(p) })).toBeInTheDocument();
     }
     expect(screen.getByText(/Visibility does not imply eligibility/)).toBeInTheDocument();
   });
@@ -155,8 +155,14 @@ describe('dashboard (V1-AC04..AC09)', () => {
       .filter((t) => t.gresName === ti.gresName)
       .reduce((a, t) => a + t.configured, 0);
     expect(partitionSum).toBeGreaterThan(ti.configured);
+    const physical = snapshot.gpuTotals.filter((t) => t.granularity !== 'mig').reduce((a, t) => a + t.configured, 0);
+    const stat = (await screen.findByText('GPUs configured')).closest('.stat') as HTMLElement;
+    expect(within(stat).getByText(String(physical))).toBeInTheDocument();
+    // Each partition card adds up its own GPUs; MIG slices are shown apart, never added.
+    const teaching = snapshot.partitions.find((p) => p.name === 'Teaching')!;
+    const free = teaching.gpuTotals.filter((t) => t.granularity !== 'mig').reduce((a, t) => a + t.potentiallyFree, 0);
     expect(
-      await screen.findByRole('img', { name: new RegExp(`RTX 2080 Ti: ${ti.configured} configured`) }),
+      screen.getByRole('img', { name: new RegExp(`^Teaching: ${free} of \\d+ GPUs potentially free`) }),
     ).toBeInTheDocument();
   });
 });

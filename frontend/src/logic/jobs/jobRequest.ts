@@ -14,8 +14,19 @@ import type {
   SubmitResponse,
 } from '../../types';
 import { parseSbatch } from './sbatchImport';
-import { carryTo, modeFor, resolveWorkingDir, type JobMode, type RunChoice } from './newJob';
+import {
+  autoJobName,
+  carryTo,
+  modeFor,
+  replaceableName,
+  resolveWorkingDir,
+  splitPath,
+  type JobMode,
+  type RunChoice,
+} from './newJob';
+import { usePresets } from './presets';
 import { jobsKey } from './useJobs';
+import { DEFAULT_DRAFT, fromConfig, toConfig } from '../training/wizardDraft';
 
 export { resolveWorkingDir };
 
@@ -64,19 +75,6 @@ export function commandsFor(name: string): string {
   return `./${f}`;
 }
 
-/**
- * Where a file picked on ICF goes in the form: a path relative to the working directory when it is
- * inside it; with no working directory yet, its folder becomes the working directory.
- */
-export function placePickedFile(path: string, workingDir: string, home: string) {
-  const i = path.lastIndexOf('/');
-  const dir = path.slice(0, i) || '/';
-  const name = path.slice(i + 1);
-  if (!workingDir.trim()) return { workingDir: dir, program: name, dir, name };
-  const wd = resolveWorkingDir(workingDir, home);
-  return { workingDir, program: path.startsWith(`${wd}/`) ? path.slice(wd.length + 1) : path, dir, name };
-}
-
 export function learnedPartitions(receipts: JobReceipt[]): Map<string, 'accepted' | 'denied'> {
   const out = new Map<string, 'accepted' | 'denied'>();
   for (const r of receipts) {
@@ -122,7 +120,9 @@ export function useRequestGpu(
   status: ConnectionStatus,
   initialPartition: string | null,
   /** From Projects' Run buttons: a folder to run in, or a file to run. Applied once. */
-  initialTarget: RunTarget | null = null,
+  initialTarget: RunTarget | null,
+  /** A choice (or a picked notebook) the training workflow form handles. */
+  onSwitch: (m: JobMode) => void,
 ) {
   const user = status.demo ? 'demo' : (status.capabilities?.remoteUser ?? '<UUN>');
   const home = `/home/${user}`;
@@ -137,10 +137,10 @@ export function useRequestGpu(
     memoryGb: 16,
     hours: 4,
     minutes: 0,
-    jobName: 'train',
+    jobName: 'job',
     workingDir: '',
     runner: 'python',
-    program: 'train.py',
+    program: '',
     commands: '',
     args: '',
     pythonEnv: '',
@@ -180,12 +180,27 @@ export function useRequestGpu(
 
   const maxGpus = maxGpusFor(snapshot, partition, gres);
 
-  /** Which ICF picker is open: the working directory, the script, or a file to run with commands. */
-  const [picking, setPicking] = useState<'dir' | 'program' | 'file' | null>(null);
+  const wd = resolveWorkingDir(draft.workingDir, home);
+  /** The script as an absolute path ('' when none is chosen). */
+  const fileAbs = !draft.program.trim() ? '' : draft.program.startsWith('/') ? draft.program : `${wd}/${draft.program}`;
+  /** A new job name for a newly chosen file, unless the user named the job themselves. */
+  const nameFor = (file: string) =>
+    replaceableName(draft.jobName, draft.program) ? { jobName: autoJobName(file) } : {};
+
+  /** Which ICF picker is open: the folder, the script, a file to run with commands, or the venv. */
+  const [picking, setPicking] = useState<'dir' | 'program' | 'file' | 'env' | null>(null);
   const pickDir = (path: string) => {
+    const kind = picking;
     setPicking(null);
-    set('workingDir', path);
+    set(kind === 'env' ? 'pythonEnv' : 'workingDir', path);
   };
+  /** Run from a folder above the script's own (e.g. the project root): the script path becomes relative. */
+  const runFrom = (dir: string) =>
+    patch(
+      draft.runner !== 'commands' && fileAbs.startsWith(`${dir}/`)
+        ? { workingDir: dir, program: fileAbs.slice(dir.length + 1) }
+        : { workingDir: dir },
+    );
   /** Settings taken over from a picked batch file, shown until the next edit. */
   const [imported, setImported] = useState<{ name: string; notes: string[] } | null>(null);
   const pickFile = (path: string) => {
@@ -200,6 +215,13 @@ export function useRequestGpu(
    */
   const applyFile = async (path: string, kind: 'file' | 'program' | 'auto') => {
     setImported(null);
+    const { dir, name } = splitPath(path);
+    if (/\.ipynb$/i.test(path)) {
+      // `python x.ipynb` cannot run a notebook: the Notebook choice runs it with nbconvert.
+      const d = { ...effective, ...nameFor(name) };
+      carryTo('workflow', 'notebook', { ...d, folder: dir, file: name, python: d.pythonEnv }, home);
+      return onSwitch('workflow');
+    }
     if (/\.(sbatch|slurm|sh)$/i.test(path)) {
       // A batch file (e.g. a course's run_asr.sbatch): take over its resources and commands.
       const parsed = await api
@@ -207,11 +229,11 @@ export function useRequestGpu(
         .then((f) => parseSbatch(f.content))
         .catch(() => null);
       if (parsed) {
-        const { dir, name } = placePickedFile(path, '', home);
         const { partition: p, gres: g, ...rest } = parsed.settings;
         const part = snapshot.partitions.find((x) => x.name === p);
         const typed = part?.gpuTotals.some((t) => t.gresName === g);
         patch({
+          ...nameFor(name),
           ...rest,
           ...(part ? { partition: p } : {}),
           ...(typed ? { gres: g } : {}),
@@ -229,18 +251,20 @@ export function useRequestGpu(
         return;
       }
     }
-    const { dir, name } = placePickedFile(path, '', home);
-    if (kind === 'auto' && !/\.(py|sh)$/i.test(path)) {
-      patch({ runner: 'commands', workingDir: dir, program: '', commands: commandsFor(name) });
-    } else if (kind === 'auto') {
-      patch({ runner: /\.py$/i.test(path) ? 'python' : 'bash', workingDir: dir, program: name });
-    } else if (kind === 'file') {
-      patch({ workingDir: dir, ...(draft.commands.trim() ? {} : { commands: commandsFor(name) }) });
-    } else {
-      const { workingDir, program } = placePickedFile(path, draft.workingDir, home);
+    // The job runs in the folder of the file it runs.
+    if (kind === 'file' || !/\.(py|sh)$/i.test(path)) {
       patch({
-        workingDir,
-        program,
+        ...nameFor(name),
+        runner: 'commands',
+        workingDir: dir,
+        program: '',
+        ...(kind === 'auto' || !draft.commands.trim() ? { commands: commandsFor(name) } : {}),
+      });
+    } else {
+      patch({
+        ...nameFor(name),
+        workingDir: dir,
+        program: name,
         ...(/\.py$/i.test(path)
           ? { runner: 'python' as const }
           : /\.sh$/i.test(path)
@@ -302,7 +326,7 @@ export function useRequestGpu(
       .catch((e) => setReconcileMsg(errorMessage(e)));
 
   /** "What do you want to run?": a script-job runner here, or the training workflow form. */
-  const choose = (c: RunChoice, managed: boolean, onSwitch: (m: JobMode) => void) => {
+  const choose = (c: RunChoice, managed: boolean) => {
     const mode = modeFor(c, managed);
     if (mode === 'script') return set('runner', c as Draft['runner']);
     const d = effective;
@@ -310,12 +334,55 @@ export function useRequestGpu(
     onSwitch(mode);
   };
 
+  /** Presets hold a workflow config; here they carry the GPU, resources, name, e-mail, folder and file. */
+  const presets = usePresets(
+    status,
+    () =>
+      toConfig(
+        {
+          ...DEFAULT_DRAFT,
+          ...effective,
+          kind: 'train',
+          projectDir: wd,
+          entry: draft.runner === 'commands' ? '' : draft.program,
+          interpreter: draft.pythonEnv.trim() ? `${draft.pythonEnv.trim().replace(/\/+$/, '')}/bin/python` : '',
+          args: draft.runner === 'commands' ? '' : draft.args,
+        },
+        [],
+        home,
+      ),
+    (c) => {
+      const w = fromConfig(c, []);
+      const env = w.interpreter.replace(/\/bin\/python[\d.]*$/, '');
+      patch({
+        partition: w.partition,
+        gres: w.gres,
+        gpuCount: w.gpuCount,
+        cpus: w.cpus,
+        memoryGb: w.memoryGb,
+        hours: w.hours,
+        minutes: w.minutes,
+        jobName: w.jobName,
+        mail: w.mail,
+        mailUser: w.mailUser,
+        workingDir: w.projectDir,
+        ...(c.entry && draft.runner !== 'commands' ? { program: c.entry, args: w.args } : {}),
+        ...(env !== w.interpreter ? { pythonEnv: env } : {}),
+      });
+    },
+  );
+
   return {
     home,
     learned,
     choose,
     draft,
     set,
+    patch,
+    wd,
+    fileAbs,
+    runFrom,
+    presets,
     partition,
     gpuTypes,
     gres,

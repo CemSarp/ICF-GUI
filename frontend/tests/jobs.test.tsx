@@ -6,7 +6,8 @@ import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
-import { commandsFor, placePickedFile } from '../src/logic/jobs/jobRequest';
+import { commandsFor, resolveWorkingDir } from '../src/logic/jobs/jobRequest';
+import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
 import * as v3 from './v3Fixtures';
 
@@ -64,12 +65,19 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
 
   it('offers live partitions and their GPU types with potential availability', async () => {
     await openWizard();
-    expect(screen.getByLabelText('Partition')).toHaveValue('Teaching');
+    expect(screen.getByRole('radio', { name: 'Teaching' })).toBeChecked();
     const group = screen.getByRole('group', { name: 'GPU type in Teaching' });
     expect(within(group).getByText('RTX A6000')).toBeInTheDocument();
-    expect(within(group).getAllByText(/○ \d+ free/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/potentially free at .*not a reservation/)).toBeInTheDocument();
+    expect(within(group).getAllByText(/of \d+ free/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Free counts from .*not a reservation/)).toBeInTheDocument();
     expect(within(group).getByText(/48 GB VRAM/)).toBeInTheDocument();
+    // Time limits are one click, within the partition's maximum.
+    await userEvent.click(screen.getByRole('button', { name: '30 min' }));
+    expect(screen.getByLabelText('Hours')).toHaveValue(0);
+    expect(screen.getByLabelText('Minutes')).toHaveValue(30);
+    expect(screen.getByRole('button', { name: '30 min' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'More CPUs' }));
+    expect(screen.getByLabelText('CPUs')).toHaveValue(5);
   });
 
   it('shows validation errors next to fields and does not reach review', async () => {
@@ -234,17 +242,18 @@ describe('New job: one screen for script jobs and training workflows', () => {
 
   it('asks one question first and carries what was entered when the answer needs the other form', async () => {
     await openWizard();
-    // Only the essentials are open; the rest is folded under More options.
+    // Only the essentials are open; the rest is folded under More options. Name, CPUs, RAM and e-mail show.
     expect(screen.getByText('More options').closest('details')).not.toHaveAttribute('open');
+    for (const shown of ['CPUs', 'RAM (GB)', 'E-mail me when the job ends or fails'])
+      expect(screen.getByLabelText(shown).closest('details')).toBeNull();
     const name = screen.getByLabelText('Job name');
     await userEvent.clear(name);
     await userEvent.type(name, 'mine');
     await userEvent.click(
       screen.getByLabelText(/Managed training: stage datasets to fast scratch, keep checkpoints and copy results back/),
     );
-    expect(await screen.findByLabelText('Project folder on ICF')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
     expect(screen.getByLabelText('Job name')).toHaveValue('mine');
-    expect(screen.getByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review script' })).toBeNull();
     await userEvent.click(screen.getByLabelText('Shell script'));
     expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
@@ -252,7 +261,8 @@ describe('New job: one screen for script jobs and training workflows', () => {
     expect(screen.getByLabelText('Job name')).toHaveValue('mine');
     await userEvent.click(screen.getByLabelText('GPU test'));
     expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Script')).toBeNull(); // the GPU test runs a fixed check
+    expect(screen.queryByRole('group', { name: 'Script' })).toBeNull(); // the GPU test runs a fixed check
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine'); // a name the user chose is kept
     expect(backend.count('jobs_submit')).toBe(0);
   });
 
@@ -263,7 +273,7 @@ describe('New job: one screen for script jobs and training workflows', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'New job on Interactive' }));
     await screen.findByRole('heading', { name: 'New job' });
     expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Partition')).toHaveValue('Interactive'); // not the default (Teaching)
+    expect(screen.getByRole('radio', { name: 'Interactive' })).toBeChecked(); // not the default (Teaching)
   });
 });
 
@@ -421,22 +431,14 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
     expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
   });
 
-  it('marks a partition that rejected you and sends relative working dirs inside home', async () => {
+  it('marks a partition that rejected you and resolves relative working dirs inside home', async () => {
     await openWizard();
-    const sel = screen.getByLabelText('Partition');
-    expect(within(sel).getByRole('option', { name: /ICF-Free.*rejected you before/ })).toBeInTheDocument();
-    const wd = screen.getByLabelText('Working directory');
-    await userEvent.clear(wd);
-    await userEvent.type(wd, 'projects/semeval');
-    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
-    await waitFor(() =>
-      expect(
-        backend.count(
-          'jobs_preview',
-          (a) => (a.request as { workingDir: string }).workingDir === '/home/s1/projects/semeval',
-        ),
-      ).toBe(1),
+    expect(screen.getByRole('radio', { name: 'ICF-Free' }).closest('label')).toHaveTextContent(
+      'Rejected your last job',
     );
+    // Relative folders (from presets and older drafts) start in the home folder.
+    expect(resolveWorkingDir('projects/semeval', '/home/s1')).toBe('/home/s1/projects/semeval');
+    expect(resolveWorkingDir('~/p/', '/home/s1')).toBe('/home/s1/p');
   });
 });
 
@@ -450,24 +452,47 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
   }
 
-  it('fills the working directory and script from a picked file instead of a typed path', async () => {
+  it('runs a picked script in its own folder, named after it, and can run it from a folder above', async () => {
+    backend.handlers.jobs_preview = () => okPreview();
     await openWizard();
-    await userEvent.clear(screen.getByLabelText('Working directory'));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
     await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
-    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
-    expect(screen.getByLabelText('Script')).toHaveValue('train.py');
+    const card = screen.getByRole('group', { name: 'Script' });
+    expect(within(card).getByText('train.py')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('train');
     expect(backend.count('jobs_preview')).toBe(0); // the picker never submits the form
+    await userEvent.click(within(card).getByRole('button', { name: 'projects' }));
+    expect(within(card).getByText('semeval/train.py')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).toMatchObject({
+      runner: 'python',
+      workingDir: `${v3.HOME}/projects`,
+      program: 'semeval/train.py',
+      jobName: 'train',
+    });
+  });
+
+  it('runs a notebook picked as a Python script as a Notebook', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'explore.ipynb');
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('explore');
   });
 
   it('runs terminal commands in the folder of a chosen file, with no script or arguments', async () => {
     await openWizard();
     await userEvent.click(screen.getByLabelText('Commands'));
-    expect(screen.queryByLabelText('Script')).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Script' })).toBeNull();
     expect(screen.queryByLabelText('Arguments (optional, one per line)')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }));
     await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
-    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     const box = screen.getByLabelText('Commands to run');
     expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
     await userEvent.type(box, '{Enter}nvidia-smi -L');
@@ -482,20 +507,31 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     });
   });
 
-  it('suggests a command per file type and places picked paths relative to the working directory', () => {
+  it('suggests a command per file type, a job name per file, and clickable folders', () => {
     expect(commandsFor('train.py')).toBe('python train.py');
     expect(commandsFor('run.sh')).toBe('bash run.sh');
     expect(commandsFor('main.cpp')).toBe('g++ -O2 -o main main.cpp\n./main');
     expect(commandsFor("my k'1.cu")).toBe(`nvcc -O2 -o 'my k'\\''1' 'my k'\\''1.cu'\n./'my k'\\''1'`);
-    expect(placePickedFile('/home/s1/p/src/a.py', 'p', '/home/s1')).toMatchObject({
-      workingDir: 'p',
-      program: 'src/a.py',
-    });
-    expect(placePickedFile('/home/s1/q/a.py', 'p', '/home/s1')).toMatchObject({ program: '/home/s1/q/a.py' });
-    expect(placePickedFile('/home/s1/q/a.py', '', '/home/s1')).toMatchObject({
-      workingDir: '/home/s1/q',
-      program: 'a.py',
-    });
+    expect(splitPath('/home/s1/q/a.py')).toEqual({ dir: '/home/s1/q', name: 'a.py' });
+    expect(autoJobName('/x/run_asr.sbatch')).toBe('run_asr');
+    expect(autoJobName('my model (v2).py')).toBe('my-model-v2-');
+    expect(autoJobName('.hidden')).toBe('job');
+    expect(replaceableName('gpu-test', '')).toBe(true);
+    expect(replaceableName('train', 'a.py')).toBe(true);
+    expect(replaceableName('a', 'a.py')).toBe(true);
+    expect(replaceableName('mine', 'a.py')).toBe(false);
+    expect(crumbs('/home/s1/p/q', '/home/s1')).toEqual([
+      ['~', '/home/s1'],
+      ['p', '/home/s1/p'],
+      ['q', '/home/s1/p/q'],
+    ]);
+    expect(crumbs('/opt/x', '/home/s1')).toEqual([
+      ['/', '/'],
+      ['opt', '/opt'],
+      ['x', '/opt/x'],
+    ]);
+    expect(timePresets(3600).map((t) => t.label)).toEqual(['10 min', '30 min', '1 h']);
+    expect(timePresets(null)).toHaveLength(8);
   });
 });
 
@@ -517,7 +553,7 @@ describe('Batch files and setup lines (course .sbatch files)', () => {
   it('takes over the resources and commands of a picked .sbatch file', async () => {
     await openWizard();
     await userEvent.click(screen.getByLabelText('Shell script'));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose the script' });
     for (const f of ['projects', 'semeval'])
       await userEvent.click(await within(dialog).findByRole('button', { name: f }));
@@ -529,10 +565,12 @@ describe('Batch files and setup lines (course .sbatch files)', () => {
       'export PATH=/opt/cuda-12.8.0/bin:$PATH\nsource "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\n\nhostname\nnvidia-smi -L\nmake test\n./run.sh --profile',
     );
     expect(screen.getByText(/--output is not used/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Partition')).toHaveValue('Teaching');
+    expect(screen.getByRole('radio', { name: 'Teaching' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'RTX A6000 48 GB' })).toBeChecked();
     expect(screen.getByLabelText('Minutes')).toHaveValue(30);
     expect(screen.getByLabelText('CPUs')).toHaveValue(2);
-    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(screen.getByLabelText('Job name')).toHaveValue('run_asr');
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     expect(backend.count('jobs_preview')).toBe(0);
   });
 
@@ -585,7 +623,7 @@ describe('Run buttons in Projects', () => {
     expect(await screen.findByRole('heading', { name: 'New job' })).toBeInTheDocument();
     expect(screen.getByLabelText('Commands')).toBeChecked();
     expect(screen.getByLabelText('Commands to run')).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
-    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
   });
 
   it('takes a project .sbatch file with its settings, and a folder as the working directory', async () => {
@@ -594,7 +632,16 @@ describe('Run buttons in Projects', () => {
     expect(await screen.findByText('Settings and commands taken from run_asr.sbatch')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Projects' }));
     await userEvent.click(await screen.findByRole('button', { name: /Run on a GPU/ }));
-    expect(await screen.findByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(await screen.findByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     expect(backend.count('jobs_submit')).toBe(0);
+  });
+
+  it('runs a notebook from its Run button as a Notebook job in its folder', async () => {
+    await openProjectFiles();
+    await userEvent.click(screen.getByRole('button', { name: 'Run explore.ipynb on a GPU' }));
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
   });
 });

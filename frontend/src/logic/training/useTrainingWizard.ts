@@ -4,7 +4,16 @@ import { api, errorMessage } from '../api';
 import { maxGpusFor } from '../cluster/gpu';
 import { usePersistentState } from '../persist';
 import { safeName } from '../transfers/transfers';
-import { carryTo, modeFor, type JobMode, type RunChoice } from '../jobs/newJob';
+import {
+  autoJobName,
+  carryTo,
+  modeFor,
+  replaceableName,
+  splitPath,
+  type JobMode,
+  type RunChoice,
+} from '../jobs/newJob';
+import { usePresets } from '../jobs/presets';
 import type {
   ClusterSnapshot,
   ConnectionStatus,
@@ -23,6 +32,7 @@ import {
   initialDraft,
   pickedDatasetName,
   SMOKE_DEFAULTS,
+  SMOKE_NAME,
   toConfig,
   uploadedDatasetName,
   type Draft,
@@ -37,11 +47,6 @@ import {
 export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSnapshot | null, init: WizardInit | null) {
   const qc = useQueryClient();
   const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const presets = useQuery({
-    queryKey: ['presets', status.profileId, status.connectedAt],
-    queryFn: api.presets,
-    retry: false,
-  });
   const [stored, setStored] = usePersistentState<Draft>('workflow.draft', DEFAULT_DRAFT);
   const [draft, setDraftState] = useState<Draft>(() => initialDraft(stored, init, toolchains.data ?? []));
   const setDraft = (d: Draft) => {
@@ -57,7 +62,6 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const [result, setResult] = useState<SubmitResponse | null>(null);
   const [reconcileMsg, setReconcileMsg] = useState<string | null>(null);
   const [upload, setUpload] = useState<Transfer | null>(null);
-  const [presetLabel, setPresetLabel] = useState('');
   const [envCheck, setEnvCheck] = useState<{ interpreter: string; results?: ImportResult[]; error?: string } | null>(
     null,
   );
@@ -153,8 +157,8 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
       .workflowReconcile(tag)
       .then((r) => setReconcileMsg(r.submissionMessage ?? r.submission))
       .catch((e) => setReconcileMsg(errorMessage(e)));
-  /** Where the accepted run writes its results (computed on demand). */
-  const resultsRoot = () => toConfig(effective, tcList, home).resultsRoot;
+  /** Where the accepted run writes its results: next to the code. */
+  const resultsRoot = `${project}/runs`;
 
   const interpreter = expandHome(draft.interpreter, home);
   const checkModules = draft.checkModules || CHECK_MODULES[draft.kind];
@@ -199,25 +203,42 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const addDataset = (path: string) =>
     set('datasets', [...draft.datasets, { archive: path, into: pickedDatasetName(path) }]);
 
-  const loadPreset = (id: string) => {
-    const p = presets.data?.find((x) => x.id === id);
-    if (p) setDraft(fromConfig(p.config, tcList));
-  };
-  const savePreset = () =>
-    api
-      .savePreset(null, presetLabel.trim(), toConfig(effective, tcList, home))
-      .then(() => {
-        setPresetLabel('');
-        void qc.invalidateQueries({ queryKey: ['presets'] });
-      })
-      .catch((e) => setError(errorMessage(e)));
+  const presets = usePresets(
+    status,
+    () => toConfig(effective, tcList, home),
+    (c) => {
+      setDraft(fromConfig(c, tcList));
+      setPreview(null);
+    },
+  );
 
-  /** A script or notebook picked on ICF: relative to the project, whose folder it becomes if none is set. */
+  /** The script or notebook as an absolute path ('' when none is chosen). */
+  const entryAbs = !draft.entry.trim()
+    ? ''
+    : draft.entry.startsWith('/')
+      ? expandHome(draft.entry, home)
+      : `${project}/${draft.entry}`;
+  /**
+   * A script or notebook picked on ICF: its folder becomes the project folder (results go there too),
+   * and a notebook runs as a notebook whatever was chosen before.
+   */
   const pickEntry = (path: string) => {
-    const i = path.lastIndexOf('/');
-    if (!project) patch({ projectDir: path.slice(0, i) || '/', entry: path.slice(i + 1) });
-    else set('entry', path.startsWith(`${project}/`) ? path.slice(project.length + 1) : path);
+    const { dir, name } = splitPath(path);
+    const kind = /\.ipynb$/i.test(name) ? 'notebook' : draft.kind === 'notebook' ? 'train' : draft.kind;
+    patch({
+      projectDir: dir,
+      entry: name,
+      kind,
+      ...(replaceableName(draft.jobName, draft.entry) ? { jobName: autoJobName(name) } : {}),
+    });
   };
+  /** Run from a folder above the file's own (e.g. the project root): the file path becomes relative. */
+  const runFrom = (dir: string) =>
+    patch(
+      entryAbs.startsWith(`${dir}/`) ? { projectDir: dir, entry: entryAbs.slice(dir.length + 1) } : { projectDir: dir },
+    );
+  /** A virtualenv or conda environment folder: its Python runs the job. */
+  const pickEnv = (dir: string) => set('interpreter', `${dir.replace(/\/+$/, '')}/bin/python`);
 
   /** "What do you want to run?": a workflow type here, or the script job form. */
   const choice: RunChoice =
@@ -229,7 +250,9 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
       setDraft({
         ...draft,
         kind,
-        ...(kind === 'gpu_smoke_test' ? { ...SMOKE_DEFAULTS, jobName: 'gpu-smoke' } : {}),
+        ...(kind === 'gpu_smoke_test'
+          ? { ...SMOKE_DEFAULTS, ...(replaceableName(draft.jobName, draft.entry) ? { jobName: SMOKE_NAME } : {}) }
+          : {}),
         ...(kind === 'notebook' && !/\.ipynb$/i.test(draft.entry) ? { entry: '' } : {}),
       });
       setPreview(null);
@@ -243,10 +266,14 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   return {
     draft,
     set,
+    patch,
     choice,
     choose,
     pickEntry,
-    presets: presets.data,
+    entryAbs,
+    runFrom,
+    pickEnv,
+    presets,
     tcList,
     home,
     project,
@@ -267,8 +294,6 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     setResult,
     reconcileMsg,
     upload,
-    presetLabel,
-    setPresetLabel,
     envCheck,
     interpreter,
     checkModules,
@@ -283,7 +308,5 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     setDataset,
     removeDataset,
     addDataset,
-    loadPreset,
-    savePreset,
   };
 }

@@ -6,7 +6,7 @@
 - **Start screen** (the first screen): the next step with one button, a checklist of GPU milestones
   with your progress, the GPUs most free right now, and where your code runs. Worked out from data
   already on your Mac; no extra ICF requests.
-- **Run buttons in Projects**: *Run* on a `.py`, `.sh`, `.sbatch`, `.cu` or C/C++ file and *Run on a
+- **Run buttons in Projects**: *Run* on a `.py`, `.ipynb`, `.sh`, `.sbatch`, `.cu` or C/C++ file and *Run on a
   GPU…* for the folder open New job ready to go.
 - **Course batch files**: picking or running a `.sbatch` file takes over its `#SBATCH` partition, GPU,
   CPUs, memory, time and job name, and its commands; what is not taken over is listed.
@@ -25,18 +25,27 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **New job: choose, don't type.** What to run is five tiles; the file is chosen on ICF and its
+  folder is where the job runs (click a folder above in the path to run from there). Partition and
+  GPU type are tiles with live free counts; GPUs, CPUs and RAM have − / +; time limits are one click.
+  Job name (named after the file until you edit it), CPUs, RAM and e-mail are always visible, and both
+  kinds of job use the same GPU section. A `.ipynb` picked as a Python script, or run from Projects,
+  runs as a Notebook. The submit button stays at the bottom of the window with a summary (ADR-036).
+- **Results go next to the code** (`runs/` in the script's folder); the *Results folder* field is
+  gone. Checkpoints are a three-way choice; the resume checkpoint and Python environment are chosen
+  as folders.
+- **Presets for every kind of job**, now with **Save changes**, **Rename…** and **Delete…**.
+- **Cluster → Overview**: one card per partition with a ring of its free GPUs, its GPU types and
+  *New job here* / *See nodes*; *GPUs by type* is gone. Allocated GPUs are yellow.
 - Plainer wording on Transfers (how to get a packed folder back) and on the project page's VS Code
   note; the commands box grows with its content.
 - **New job is one form.** It asks *What do you want to run?* (Python script, Shell script, Commands,
-  Notebook, GPU test; Python can be *Managed training*) and shows only the file, the GPU and the
-  wall time. Job name, CPUs, RAM, working directory, arguments, environment and e-mail are under
-  *More options*; a training run's datasets and checkpoints are in their own folded sections. Each
-  section opens by itself when one of its fields has a problem, and switching answers keeps what
-  was entered. Nothing was removed.
-- **One Cluster screen instead of Overview, Partitions and GPU Nodes.** Its *Overview* tab keeps the
-  fleet numbers and GPUs by type and adds one table row per partition (time limit, nodes, GPUs, and
-  *Nodes* / *New job*), replacing both the old partition list and the partition cards. Its *Nodes*
-  tab is the node table. A screen remembered from before opens in the right tab.
+  Notebook, GPU test; Python can be *Managed training*). Arguments and setup files are under *More
+  options*; a training run's datasets and checkpoints are in their own folded sections. Each section
+  opens by itself when one of its fields has a problem, and switching answers keeps what was
+  entered. Nothing was removed.
+- **One Cluster screen instead of Overview, Partitions and GPU Nodes.** Its *Overview* tab has the
+  fleet numbers and the partition cards above. Its *Nodes* tab is the node table. A screen remembered from before opens in the right tab.
 - **Runs is now a tab of My Jobs.** My Jobs has *All jobs* (every job of yours on ICF) and
   *Training runs* (this app's workflows with stage, failure type, metrics, checkpoints and results).
   A job that is a training run links to it from the job list. Runs left the sidebar.

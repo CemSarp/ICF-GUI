@@ -49,31 +49,30 @@ starting a kernel are remembered when you do them. Nothing extra is asked of ICF
 
 ## Reading the dashboard
 
-**Cluster** (sidebar) has two tabs. **Overview** shows the fleet numbers, GPUs by type, and one row
-per partition with its time limit, nodes and GPUs; each row has **Nodes** (opens the Nodes tab
-filtered to that partition) and **New job**. **Nodes** lists every node with its state, GPUs, CPUs and
+**Cluster** (sidebar) has two tabs. **Overview** shows the fleet numbers and one card per partition:
+a ring of its free GPUs, its time limit, nodes and GPU types, **New job here** and **See nodes**
+(opens the Nodes tab filtered to that partition). **Nodes** lists every node with its state, GPUs, CPUs and
 memory, with search and filters; click a node for its details.
 
 | Symbol | Meaning |
 |---|---|
 | ○ green | Potentially free — the scheduler reports these GPUs unallocated. Not a reservation. |
-| ● purple | Allocated by SLURM (not necessarily busy). |
+| ● yellow | Allocated by SLURM (not necessarily busy). |
 | ✕ red | Unavailable: node down or draining. |
 | ? hatched | Unknown: the scheduler did not report allocation; never treated as free. |
 
 - Each physical node is counted once even if it belongs to several partitions; partition rows can
-  therefore add up to more than the fleet total.
+  therefore add up to more than the fleet total. A partition's ring counts full GPUs only.
 - MIG slices (e.g. *H200 3g.71gb*) are listed separately from full GPUs.
 - *Visibility does not imply eligibility*: the scheduler decides which partitions accept your jobs.
 - *Data stale* means the last refresh failed or the data is old; the last good data stays visible.
 
 ## Requesting a GPU (batch jobs)
 
-**New job** (sidebar, or *New job* on a partition in Cluster) starts with one question, **What do
-you want to run?**, and shows only what that needs. Everything else has a sensible default under
-**More options** (job name, working directory, CPUs, RAM, arguments, Python environment, setup file,
-e-mail), which opens by itself if one of its fields has a problem. Switching answers keeps what you
-entered.
+**New job** (sidebar, or *New job here* on a partition in Cluster) starts with one question, **What
+do you want to run?**, as five tiles. You choose things rather than type them: the file, the GPU and
+the time are buttons and tiles. Arguments and a setup file are under **More options**, which opens
+by itself if one of its fields has a problem. Switching answers keeps what you entered.
 
 | Answer | What runs |
 |---|---|
@@ -83,18 +82,24 @@ entered.
 | **Notebook** | A notebook run top to bottom (a training workflow). |
 | **GPU test** | A short check that a GPU node works with your Python (a training workflow). |
 
-1. Choose the file with **Browse…** (it opens your ICF home; click **Choose** next to the file), or
-   type a path. With no working directory set yet, the job runs in the file's folder.
+1. **Choose script…** (or *Choose notebook…*) opens your ICF home; click **Choose** next to the file.
+   The job runs in that file's folder, shown as *Runs in ~ › projects › hw1*; click a folder in that
+   trail to run from there instead (for code that expects its project root). The job name follows
+   the file (`train.py` → `train`) until you change it. A `.ipynb` always runs as a Notebook.
+   - **Python environment**: **Choose…** your virtualenv or conda folder; its `bin/python` runs the
+     job. A script job without one uses the node's `python3`.
    - **Commands**: type the commands you would type in a terminal on the GPU node, for example
      `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go into the
      batch script exactly as written and start in the working directory; the job stops at the first
      failing command. **Choose a file…** sets the working directory to that file's folder and suggests
      a command for it (`python x.py`, `nvcc … x.cu` and run it, `bash x.sh`). Don't use
      `cd "$(dirname "$0")"`: in a batch job `$0` is SLURM's copy of the script, not your folder.
-2. Under **GPU**, choose a partition, a GPU type, how many GPUs and the wall time. The numbers show
-   *potential* availability at the last snapshot; they are not a reservation.
-3. Open **More options** only if you need to change a default (CPUs 4, RAM 16 GB, job name, a
-   virtualenv to activate, arguments, e-mail).
+2. Under **GPU and resources**, click a partition tile and a GPU type tile (each shows how many are
+   free at the last snapshot, not a reservation), set GPUs with − / +, click a time (10 min … 2 days,
+   only those the partition allows) or type hours and minutes, and set CPUs and RAM. Turn on
+   **E-mail me when the job ends or fails** for SLURM's own e-mail.
+3. **Presets** (top of the form): **New preset…** saves the GPU, resources, name, e-mail, folder and
+   file under a name; choose one to load it, then **Save changes**, **Rename…** or **Delete…**.
 4. **Review script** shows the exact batch script and checksum. Acknowledge any notices, click
    **Submit job…**, then confirm. The job is submitted once.
 5. Outcomes: **Accepted** (you get a job ID; it may wait in the queue), **Not submitted** (the reason
@@ -246,16 +251,17 @@ workflow…* on a project) builds one batch job that:
    is safe (no `..` or absolute paths, no links leaving the folder, no devices, no archive bombs),
 4. runs your script (or notebook, or the GPU smoke test) with `$ICFCC_DATA_DIR`, `$ICFCC_OUTPUT_DIR`,
    `$ICFCC_CHECKPOINT_DIR`, `$ICFCC_RUN_DIR`, `$ICFCC_METRICS_FILE` and `$ICFCC_RESUME_FROM` set,
-5. copies outputs back to `<results folder>/<job name>-<job id>/outputs`, verified with SHA-256,
+5. copies outputs back to `<script's folder>/runs/<job name>-<job id>/outputs`, verified with SHA-256,
 6. deletes its scratch folder.
 
 Fields: project, script and arguments (one per line; `{data}`, `{outputs}`, `{checkpoints}`,
 `{scratch}`, `{run_dir}`, `{resume}` are replaced by those folders), interpreter, toolchain, dataset
 archives (choose on ICF or **Upload an archive from this Mac…**), scratch location, space to reserve,
 Hugging Face cache (on scratch, a persistent `/home` folder that is never deleted, or a packed cache
-staged to scratch), results folder, checkpoint policy, resume checkpoint, environment variables and
-GPU resources. **Save as preset** stores the configuration on this Mac; presets are checked again
-every time.
+staged to scratch), checkpoint policy (*Synced*, *Straight to /home*, *At the end*), resume
+checkpoint, environment variables and GPU resources. Results always go next to your code, in
+`runs/` inside the script's folder. Presets store the configuration on this Mac; they are checked
+again every time.
 
 **Review workflow** shows the exact script, where the run folder, logs and scratch will be, and what
 is checked on ICF right before `sbatch`. Acknowledge any notices, click **Submit workflow…**, confirm.

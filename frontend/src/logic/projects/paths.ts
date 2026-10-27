@@ -17,7 +17,7 @@ export const editable = (e: Entry) =>
 
 /** Files a Run button turns into a GPU job: scripts, batch files and CUDA/C/C++ sources. */
 export const runnable = (e: Entry) =>
-  e.kind === 'file' && !e.unsupported && /\.(py|sh|sbatch|slurm|cu|cpp|cc|cxx|c)$/i.test(e.name);
+  e.kind === 'file' && !e.unsupported && /\.(py|ipynb|sh|sbatch|slurm|cu|cpp|cc|cxx|c)$/i.test(e.name);
 
 /** Archives Unpack handles (the backend checks the same suffixes). */
 export const isArchive = (e: Entry) =>

@@ -86,3 +86,60 @@ export function carryTo(mode: JobMode, choice: RunChoice, s: Shared, home: strin
     });
   }
 }
+
+/** `/home/u/p/x.py` → `{ dir: '/home/u/p', name: 'x.py' }`. */
+export function splitPath(p: string) {
+  const i = p.lastIndexOf('/');
+  return { dir: p.slice(0, i) || '/', name: p.slice(i + 1) };
+}
+
+/** A job name from a file: `run_asr.sbatch` → `run_asr` (letters, digits, . _ - as SLURM names need). */
+export function autoJobName(file: string): string {
+  const stem = splitPath(file).name.replace(/\.[^.]+$/, '');
+  return (
+    stem
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^[^A-Za-z0-9]+/, '')
+      .slice(0, 64) || 'job'
+  );
+}
+
+/** A name the form may replace when a new file is chosen: a default, or the one made from the last file. */
+export const replaceableName = (name: string, lastFile: string) =>
+  ['', 'train', 'job', 'gpu-smoke', 'gpu-test'].includes(name.trim()) || (!!lastFile && name === autoJobName(lastFile));
+
+/** `~/…` for paths in the home folder, for display. */
+export const tilde = (p: string, home: string) =>
+  home && (p === home || p.startsWith(`${home}/`)) ? `~${p.slice(home.length)}` : p;
+
+/** The folders of a path from the home (or root) down, for a clickable path: `[label, path]` pairs. */
+export function crumbs(path: string, home: string): [string, string][] {
+  const inHome = !!home && (path === home || path.startsWith(`${home}/`));
+  const root = inHome ? home : '';
+  const out: [string, string][] = [[inHome ? '~' : '/', root || '/']];
+  let at = root;
+  for (const part of path.slice(root.length).split('/').filter(Boolean)) {
+    at = `${at}/${part}`;
+    out.push([part, at]);
+  }
+  return out;
+}
+
+const TIMES = [
+  ['10 min', 600],
+  ['30 min', 1800],
+  ['1 h', 3600],
+  ['2 h', 7200],
+  ['4 h', 14400],
+  ['8 h', 28800],
+  ['1 day', 86400],
+  ['2 days', 172800],
+] as const;
+
+/** One-click time limits that fit the partition's maximum (unknown maximum: all of them). */
+export const timePresets = (maxSeconds: number | null) =>
+  TIMES.filter(([, s]) => maxSeconds === null || s <= maxSeconds).map(([label, s]) => ({
+    label,
+    hours: Math.floor(s / 3600),
+    minutes: (s % 3600) / 60,
+  }));

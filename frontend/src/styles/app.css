@@ -1177,7 +1177,7 @@ pre.log {
   background: var(--ok);
 }
 .seg-alloc {
-  background: var(--busy);
+  background: var(--alloc);
 }
 .seg-unavail {
   background: var(--bad);
@@ -2016,4 +2016,473 @@ input.switch:focus-visible {
   color: var(--primary);
   font-weight: 600;
   gap: 4px;
+}
+
+/* ---------- New job: one look for every kind of job ---------- */
+.job-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.job-form > .card {
+  margin: 0;
+}
+.form-card > h3 {
+  margin: 0 0 var(--s3);
+}
+.job-form details.fold-section {
+  border-top: 0;
+  margin: 0;
+  padding: 14px 20px;
+}
+.section-label,
+.field > .section-label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: var(--s2);
+}
+.job-form .grid-2 {
+  margin-top: var(--s4);
+}
+.job-form #f-jobName,
+.job-form #w-jobName {
+  max-width: 360px;
+}
+.path-card + .grid-2,
+.field-error + .grid-2 {
+  margin-top: var(--s3);
+}
+.job-form .field:last-child {
+  margin-bottom: 0;
+}
+
+/* What to run: big tiles with a symbol, like a macOS chooser. */
+.run-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s2);
+}
+.run-tile,
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.run-tile {
+  align-items: center;
+  text-align: center;
+  padding: 14px 10px 12px;
+}
+.run-tile:hover,
+.tile:hover {
+  background: color-mix(in srgb, var(--fill) 45%, var(--surface));
+}
+.run-tile.selected,
+.tile.selected {
+  border-color: var(--primary-fill);
+  background: color-mix(in srgb, var(--primary-fill) 8%, var(--surface));
+  box-shadow: 0 0 0 1px var(--primary-fill);
+}
+.run-tile input,
+.tile input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.tile:has(input:disabled) {
+  opacity: 0.45;
+  cursor: default;
+}
+.run-tile:has(input:focus-visible),
+.tile:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+}
+.run-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary-fill) 12%, transparent);
+}
+.run-tile.selected .run-tile-icon {
+  color: var(--on-primary);
+  background: var(--primary-fill);
+}
+.run-tiles + small {
+  margin-top: var(--s1);
+}
+
+/* Partition and GPU tiles with live counts. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+}
+.tiles-set {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.tiles-set legend {
+  padding: 0;
+}
+.tile-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.tile-big {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+.tile-big small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.tile-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tile .gpubar-wrap {
+  min-width: 0;
+  margin-top: 6px;
+}
+.tile .gpubar {
+  min-width: 0;
+  height: 6px;
+}
+
+/* − 4 + */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepper input {
+  width: 72px;
+  text-align: center;
+}
+.step-btn {
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--fill);
+}
+.step-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+button.chip[aria-pressed='true'] {
+  background: var(--primary-fill);
+  border-color: var(--primary-fill);
+  color: var(--on-primary);
+}
+.time-row input {
+  width: 64px;
+  flex: 0 0 auto;
+}
+
+/* iOS-style switch on a native checkbox (keeps its semantics and keyboard). */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  cursor: pointer;
+  font-weight: 500;
+}
+.field > label.switch-row {
+  font-weight: 500;
+}
+input[type='checkbox'][role='switch'] {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--fill-strong);
+  position: relative;
+  transition: background var(--dur) var(--ease);
+}
+input[type='checkbox'][role='switch']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform var(--dur) var(--ease-out);
+}
+input[type='checkbox'][role='switch']:checked {
+  background: var(--ok);
+}
+input[type='checkbox'][role='switch']:checked::after {
+  transform: translateX(16px);
+}
+input[type='checkbox'][role='switch']:focus-visible {
+  outline: 3px solid var(--focus);
+}
+.run-tiles ~ .switch-row {
+  margin-top: var(--s3);
+}
+.field.mail {
+  margin-top: var(--s2);
+}
+
+/* A chosen file or folder: no path to type. */
+.path-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  margin-bottom: var(--s2);
+}
+.path-card.unset {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+}
+.path-card-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary-fill) 12%, transparent);
+}
+.path-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.path-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.path-card-text strong {
+  overflow-wrap: anywhere;
+}
+.path-card-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.path-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.path-crumbs,
+.path-crumbs .link {
+  font-family: var(--font);
+}
+.path-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.path-crumbs .link {
+  font-size: 12px;
+}
+
+/* Presets: a quiet row above the first question. */
+.preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding-bottom: var(--s3);
+  margin-bottom: var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+.preset-bar > label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.preset-bar select {
+  width: auto;
+  min-width: 180px;
+}
+.preset-name {
+  flex-basis: 100%;
+}
+
+/* The submit row stays in reach while scrolling a long form. */
+.submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius);
+  background: var(--material);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: var(--shadow-card);
+}
+
+/* ---------- Cluster: one card per partition ---------- */
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: var(--s5) 0 var(--s3);
+}
+.section-head h2 {
+  margin: 0;
+}
+.part-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--s4);
+  margin-bottom: var(--s3);
+}
+.part-card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.part-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+.part-card-head h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+.part-card footer {
+  margin-top: auto;
+}
+.ring {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+}
+.ring-hole {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--surface);
+  line-height: 1.05;
+}
+.ring-hole strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.ring-hole small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.part-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s2);
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.part-facts dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.part-facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.part-card .gpu-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+}
+.part-card .gpubar-wrap {
+  min-width: 0;
+}
+.gpu-line-name {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 1080px) {
+  .run-tile {
+    padding: 12px 6px 10px;
+    font-size: 13px;
+  }
+  .run-tile .small {
+    font-size: 11px;
+  }
+}
+@media (max-width: 760px) {
+  .run-tiles {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
 }

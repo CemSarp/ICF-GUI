@@ -155,10 +155,10 @@ flowchart LR
    `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
-3. **Look around.** **Cluster** shows free GPUs by type and by partition; its *Nodes* tab lists every node.
-4. **Start a job.** Open **New job**, keep **Script job**, pick a partition (normally **Teaching**) and
-   a GPU type, then set CPUs, RAM and wall time. Give the working directory (relative paths start in
-   your home, e.g. `projects/myrun`) and your script (`train.py`, or a bash script).
+3. **Look around.** **Cluster** shows each partition with its free GPUs; its *Nodes* tab lists every node.
+4. **Start a job.** Open **New job**, click what you want to run (e.g. **Python script**), then
+   **Choose script…** on ICF: the job runs in that file's folder. Click a partition (normally
+   **Teaching**) and a GPU type, a time limit, and adjust CPUs and RAM with − / +.
 5. **Review and submit.** The app shows the exact batch script. Tick the notices, click
    **Submit job…**, then confirm. The job is submitted **exactly once**.
 6. **Follow it** in **My Jobs**: open the job, load its log, and cancel it if you need to.

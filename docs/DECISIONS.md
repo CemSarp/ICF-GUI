@@ -365,6 +365,28 @@ folder of course code to a GPU run.
 - **Setup lines** are fixed snippets inserted into the user's own Commands text (ADR-034); nothing
   new reaches a shell outside the reviewed batch script.
 
+## ADR-036 — New job is chosen, not typed; partitions as cards
+*Status: accepted (0.5.1).* The owner found New job still hard: two path fields for one file, a
+different GPU picker per kind of job, hidden name/CPUs/RAM/e-mail, and a separate results folder.
+- **The file decides the folder.** Picking a script, notebook or file sets the working directory /
+  project folder to the file's own folder; the path is shown as a clickable trail, and clicking a
+  folder above runs from there (the file path becomes relative). Paths are chosen, not typed.
+- **Results go next to the code**: `<file's folder>/runs/<job name>-<job id>`. The *Results folder*
+  field is gone; a preset or older draft that named another one is ignored. This changes where runs
+  land for anyone who used a custom results folder.
+- **A `.ipynb` is never run with `python`**: picked as a Python script or run from Projects, it opens
+  as a Notebook job.
+- **One GPU picker** for every kind of job: partition and GPU type as tiles with live free counts,
+  a −/+ GPU count, one-click time limits within the partition maximum, CPUs and RAM steppers and an
+  e-mail switch, always visible. The job name is visible and follows the chosen file until edited;
+  the GPU test is called `gpu-test`.
+- **Presets** can be created, updated, renamed and deleted from both forms (existing
+  `presets_save`/`presets_delete`; no new backend command). A preset is a workflow config; in the
+  script form it carries the GPU, resources, name, e-mail, folder and file, not typed Commands.
+- **Cluster → Overview** drops *GPUs by type*; each partition is a card with a ring of free /
+  allocated / unavailable GPUs (physical only; MIG slices listed apart), its GPU types and actions.
+  Allocated is yellow (`--alloc`), always next to its number.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

@@ -17,3 +17,17 @@ export function fleetSummary(snapshot: ClusterSnapshot) {
     migSlices: mig.reduce((a, t) => a + t.configured, 0),
   };
 }
+
+/** One partition's physical (and untyped) GPUs added up; MIG slices are listed separately, never added. */
+export function partitionGpus(p: ClusterSnapshot['partitions'][number]) {
+  const physical = p.gpuTotals.filter((t) => t.granularity !== 'mig');
+  const sum = (k: 'configured' | 'potentiallyFree' | 'allocated' | 'unavailable' | 'unknown') =>
+    physical.reduce((a, t) => a + t[k], 0);
+  return {
+    configured: sum('configured'),
+    free: sum('potentiallyFree'),
+    allocated: sum('allocated'),
+    unavailable: sum('unavailable'),
+    unknown: sum('unknown'),
+  };
+}

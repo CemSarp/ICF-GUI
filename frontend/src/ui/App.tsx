@@ -59,7 +59,7 @@ const PAGE_TABS: Partial<Record<View, { id: View; label: string; help: string }[
     {
       id: 'overview',
       label: 'Overview',
-      help: 'Free GPUs by type and by partition. Start a job on a partition from here.',
+      help: 'Every partition with its free GPUs. Start a job on one from here.',
     },
     {
       id: 'nodes',

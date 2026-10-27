@@ -1,11 +1,10 @@
-import { Badge, EmptyState, Notice } from '../components/ui';
-import { granularityLabel } from '../../logic/cluster/gpu';
-import { fleetSummary } from '../../logic/cluster/overview';
+import { Badge, Notice } from '../components/ui';
+import { fleetSummary, partitionGpus } from '../../logic/cluster/overview';
 import { formatDuration, nominalVram } from '../../logic/format';
 import type { ClusterSnapshot } from '../../types';
 import { GpuBar, Legend } from './GpuBar';
 
-/** Cluster → Overview: fleet numbers, GPUs by type, and one row per partition. */
+/** Cluster → Overview: fleet numbers and one card per partition with its GPUs. */
 export function Overview({
   snapshot,
   onOpenNodes,
@@ -58,72 +57,19 @@ export function Overview({
         </Notice>
       )}
 
-      <section className="card">
-        <div className="card-head">
-          <h2>GPUs by type</h2>
-          <Legend />
-        </div>
-        {snapshot.gpuTotals.length === 0 ? (
-          <EmptyState title="No GPU resources reported">The scheduler listed no GPU GRES on visible nodes.</EmptyState>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">Model</th>
-                <th scope="col">Kind</th>
-                <th scope="col" className="num">
-                  VRAM*
-                </th>
-                <th scope="col" className="num">
-                  Nodes
-                </th>
-                <th scope="col">Allocation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.gpuTotals.map((t) => (
-                <tr key={t.gresName}>
-                  <th scope="row">
-                    {t.modelLabel}
-                    <div className="muted small mono">{t.gresName}</div>
-                  </th>
-                  <td>{granularityLabel(t.granularity)}</td>
-                  <td className="num">{nominalVram(t.gresName) ?? '—'}</td>
-                  <td className="num">{t.nodes}</td>
-                  <td>
-                    <GpuBar t={t} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p className="muted small">
-          * Nominal memory per GPU or MIG slice, from the model name. It is not a measurement of free GPU memory.
-        </p>
-      </section>
-
-      <section className="card">
+      <div className="section-head">
         <h2>Partitions</h2>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">Partition</th>
-                <th scope="col">Max time</th>
-                <th scope="col" className="num">
-                  Nodes
-                </th>
-                <th scope="col">GPUs</th>
-                <th scope="col">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.partitions.map((p) => (
-                <tr key={p.name}>
-                  <th scope="row">
+        <Legend />
+      </div>
+      <div className="part-grid">
+        {snapshot.partitions.map((p) => {
+          const g = partitionGpus(p);
+          const mig = p.gpuTotals.filter((t) => t.granularity === 'mig');
+          return (
+            <article key={p.name} className="card part-card" aria-labelledby={`part-${p.name}`}>
+              <header className="part-card-head">
+                <div>
+                  <h3 id={`part-${p.name}`}>
                     {p.name}
                     {p.warnings.length > 0 && (
                       <span className="warn-mark" title={p.warnings.join('\n')}>
@@ -131,63 +77,107 @@ export function Overview({
                         ⚠<span className="sr-only">{p.warnings.length} warnings</span>
                       </span>
                     )}
-                    <div className="badges">
-                      {p.isDefault && <Badge tone="info">Default</Badge>}
-                      {p.state !== 'up' && (
-                        <Badge tone="bad" glyph="✕">
-                          {p.stateRaw || 'Unknown'}
-                        </Badge>
-                      )}
-                      {p.eligibility === 'not_permitted' && <Badge tone="muted">Not permitted</Badge>}
-                    </div>
-                  </th>
-                  <td className="nowrap">{formatDuration(p.maxTimeSeconds, p.maxTimeRaw)}</td>
-                  <td className="num">{p.nodeIds.length}</td>
-                  <td>
-                    {p.gpuTotals.length === 0 ? (
-                      <span className="muted">{p.nodeIds.length === 0 ? 'No nodes' : 'No GPUs'}</span>
-                    ) : (
-                      <ul className="gpu-lines">
-                        {p.gpuTotals.map((t) => (
-                          <li key={t.gresName}>
-                            <div>
-                              <strong>{t.modelLabel}</strong>{' '}
-                              {t.granularity === 'mig' && <span className="muted small">MIG</span>}
-                            </div>
-                            <GpuBar t={t} />
-                          </li>
-                        ))}
-                      </ul>
+                  </h3>
+                  <div className="badges">
+                    {p.isDefault && <Badge tone="info">Default</Badge>}
+                    {p.state !== 'up' && (
+                      <Badge tone="bad" glyph="✕">
+                        {p.stateRaw || 'Unknown'}
+                      </Badge>
                     )}
-                  </td>
-                  <td className="row-actions">
-                    <button
-                      className="btn ghost small-btn"
-                      onClick={() => onOpenNodes(p.name)}
-                      disabled={p.nodeIds.length === 0}
-                      aria-label={`Nodes of ${p.name}`}
-                    >
-                      Nodes
-                    </button>
-                    <button
-                      className="btn small-btn"
-                      onClick={() => onRequest(p.name)}
-                      aria-label={`New job on ${p.name}`}
-                      disabled={p.gpuTotals.length === 0 || p.eligibility === 'not_permitted'}
-                    >
-                      New job
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="muted small">
-          Partitions visible to your account. Visibility does not imply eligibility: account, QoS and group limits are
-          enforced by the scheduler. “Potentially free” is not a reservation; the scheduler decides at submission.
-        </p>
-      </section>
+                    {p.eligibility === 'not_permitted' && <Badge tone="muted">Not permitted</Badge>}
+                  </div>
+                </div>
+                {g.configured > 0 && <Ring g={g} name={p.name} />}
+              </header>
+              <dl className="part-facts">
+                <div>
+                  <dt>Up to</dt>
+                  <dd>{formatDuration(p.maxTimeSeconds, p.maxTimeRaw)}</dd>
+                </div>
+                <div>
+                  <dt>Nodes</dt>
+                  <dd>{p.nodeIds.length}</dd>
+                </div>
+                <div>
+                  <dt>GPUs</dt>
+                  <dd>
+                    {g.configured}
+                    {mig.length > 0 && (
+                      <span className="muted small"> + {mig.reduce((a, t) => a + t.configured, 0)} MIG</span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+              {p.gpuTotals.length === 0 ? (
+                <p className="muted">{p.nodeIds.length === 0 ? 'No nodes' : 'No GPUs'}</p>
+              ) : (
+                <ul className="gpu-lines">
+                  {p.gpuTotals.map((t) => (
+                    <li key={t.gresName}>
+                      <div className="gpu-line-name" title={t.gresName}>
+                        <strong>{t.modelLabel}</strong>
+                        <span className="muted small">
+                          {' '}
+                          {nominalVram(t.gresName) ?? ''}
+                          {t.granularity === 'mig' && ' · MIG slice'}
+                        </span>
+                      </div>
+                      <GpuBar t={t} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <footer className="actions start">
+                <button
+                  className="btn primary small-btn"
+                  onClick={() => onRequest(p.name)}
+                  aria-label={`New job on ${p.name}`}
+                  disabled={p.gpuTotals.length === 0 || p.eligibility === 'not_permitted'}
+                >
+                  New job here
+                </button>
+                <button
+                  className="btn ghost small-btn"
+                  onClick={() => onOpenNodes(p.name)}
+                  disabled={p.nodeIds.length === 0}
+                  aria-label={`Nodes of ${p.name}`}
+                >
+                  See nodes
+                </button>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+      <p className="muted small">
+        Partitions visible to your account. Visibility does not imply eligibility: account, QoS and group limits are
+        enforced by the scheduler. “Potentially free” is not a reservation; the scheduler decides at submission. GPU
+        memory is nominal, from the model name.
+      </p>
     </>
+  );
+}
+
+/** A ring of one partition's physical GPUs: free, allocated, unavailable; the gap is unknown. */
+function Ring({ g, name }: { g: ReturnType<typeof partitionGpus>; name: string }) {
+  const pct = (n: number) => (n / g.configured) * 100;
+  const free = pct(g.free);
+  const alloc = free + pct(g.allocated);
+  const down = alloc + pct(g.unavailable);
+  return (
+    <div
+      className="ring"
+      role="img"
+      aria-label={`${name}: ${g.free} of ${g.configured} GPUs potentially free, ${g.allocated} allocated, ${g.unavailable} unavailable, ${g.unknown} unknown`}
+      style={{
+        background: `conic-gradient(var(--ok) 0 ${free}%, var(--alloc) 0 ${alloc}%, var(--bad) 0 ${down}%, var(--fill-strong) 0)`,
+      }}
+    >
+      <span className="ring-hole">
+        <strong>{g.free}</strong>
+        <small>free</small>
+      </span>
+    </div>
   );
 }

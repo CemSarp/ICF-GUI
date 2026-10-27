@@ -15,7 +15,6 @@ export interface Draft {
   hfPath: string;
   hfArchive: string;
   hfOffline: boolean;
-  resultsRoot: string;
   checkpointMode: CheckpointMode;
   checkpointSyncMinutes: number;
   resumeFrom: string;
@@ -38,6 +37,8 @@ export interface Draft {
 export interface WizardInit {
   projectDir?: string;
   kind?: WorkflowKind;
+  /** The script or notebook, relative to `projectDir`. */
+  entry?: string;
   interpreter?: string | null;
   toolchainId?: string | null;
   config?: WorkflowConfig;
@@ -45,9 +46,9 @@ export interface WizardInit {
 
 export const DEFAULT_DRAFT: Draft = {
   kind: 'train',
-  jobName: 'train',
+  jobName: 'job',
   projectDir: '',
-  entry: 'train.py',
+  entry: '',
   args: '',
   interpreter: '',
   toolchainId: '',
@@ -57,7 +58,6 @@ export const DEFAULT_DRAFT: Draft = {
   hfPath: '',
   hfArchive: '',
   hfOffline: false,
-  resultsRoot: '',
   checkpointMode: 'scratch_sync',
   checkpointSyncMinutes: 30,
   resumeFrom: '',
@@ -116,7 +116,8 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
         : d.hfMode === 'staged'
           ? { mode: 'staged', archive: abs(d.hfArchive), offline: d.hfOffline }
           : { mode: d.hfMode },
-    resultsRoot: abs(d.resultsRoot).replace(/\/+$/, '') || `${project}/runs`,
+    // Results go next to the code: <the file's folder>/runs/<job name>-<job id>.
+    resultsRoot: `${project}/runs`,
     checkpointMode: d.checkpointMode,
     checkpointSyncMinutes: d.checkpointSyncMinutes,
     resumeFrom: abs(d.resumeFrom) || null,
@@ -145,7 +146,7 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
     kind: c.kind,
     jobName: c.jobName,
     projectDir: c.projectDir,
-    entry: c.entry || DEFAULT_DRAFT.entry,
+    entry: c.entry,
     args: c.args.join('\n'),
     interpreter: c.interpreter,
     toolchainId: tc?.id ?? '',
@@ -155,7 +156,6 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
     hfPath: c.hfCache.mode === 'home' ? c.hfCache.path : '',
     hfArchive: c.hfCache.mode === 'staged' ? c.hfCache.archive : '',
     hfOffline: c.hfCache.mode === 'staged' ? c.hfCache.offline : false,
-    resultsRoot: c.resultsRoot,
     checkpointMode: c.checkpointMode,
     checkpointSyncMinutes: c.checkpointSyncMinutes,
     resumeFrom: c.resumeFrom ?? '',
@@ -174,7 +174,9 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
   };
 }
 
-/** The draft a new wizard starts from: a resumed config, a project/smoke-test request, or the saved draft. */
+/** The GPU test's job name, shown and editable on the form. */
+export const SMOKE_NAME = 'gpu-test';
+
 /** A GPU test is small and short. */
 export const SMOKE_DEFAULTS = {
   datasets: [],
@@ -188,6 +190,7 @@ export const SMOKE_DEFAULTS = {
   expectedOutputGib: 0,
 };
 
+/** The draft a new wizard starts from: a resumed config, a project/smoke-test request, or the saved draft. */
 export function initialDraft(stored: Draft, init: WizardInit | null, toolchains: ToolchainProfile[]): Draft {
   const base = { ...DEFAULT_DRAFT, ...stored };
   if (init?.config) return fromConfig(init.config, toolchains);
@@ -196,10 +199,10 @@ export function initialDraft(stored: Draft, init: WizardInit | null, toolchains:
     ...base,
     projectDir: init.projectDir ?? base.projectDir,
     kind: init.kind ?? (base.kind === 'gpu_smoke_test' ? 'train' : base.kind),
-    jobName: init.kind === 'gpu_smoke_test' ? 'gpu-smoke' : base.jobName,
+    entry: init.entry ?? (init.projectDir && init.projectDir !== base.projectDir ? '' : base.entry),
+    jobName: init.kind === 'gpu_smoke_test' ? SMOKE_NAME : base.jobName,
     interpreter: init.interpreter ?? base.interpreter,
     toolchainId: init.toolchainId ?? base.toolchainId,
-    resultsRoot: init.projectDir && init.projectDir !== base.projectDir ? '' : base.resultsRoot,
     ...(init.kind === 'gpu_smoke_test' ? SMOKE_DEFAULTS : {}),
   };
 }
