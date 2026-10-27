@@ -37,7 +37,7 @@ starting a kernel are remembered when you do them. Nothing extra is asked of ICF
 ### Running course code (example: a CUDA homework)
 
 1. **Projects** → open the homework folder. Each `.py`, `.sh`, `.sbatch`, `.cu` or C/C++ file has a
-   **Run** button; **Run on a GPU…** at the top uses the folder itself.
+   **Run** button; **Run on a GPU** at the top uses the folder itself.
 2. **Run** on a course batch file such as `run_asr.sbatch` opens New job with its partition, GPU,
    CPUs, memory, time and commands taken over, running in that folder. Its `#SBATCH --output` is not
    used (the output is `slurm-<job id>.out`), and `cd "$SLURM_SUBMIT_DIR"` is dropped because the job
@@ -82,26 +82,26 @@ by itself if one of its fields has a problem. Switching answers keeps what you e
 | **Notebook** | A notebook run top to bottom (a training workflow). |
 | **GPU test** | A short check that a GPU node works with your Python (a training workflow). |
 
-1. **Choose script…** (or *Choose notebook…*) opens your ICF home; click **Choose** next to the file.
+1. **Choose script** (or *Choose notebook*) opens your ICF home; click **Choose** next to the file.
    The job runs in that file's folder, shown as *Runs in ~ › projects › hw1*; click a folder in that
    trail to run from there instead (for code that expects its project root). The job name follows
    the file (`train.py` → `train`) until you change it. A `.ipynb` always runs as a Notebook.
-   - **Python environment**: **Choose…** your virtualenv or conda folder; its `bin/python` runs the
+   - **Python environment**: **Choose** your virtualenv or conda folder; its `bin/python` runs the
      job. A script job without one uses the node's `python3`.
    - **Commands**: type the commands you would type in a terminal on the GPU node, for example
      `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go into the
      batch script exactly as written and start in the working directory; the job stops at the first
-     failing command. **Choose a file…** sets the working directory to that file's folder and suggests
+     failing command. **Choose a file** sets the working directory to that file's folder and suggests
      a command for it (`python x.py`, `nvcc … x.cu` and run it, `bash x.sh`). Don't use
      `cd "$(dirname "$0")"`: in a batch job `$0` is SLURM's copy of the script, not your folder.
 2. Under **GPU and resources**, click a partition tile and a GPU type tile (each shows how many are
    free at the last snapshot, not a reservation), set GPUs with − / +, click a time (10 min … 2 days,
    only those the partition allows) or type hours and minutes, and set CPUs and RAM. Turn on
    **E-mail me when the job ends or fails** for SLURM's own e-mail.
-3. **Presets** (top of the form): **New preset…** saves the GPU, resources, name, e-mail, folder and
-   file under a name; choose one to load it, then **Save changes**, **Rename…** or **Delete…**.
+3. **Presets** (top of the form): **New preset** saves the GPU, resources, name, e-mail, folder and
+   file under a name; choose one to load it, then **Save changes**, **Rename** or **Delete**.
 4. **Review script** shows the exact batch script and checksum. Acknowledge any notices, click
-   **Submit job…**, then confirm. The job is submitted once.
+   **Submit job**, then confirm. The job is submitted once.
 5. Outcomes: **Accepted** (you get a job ID; it may wait in the queue), **Not submitted** (the reason
    and a suggested edit), or **Submission uncertain** (the connection dropped mid-way). For uncertain,
    use *Check my jobs for this submission* before submitting again; the app never retries by itself.
@@ -131,7 +131,7 @@ jobs (`sacct`, when the site provides it). Open a job for scheduler details, fai
 (timeout, out of memory, exit code) and logs:
 - **Load log** fetches the last 64 KB; **Load new output** fetches only what was added since.
   *Follow* reloads every 10 s for running jobs while the window is visible.
-- **Cancel job…** appears only for your own pending/running jobs and asks for confirmation. The state
+- **Cancel job** appears only for your own pending/running jobs and asks for confirmation. The state
   changes to *Cancelled* once SLURM reports it.
 
 ## Projects and VS Code
@@ -155,7 +155,7 @@ project** on a folder to see its detail page.
   are outside Informatics). If not, it shows a block to paste into `~/.ssh/config` yourself and a
   *Copy block* button. The app never edits that file.
 - **Editing is not GPU compute.** VS Code's Run/Debug buttons run on the login node (hastings), which
-  has no GPU for you and must not run training. Use **New training workflow…** for GPU work.
+  has no GPU for you and must not run training. Use **New training workflow** for GPU work.
 
 ### Sign VS Code in through this app (no password prompts)
 
@@ -184,7 +184,7 @@ without VS Code:
 - **Notebooks** (`.ipynb`) open in the [Notebooks](#notebooks) tab instead.
 
 **Run on GPU (experimental).** Python (`.py`), CUDA (`.cu`), C++ (`.cpp`, `.cc`, `.cxx`) and C (`.c`)
-files have a run bar above the editor. **Start kernel…** reviews an interactive kernel exactly as in
+files have a run bar above the editor. **Start kernel** reviews an interactive kernel exactly as in
 the [Notebooks](#notebooks) tab; then type the program's arguments and press **Run on GPU** (⌘⇧Enter).
 The text in the editor runs, saved or not, in the file's folder on the GPU node: Python as a script
 (`__name__ == "__main__"`, `sys.argv` set), CUDA/C++/C compiled first (see
@@ -215,7 +215,7 @@ for the same CUDA version. Only a job on a GPU node can confirm the GPU works �
 `torch.cuda.is_available()` on the login node means nothing. **Run the GPU smoke test** submits a
 10-minute job that prints the PyTorch/CUDA versions and GPU model and multiplies two small matrices.
 
-**Set as VS Code interpreter…** previews a change to `.vscode/settings.json`
+**Set as VS Code interpreter** previews a change to `.vscode/settings.json`
 (`python.defaultInterpreterPath`), keeps all other settings, backs up the old file, and refuses to
 write if the file changed meanwhile or contains comments (you get a snippet to paste instead).
 Choosing an interpreter never allocates a GPU.
@@ -225,10 +225,10 @@ Choosing an interpreter never allocates a GPU.
 **Transfers** copies files between your Mac and your ICF home with SFTP over the connection you
 already have (no second login), one file at a time.
 
-- **Choose a file…** opens a macOS file dialog. Pick the destination folder on ICF and a name (letters,
+- **Choose a file** opens a macOS file dialog. Pick the destination folder on ICF and a name (letters,
   digits, `. _ - + @ = ,`). The file is written as a hidden partial file, checked with SHA-256 against
   your Mac's copy and only then given its name. **An existing file is never overwritten.**
-- **Choose a folder to pack…** turns a folder into one `.tar.gz` first (thousands of small files are
+- **Choose a folder to pack** turns a folder into one `.tar.gz` first (thousands of small files are
   slow on NFS). Folders with links pointing outside them or special files are refused. The packed
   archive is deleted from your Mac after a verified upload. Use **Unpack** on it in Projects to get
   the folder back on ICF.
@@ -256,7 +256,7 @@ workflow…* on a project) builds one batch job that:
 
 Fields: project, script and arguments (one per line; `{data}`, `{outputs}`, `{checkpoints}`,
 `{scratch}`, `{run_dir}`, `{resume}` are replaced by those folders), interpreter, toolchain, dataset
-archives (choose on ICF or **Upload an archive from this Mac…**), scratch location, space to reserve,
+archives (choose on ICF or **Upload an archive from this Mac**), scratch location, space to reserve,
 Hugging Face cache (on scratch, a persistent `/home` folder that is never deleted, or a packed cache
 staged to scratch), checkpoint policy (*Synced*, *Straight to /home*, *At the end*), resume
 checkpoint, environment variables and GPU resources. Results always go next to your code, in
@@ -264,7 +264,7 @@ checkpoint, environment variables and GPU resources. Results always go next to y
 again every time.
 
 **Review workflow** shows the exact script, where the run folder, logs and scratch will be, and what
-is checked on ICF right before `sbatch`. Acknowledge any notices, click **Submit workflow…**, confirm.
+is checked on ICF right before `sbatch`. Acknowledge any notices, click **Submit workflow**, confirm.
 It is submitted exactly once, like a V2 job.
 
 ### Checkpoints and what survives
@@ -299,7 +299,7 @@ A run's page shows the node and GPU, runtime and time left, checkpoint and resul
 type (e.g. GPU out of memory, CUDA mismatch, scratch full, unsafe archive, result copy-back failed) and
 *What can be recovered*. You can read logs, load **metrics** (if your script writes JSON lines such as
 `{"step": 100, "loss": 0.42}` to `$ICFCC_METRICS_FILE`), browse and download outputs and checkpoints,
-**Resume from this…** a checkpoint (prefills a new workflow), open the run folder in VS Code, or cancel
+**Resume from this** a checkpoint (prefills a new workflow), open the run folder in VS Code, or cancel
 it from My Jobs. *Needs your check* means the submission outcome is unknown: use *Check my jobs for
 this submission* before submitting again.
 
@@ -315,7 +315,7 @@ results. Use this for long or unattended runs; use the [Notebooks](#notebooks) t
 ## Notebooks
 
 The **Notebooks** tab opens `.ipynb` files from your projects (click one in Project files, or use
-**Open a notebook on ICF**; **New file…** there creates an empty notebook). Recent notebooks are listed
+**Open a notebook on ICF**; **New file** there creates an empty notebook). Recent notebooks are listed
 for one-click reopening.
 
 **The page.** Notebooks look as they do in JupyterLab: Markdown cells are rendered (headings, lists,
@@ -324,7 +324,7 @@ and their outputs: text, coloured errors, progress bars, tables (e.g. pandas), i
 selected cell has a small toolbar (type, move, clear output, delete), and hovering between cells shows
 **+ Code** / **+ Markdown**. Links are shown, not opened.
 
-**Interactive kernel (experimental).** Click **Start kernel…**, check the resources (an Interactive
+**Interactive kernel (experimental).** Click **Start kernel**, check the resources (an Interactive
 partition, GPU type and count, CPUs, memory, time limit up to the partition's maximum) and the Python
 environment (taken from the notebook's project; it needs `ipykernel`: `pip install ipykernel`), then
 **Review**. The sheet shows the exact `srun` line and the notices to confirm; **Start kernel** asks SLURM

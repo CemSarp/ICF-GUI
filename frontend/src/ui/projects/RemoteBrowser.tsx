@@ -75,7 +75,7 @@ export function RemoteBrowser({
   onOpenFile?: (path: string) => void;
   /** "Run" on files that can run as a GPU job (scripts, batch files, CUDA/C/C++ sources). */
   onRunFile?: (path: string) => void;
-  /** Type preselected in New file… */
+  /** Type preselected in New file */
   newFileType?: NewFileType;
   title?: ReactNode;
 }) {
@@ -192,7 +192,7 @@ export function RemoteBrowser({
         </label>
         {onOpenFile && listing?.writable && (
           <button className="btn" onClick={() => setNewFile({ name: '', type: newFileType, error: null })}>
-            New file…
+            New file
           </button>
         )}
         {allowMkdir && listing?.writable && (
@@ -536,7 +536,7 @@ export function PickRemote({
         />
       </div>
       <div className="actions">
-        <button className="btn" onClick={onClose}>
+        <button className="btn ghost danger" onClick={onClose}>
           Cancel
         </button>
       </div>

@@ -154,7 +154,7 @@ function edit(n: number, insert: string) {
 }
 
 async function startKernel() {
-  await userEvent.click(screen.getByRole('button', { name: 'Start kernel…' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Start kernel' }));
   const sheet = await screen.findByRole('dialog', { name: 'Start an interactive kernel' });
   await userEvent.click(within(sheet).getByRole('button', { name: 'Review' }));
   const start = await within(sheet).findByRole('button', { name: 'Start kernel' });

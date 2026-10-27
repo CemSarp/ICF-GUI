@@ -34,6 +34,10 @@
 - **Results go next to the code** (`runs/` in the script's folder); the *Results folder* field is
   gone. Checkpoints are a three-way choice; the resume checkpoint and Python environment are chosen
   as folders.
+- Buttons no longer end in "…"; a chosen script or notebook has **Remove**; the run-type tiles and
+  the GPU section are more compact; the Commands tile says it also runs `.cu` and C/C++ files; the
+  submit bar stands out from the page; picker *Cancel* is coloured; Projects' *Run* lines up with
+  the other row buttons.
 - **Presets for every kind of job**, now with **Save changes**, **Rename…** and **Delete…**.
 - **Cluster → Overview**: one card per partition with a ring of its free GPUs, its GPU types and
   *New job here* / *See nodes*; *GPUs by type* is gone. Allocated GPUs are yellow.

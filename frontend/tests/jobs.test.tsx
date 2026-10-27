@@ -56,7 +56,7 @@ async function reviewAndConfirm() {
   await userEvent.click(await screen.findByRole('button', { name: 'Review script' }));
   await screen.findByRole('heading', { name: 'Review the exact batch script' });
   await userEvent.click(screen.getByLabelText('I understand these notices'));
-  await userEvent.click(screen.getByRole('button', { name: 'Submit job…' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Submit job' }));
   return screen.findByRole('dialog', { name: 'Submit this job to SLURM?' });
 }
 
@@ -113,9 +113,9 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     await openWizard();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
     expect(await screen.findByLabelText('Batch script')).toHaveTextContent('#SBATCH --partition=Teaching');
-    expect(screen.getByRole('button', { name: 'Submit job…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit job' })).toBeDisabled();
     await userEvent.click(screen.getByLabelText('I understand these notices'));
-    await userEvent.click(screen.getByRole('button', { name: 'Submit job…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit job' }));
     const dialog = await screen.findByRole('dialog', { name: 'Submit this job to SLURM?' });
     const btn = within(dialog).getByRole('button', { name: 'Submit to SLURM' });
     await userEvent.dblClick(btn);
@@ -233,7 +233,7 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     await openWizard();
     expect(screen.getByText(/submission is disabled/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
-    expect(await screen.findByRole('button', { name: 'Submit job…' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Submit job' })).toBeDisabled();
   });
 });
 
@@ -318,7 +318,7 @@ describe('My Jobs, details, cancel and logs (V2-AC04..AC07)', () => {
     });
     await openJobs();
     await userEvent.click(await screen.findByRole('button', { name: '4242' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job' }));
     expect(backend.count('jobs_cancel')).toBe(0);
     const dialog = screen.getByRole('dialog', { name: 'Cancel job 4242?' });
     expect(within(dialog).getByText('semeval-train')).toBeInTheDocument();
@@ -339,7 +339,7 @@ describe('My Jobs, details, cancel and logs (V2-AC04..AC07)', () => {
     await openJobs();
     await userEvent.click(await screen.findByRole('button', { name: '4242' }));
     expect(await screen.findByText(/belongs to another user/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cancel job…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel job' })).not.toBeInTheDocument();
   });
 
   it('logs load incrementally, handle rotation and missing files', async () => {
@@ -455,7 +455,7 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
   it('runs a picked script in its own folder, named after it, and can run it from a folder above', async () => {
     backend.handlers.jobs_preview = () => okPreview();
     await openWizard();
-    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
     await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
     const card = screen.getByRole('group', { name: 'Script' });
     expect(within(card).getByText('train.py')).toBeInTheDocument();
@@ -476,7 +476,7 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
 
   it('runs a notebook picked as a Python script as a Notebook', async () => {
     await openWizard();
-    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
     await chooseInPicker('Choose the script', ['projects', 'semeval'], 'explore.ipynb');
     expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
@@ -490,7 +490,7 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     await userEvent.click(screen.getByLabelText('Commands'));
     expect(screen.queryByRole('group', { name: 'Script' })).toBeNull();
     expect(screen.queryByLabelText('Arguments (optional, one per line)')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
     await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
     expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     const box = screen.getByLabelText('Commands to run');
@@ -553,7 +553,7 @@ describe('Batch files and setup lines (course .sbatch files)', () => {
   it('takes over the resources and commands of a picked .sbatch file', async () => {
     await openWizard();
     await userEvent.click(screen.getByLabelText('Shell script'));
-    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose the script' });
     for (const f of ['projects', 'semeval'])
       await userEvent.click(await within(dialog).findByRole('button', { name: f }));

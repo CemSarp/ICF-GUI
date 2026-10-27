@@ -1477,6 +1477,9 @@ pre.log {
   text-align: right;
   white-space: nowrap;
 }
+.row-actions .btn {
+  vertical-align: middle;
+}
 .row-actions .btn + .btn {
   margin-left: 6px;
 }
@@ -2082,7 +2085,7 @@ input.switch:focus-visible {
 .run-tile {
   align-items: center;
   text-align: center;
-  padding: 14px 10px 12px;
+  padding: 10px 8px 9px;
 }
 .run-tile:hover,
 .tile:hover {
@@ -2116,10 +2119,10 @@ input.switch:focus-visible {
 .run-tile-icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  border-radius: 7px;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary-fill) 12%, transparent);
 }
@@ -2134,9 +2137,24 @@ input.switch:focus-visible {
 /* Partition and GPU tiles with live counts. */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: var(--s2);
-  margin-bottom: var(--s4);
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 6px;
+  margin-bottom: var(--s3);
+}
+.tiles .tile {
+  padding: 8px 12px;
+  gap: 0;
+}
+.res-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s5);
+}
+.time-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
 }
 .tiles-set {
   border: 0;
@@ -2153,11 +2171,11 @@ input.switch:focus-visible {
   font-weight: 600;
 }
 .tile-big {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-  margin-top: 4px;
+  line-height: 1.25;
+  margin-top: 2px;
 }
 .tile-big small {
   font-size: 12px;
@@ -2170,7 +2188,7 @@ input.switch:focus-visible {
 }
 .tile .gpubar-wrap {
   min-width: 0;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .tile .gpubar {
   min-width: 0;
@@ -2184,12 +2202,12 @@ input.switch:focus-visible {
   gap: 6px;
 }
 .stepper input {
-  width: 72px;
+  width: 60px;
   text-align: center;
 }
 .step-btn {
-  width: var(--control-h);
-  height: var(--control-h);
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
   background: var(--surface);
@@ -2234,6 +2252,10 @@ button.chip[aria-pressed='true'] {
 }
 input[type='checkbox'][role='switch'] {
   appearance: none;
+  box-sizing: border-box;
+  border: 0;
+  padding: 0;
+  min-height: 0;
   flex: 0 0 auto;
   width: 38px;
   height: 22px;
@@ -2268,6 +2290,9 @@ input[type='checkbox'][role='switch']:focus-visible {
 }
 .field.mail {
   margin-top: var(--s2);
+}
+.field.mail input[type='email'] {
+  max-width: 360px;
 }
 
 /* A chosen file or folder: no path to type. */
@@ -2372,9 +2397,10 @@ input[type='checkbox'][role='switch']:focus-visible {
   margin: 0;
   padding: var(--s3) var(--s4);
   border-radius: var(--radius);
-  background: var(--material);
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-pop);
 }
 
 /* ---------- Cluster: one card per partition ---------- */

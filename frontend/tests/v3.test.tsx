@@ -106,7 +106,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
       interpreter: '/usr/bin/python3',
     });
     expect(screen.getByText(/PyTorch was built for CUDA 12.8, matching the toolchain/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Set as VS Code interpreter…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Set as VS Code interpreter' }));
     const dialog = await screen.findByRole('dialog', { name: 'Update .vscode/settings.json?' });
     expect(within(dialog).getByText(/"editor.tabSize": 4,/)).toBeInTheDocument();
     expect(backend.count('vscode_settings_apply')).toBe(0);
@@ -128,7 +128,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
     });
     await openProject();
     await expand('Python environment');
-    await userEvent.click(screen.getByRole('button', { name: 'Set as VS Code interpreter…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Set as VS Code interpreter' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/not plain JSON/)).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Write settings' })).toBeNull();
@@ -156,7 +156,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
 
   async function wizardFromProject() {
     await openProject();
-    await userEvent.click(screen.getByRole('button', { name: 'New training workflow…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New training workflow' }));
     await screen.findByRole('button', { name: 'Review workflow' });
   }
 
@@ -173,7 +173,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     const env = screen.getByRole('group', { name: 'Python environment' });
     expect(within(env).getByText(/projects\/icf-env\/bin\/python$/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Choose script…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
     await choose('Choose the script', [], 'train.py');
     expect(screen.getByLabelText('Job name')).toHaveValue('train');
     expect(screen.getByText(/Results and checkpoints go to/)).toHaveTextContent(/semeval\/runs\/train-<job id>/);
@@ -194,7 +194,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
   it('requires acknowledgement and confirmation, then submits exactly once through jobs_submit', async () => {
     await wizardFromProject();
     await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
-    const submit = await screen.findByRole('button', { name: 'Submit workflow…' });
+    const submit = await screen.findByRole('button', { name: 'Submit workflow' });
     expect(submit).toBeDisabled();
     await userEvent.click(screen.getByLabelText('I understand these notices'));
     await userEvent.click(submit);
@@ -248,7 +248,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
   it('takes the Python environment as a folder and runs its bin/python', async () => {
     await wizardFromProject();
     const env = screen.getByRole('group', { name: 'Python environment' });
-    await userEvent.click(within(env).getByRole('button', { name: 'Change…' }));
+    await userEvent.click(within(env).getByRole('button', { name: 'Change' }));
     // It opens in the current environment; start from the home folder and choose another one.
     const dialog = await screen.findByRole('dialog', { name: 'Choose the Python environment folder' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Home folder' }));
@@ -277,20 +277,20 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     };
     backend.handlers.presets_delete = (a) => (saved = saved.filter((x) => x.id !== a.id));
     await wizardFromProject();
-    await userEvent.click(screen.getByRole('button', { name: 'New preset…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
     await userEvent.type(screen.getByLabelText('Preset name'), 'A6000 short{Enter}');
     await waitFor(() => expect(screen.getByLabelText('Preset')).toHaveDisplayValue('A6000 short'));
     expect(backend.count('workflow_preview')).toBe(0); // Enter saved the preset, not the form
     await userEvent.click(screen.getByRole('button', { name: 'More CPUs' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(saved[0]?.config.resources.cpus).toBe(5));
-    await userEvent.click(screen.getByRole('button', { name: 'Rename…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
     const name = screen.getByLabelText('Preset name');
     await userEvent.clear(name);
     await userEvent.type(name, 'Teaching 5 CPUs');
-    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save name' }));
     await waitFor(() => expect(saved.map((p) => p.label)).toEqual(['Teaching 5 CPUs']));
-    await userEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog', { name: 'Delete the preset “Teaching 5 CPUs”?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete preset' }));
     await waitFor(() => expect(saved).toEqual([]));
@@ -381,7 +381,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     expect(await screen.findByText('What can be recovered')).toBeInTheDocument();
     expect(screen.getByText(/resume from it/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Checkpoints' }));
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Resume from this…' }))[0]!);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Resume from this' }))[0]!);
     await screen.findByRole('button', { name: 'Review workflow' });
     const resume = screen.getByRole('group', { name: 'Resume from a checkpoint' });
     expect(within(resume).queryByText('Start fresh')).toBeNull();
@@ -394,7 +394,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     backend.handlers.jobs_cancel = () => ({ outcome: 'requested' });
     await openRuns();
     await userEvent.click(await screen.findByText('train'));
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job' }));
     expect(screen.queryByText('Cancel in My Jobs…')).toBeNull();
     const dialog = screen.getByRole('dialog', { name: 'Cancel job 4242?' });
     expect(within(dialog).getByRole('button', { name: 'Keep job' })).toHaveFocus();
@@ -404,7 +404,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
       expect(backend.count('jobs_cancel', (a) => a.jobId === '4242' && a.cancelToken === 'tok')).toBe(1),
     );
     expect(await screen.findByText('Cancellation requested')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cancel job…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel job' })).toBeNull();
   });
 
   it('asks the user to reconcile an uncertain submission instead of resubmitting', async () => {
@@ -463,9 +463,9 @@ describe('Transfers (V3-AC04, AC08)', () => {
     await userEvent.click(within(failed).getByRole('button', { name: 'Retry / resume' }));
     expect(backend.count('transfers_retry')).toBe(1);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
     expect(await screen.findByLabelText('Name on ICF')).toHaveValue('My_Data__v2_.tar.gz');
-    await userEvent.click(screen.getByRole('button', { name: 'Choose…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose' }));
     const picker = await screen.findByRole('dialog', { name: 'Upload into which folder?' });
     await userEvent.click(await within(picker).findByRole('button', { name: /projects/ }));
     await userEvent.click(await within(picker).findByRole('button', { name: 'Choose this folder' }));

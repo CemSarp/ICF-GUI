@@ -10,14 +10,14 @@ below uses **Teaching, 1 GPU of the smallest type, 2 CPUs, 8 GB RAM, 10–15 min
 | `smoke_notebook.ipynb` | GPU node, as a batch notebook | needs `nbconvert` and `ipykernel` in the environment |
 
 Upload `train_tiny.py` and `smoke_notebook.ipynb` into the project folder (Transfers, or drag them into
-VS Code), and the archive into `<project>/data` (the wizard's *Upload an archive from this Mac…* does it).
+VS Code), and the archive into `<project>/data` (the wizard's *Upload an archive from this Mac* does it).
 
 | Test | Workflow type | Arguments (one per line) | Other settings | Expected in Runs |
 |---|---|---|---|---|
 | 1. GPU check | GPU smoke test | — | dataset `tiny_dataset.tar.gz` | Completed; `smoke.json` in Outputs; log line `@@icfcc-smoke {… "cuda_available": true, "matmul_ok": true …}` |
 | 2. Training | Training script `train_tiny.py` | `--data={data}/tiny_dataset` `--require-gpu` | same dataset | Completed; metrics chart; `summary.json`, `model.pt` in Outputs; `latest.pt` in Checkpoints |
 | 3. Checkpoint sync | `train_tiny.py` | as 2 plus `--epochs=200` `--seconds-per-epoch=5` | sync every 5 min, wall time 15 min, copy-back warning 120 s | *Saving checkpoints* appears; *Timed out* with "outputs were copied back"; checkpoints synced |
-| 4. Resume | `train_tiny.py` | as 2 plus `--resume={resume}` `--epochs=30` | Resume from: run 3's `checkpoints/latest.pt` (*Resume from this…*) | log says `resumed from … after epoch N` |
+| 4. Resume | `train_tiny.py` | as 2 plus `--resume={resume}` `--epochs=30` | Resume from: run 3's `checkpoints/latest.pt` (*Resume from this*) | log says `resumed from … after epoch N` |
 | 5. Failure | `train_tiny.py` | as 2 plus `--fail-at-epoch=3` | — | Failed: *Training script failed*, exit code 1; `summary.json` still copied back |
 | 6. Unsafe data | `train_tiny.py` | as 2 | dataset `unsafe_dataset.tar.gz` | Failed: *Unsafe archive rejected*, training never starts, nothing extracted |
 | 7. Notebook | Notebook, batch | entry `smoke_notebook.ipynb` | — | Completed; `smoke_notebook.executed.ipynb` and `notebook_smoke.json` in Outputs |

@@ -291,7 +291,7 @@ export function TrainingWizard({
                     })
                   }
                 >
-                  {project ? 'Change…' : 'Choose folder…'}
+                  {project ? 'Change' : 'Choose folder'}
                 </button>
               </PathCard>
             ) : (
@@ -306,6 +306,11 @@ export function TrainingWizard({
                 home={home}
                 onRunFrom={runFrom}
               >
+                {entryAbs && (
+                  <button type="button" className="btn ghost" onClick={() => set('entry', '')}>
+                    Remove
+                  </button>
+                )}
                 <button
                   type="button"
                   className={entryAbs ? 'btn' : 'btn primary'}
@@ -318,7 +323,7 @@ export function TrainingWizard({
                     })
                   }
                 >
-                  {entryAbs ? 'Change…' : notebook ? 'Choose notebook…' : 'Choose script…'}
+                  {entryAbs ? 'Change' : notebook ? 'Choose notebook' : 'Choose script'}
                 </button>
               </PathCard>
             )}
@@ -364,7 +369,7 @@ export function TrainingWizard({
                   })
                 }
               >
-                {draft.interpreter.trim() ? 'Change…' : 'Choose…'}
+                {draft.interpreter.trim() ? 'Change' : 'Choose'}
               </button>
             </PathCard>
             <FieldError issues={issues} field="interpreter" />
@@ -443,7 +448,7 @@ export function TrainingWizard({
                     })
                   }
                 >
-                  Choose…
+                  Choose
                 </button>
               </PathCard>
               <small className="muted">Your program gets it as $ICFCC_RESUME_FROM and {'{resume}'}.</small>
@@ -504,7 +509,7 @@ export function TrainingWizard({
                         })
                       }
                     >
-                      Add archive on ICF…
+                      Add archive on ICF
                     </button>
                     <button
                       type="button"
@@ -512,7 +517,7 @@ export function TrainingWizard({
                       disabled={!project || phase === 'UPLOADING' || draft.datasets.length >= 4}
                       onClick={() => void uploadArchive()}
                     >
-                      Upload an archive from this Mac…
+                      Upload an archive from this Mac
                     </button>
                   </div>
                 </div>
@@ -760,7 +765,7 @@ export function TrainingWizard({
               onClick={() => setConfirming(true)}
               disabled={preview.acknowledgements.length > 0 && !ack}
             >
-              Submit workflow…
+              Submit workflow
             </button>
           </div>
         </section>

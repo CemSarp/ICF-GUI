@@ -20,8 +20,8 @@ const CHOICES: { id: Choice; label: string; icon: IconName; short: string; help:
     id: 'commands',
     label: 'Commands',
     icon: 'keyboard',
-    short: 'Like a terminal',
-    help: 'Type the commands you would type in a terminal on the GPU node. No script file needed.',
+    short: 'Terminal, .cu, C/C++',
+    help: 'Type the commands you would type in a terminal on the GPU node, no script file needed. CUDA (.cu) and C/C++ files run here too: choose one and the compile-and-run lines are filled in.',
   },
   {
     id: 'notebook',
@@ -69,7 +69,7 @@ export function RunChoice({
               onChange={() => onChange(c.id, managed)}
             />
             <span className="run-tile-icon" aria-hidden="true">
-              <Icon name={c.icon} size={22} />
+              <Icon name={c.icon} size={16} />
             </span>
             <strong>{c.label}</strong>
             <span className="muted small">{c.short}</span>

@@ -107,7 +107,7 @@
       sandbox home with `../x` and `/x` archive members, terminal-command jobs), 15 auth + 5 job flows
 - [x] Dev preview (demo data): Cluster → Overview/Nodes and a partition's Nodes, My Jobs → Training
       runs, Rename (Enter no longer reopens the sheet), the Unpack sheet, Terminal commands with
-      Choose a file… (`kernel.cu` → its folder and an `nvcc` command), the one-question New job form
+      Choose a file (`kernel.cu` → its folder and an `nvcc` command), the one-question New job form
       (Python ↔ Managed training ↔ Shell script carries the job name)
 - [ ] macOS CI green on the PR and on `main`
 - [ ] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`

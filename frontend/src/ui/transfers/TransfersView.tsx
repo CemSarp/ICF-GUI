@@ -48,10 +48,10 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
         </p>
         <div className="actions start">
           <button className="btn" disabled={!!busy} onClick={chooseFile}>
-            Choose a file…
+            Choose a file
           </button>
           <button className="btn" disabled={!!busy} onClick={chooseFolder}>
-            {busy === 'folder' ? 'Scanning folder…' : 'Choose a folder to pack…'}
+            {busy === 'folder' ? 'Scanning folder…' : 'Choose a folder to pack'}
           </button>
         </div>
         {folder && (
@@ -77,7 +77,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
                 <div className="input-row">
                   <code className="crumbs">{dir ?? 'not chosen'}</code>
                   <button className="btn" onClick={() => setChoosing('upload-dir')}>
-                    Choose…
+                    Choose
                   </button>
                 </div>
               </div>
@@ -113,7 +113,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
           replaces anything (macOS asks before replacing an existing file).
         </p>
         <button className="btn" onClick={() => setChoosing('download')}>
-          Choose a file on ICF…
+          Choose a file on ICF
         </button>
       </section>
 

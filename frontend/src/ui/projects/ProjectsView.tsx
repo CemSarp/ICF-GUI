@@ -124,7 +124,7 @@ function ProjectDetail({
         <div className="actions start">
           <button className="btn primary" onClick={() => nav.onRun(project.path, true)}>
             <Icon name="play" />
-            Run on a GPU…
+            Run on a GPU
           </button>
           <button className="btn" onClick={() => void openInVsCode()} disabled={launching}>
             {launching ? 'Opening…' : 'Open in VS Code'}
@@ -139,13 +139,13 @@ function ProjectDetail({
               })
             }
           >
-            New training workflow…
+            New training workflow
           </button>
         </div>
       </div>
       <Notice tone="warn" title="VS Code runs on the login node">
         Its Run and Debug buttons have no GPU there and must not train. To use a GPU, press <strong>Run</strong> next to
-        a file below, or <strong>Run on a GPU…</strong>.
+        a file below, or <strong>Run on a GPU</strong>.
       </Notice>
       {launch && (
         <Notice tone="info" title="Launch requested">
@@ -173,7 +173,7 @@ function ProjectDetail({
         allowDelete
         title="Project files"
         onSelectDir={(p) => nav.onUpload(p)}
-        selectDirLabel="Upload here…"
+        selectDirLabel="Upload here"
         fileAction={{ label: 'Download', run: (p) => void download(p) }}
         onOpenFile={nav.onEditFile}
         onRunFile={(p) => nav.onRun(p, false)}
@@ -446,7 +446,7 @@ function EnvPanel({
           )}
         </div>
         <button className="btn" onClick={() => void previewSettings()} disabled={!project.interpreter}>
-          Set as VS Code interpreter…
+          Set as VS Code interpreter
         </button>
       </div>
 
@@ -490,7 +490,7 @@ function EnvPanel({
           title="GPU compatibility"
           trailing={
             <button className="btn" onClick={onSmokeTest} disabled={!project.interpreter}>
-              Run the GPU smoke test…
+              Run the GPU smoke test
             </button>
           }
         >

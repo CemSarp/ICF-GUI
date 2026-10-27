@@ -79,7 +79,7 @@ export function JobDetailView({
           </button>
           {d?.cancelToken && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirm(true)}>
-              Cancel job…
+              Cancel job
             </button>
           )}
         </div>

@@ -286,7 +286,7 @@ export function GpuPicker({
         <FieldError issues={issues} field="gresType" />
       </fieldset>
 
-      <div className="grid-2">
+      <div className="res-row">
         <Field label="GPUs" field="gpuCount" issues={issues} prefix={prefix} help={`Up to ${maxGpus} on one node`}>
           <Stepper
             id={`${prefix}-gpuCount`}
@@ -297,8 +297,22 @@ export function GpuPicker({
             onChange={(n) => patch({ gpuCount: n })}
           />
         </Field>
-        <div className={`field${issues.some((i) => i.field === 'timeLimitSeconds') ? ' invalid' : ''}`}>
-          <span id={`${prefix}-time-label`}>Time limit</span>
+        <Field label="CPUs" field="cpus" issues={issues} prefix={prefix}>
+          <Stepper id={`${prefix}-cpus`} label="CPUs" value={draft.cpus} onChange={(n) => patch({ cpus: n })} />
+        </Field>
+        <Field label="RAM (GB)" field="memoryMib" issues={issues} prefix={prefix}>
+          <Stepper
+            id={`${prefix}-memoryMib`}
+            label="GB of RAM"
+            step={4}
+            value={draft.memoryGb}
+            onChange={(n) => patch({ memoryGb: n })}
+          />
+        </Field>
+      </div>
+      <div className={`field${issues.some((i) => i.field === 'timeLimitSeconds') ? ' invalid' : ''}`}>
+        <span id={`${prefix}-time-label`}>Time limit</span>
+        <div className="time-line">
           <div className="chips" role="group" aria-labelledby={`${prefix}-time-label`}>
             {times.map((t) => (
               <button
@@ -322,29 +336,15 @@ export function GpuPicker({
               value={draft.minutes}
               onChange={(n) => patch({ minutes: n })}
             />
-            <span className="muted">min · the job is stopped after this</span>
+            <span className="muted">min</span>
           </div>
-          <FieldError issues={issues} field="timeLimitSeconds" />
         </div>
+        <small className="muted">The job is stopped after this.</small>
+        <FieldError issues={issues} field="timeLimitSeconds" />
       </div>
       {draft.gpuCount > 1 && (
         <p className="muted small">More GPUs usually means a longer wait in the queue. Make sure your code uses all.</p>
       )}
-      <div className="grid-2">
-        <Field label="CPUs" field="cpus" issues={issues} prefix={prefix}>
-          <Stepper id={`${prefix}-cpus`} label="CPUs" value={draft.cpus} onChange={(n) => patch({ cpus: n })} />
-        </Field>
-        <Field label="RAM (GB)" field="memoryMib" issues={issues} prefix={prefix}>
-          <Stepper
-            id={`${prefix}-memoryMib`}
-            label="GB of RAM"
-            step={4}
-            unit="GB"
-            value={draft.memoryGb}
-            onChange={(n) => patch({ memoryGb: n })}
-          />
-        </Field>
-      </div>
       <MailOption draft={draft} issues={issues} patch={patch} id={`${prefix}-mailUser`} />
     </section>
   );
@@ -422,16 +422,16 @@ export function PresetBar({ presets: p }: { presets: ReturnType<typeof usePreset
             Save changes
           </button>
           <button type="button" className="btn ghost small-btn" onClick={() => name('rename')}>
-            Rename…
+            Rename
           </button>
           <button type="button" className="btn ghost danger small-btn" onClick={() => setDeleting(true)}>
-            Delete…
+            Delete
           </button>
         </>
       )}
       <button type="button" className="btn ghost small-btn" onClick={() => name('new')}>
         <Icon name="plus" size={14} />
-        New preset…
+        New preset
       </button>
       {p.loaded && <span className="muted small">Saved {formatTime(p.loaded.savedAt)}</span>}
       {naming && (
@@ -453,7 +453,7 @@ export function PresetBar({ presets: p }: { presets: ReturnType<typeof usePreset
             }}
           />
           <button type="button" className="btn primary small-btn" disabled={!label.trim()} onClick={save}>
-            {naming === 'new' ? 'Save preset' : 'Rename'}
+            {naming === 'new' ? 'Save preset' : 'Save name'}
           </button>
           <button type="button" className="btn small-btn" onClick={() => setNaming(null)}>
             Cancel

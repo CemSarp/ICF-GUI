@@ -194,7 +194,7 @@ function RunDetail({
           )}
           {detail.data?.cancelToken && !isTerminal(s) && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirmCancel(true)}>
-              Cancel job…
+              Cancel job
             </button>
           )}
           {isTerminal(s) && (
@@ -427,7 +427,7 @@ function RunFiles({
               )}
               {which === 'checkpoints' && !e.unsupported && (
                 <button className="btn small-btn" onClick={() => onResume(p)}>
-                  Resume from this…
+                  Resume from this
                 </button>
               )}
             </li>

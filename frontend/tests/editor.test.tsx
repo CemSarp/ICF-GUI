@@ -91,7 +91,7 @@ describe('In-app editor', () => {
 
   it('creates a new file without overwriting and opens it in the editor', async () => {
     await openProject();
-    await userEvent.click(await screen.findByRole('button', { name: 'New file…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New file' }));
     const sheet = await screen.findByRole('dialog', { name: 'Create a file on ICF' });
     await userEvent.selectOptions(within(sheet).getByLabelText('Type'), 'cuda');
     await userEvent.type(within(sheet).getByLabelText('File name'), 'kernel');

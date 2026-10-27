@@ -196,10 +196,10 @@ export function RequestGpuView({
                   onRunFrom={runFrom}
                 >
                   <button type="button" className="btn" onClick={() => setPicking('file')}>
-                    Choose a file…
+                    Choose a file
                   </button>
                   <button type="button" className="btn ghost" onClick={() => setPicking('dir')}>
-                    Choose folder…
+                    Choose folder
                   </button>
                 </PathCard>
                 <FieldError issues={issues} field="workingDir" />
@@ -300,12 +300,17 @@ export function RequestGpuView({
                   home={home}
                   onRunFrom={runFrom}
                 >
+                  {fileAbs && (
+                    <button type="button" className="btn ghost" onClick={() => set('program', '')}>
+                      Remove
+                    </button>
+                  )}
                   <button
                     type="button"
                     className={fileAbs ? 'btn' : 'btn primary'}
                     onClick={() => setPicking('program')}
                   >
-                    {fileAbs ? 'Change…' : 'Choose script…'}
+                    {fileAbs ? 'Change' : 'Choose script'}
                   </button>
                 </PathCard>
                 <FieldError issues={issues} field="program" />
@@ -338,7 +343,7 @@ export function RequestGpuView({
                     </button>
                   )}
                   <button type="button" className="btn" onClick={() => setPicking('env')}>
-                    Choose…
+                    Choose
                   </button>
                 </PathCard>
                 <FieldError issues={issues} field="pythonEnv" />
@@ -441,7 +446,7 @@ export function RequestGpuView({
               onClick={() => setConfirming(true)}
               disabled={busy || status.demo || (preview.acknowledgements.length > 0 && !ack)}
             >
-              Submit job…
+              Submit job
             </button>
           </div>
         </section>
