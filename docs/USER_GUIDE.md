@@ -50,8 +50,19 @@ memory, with search and filters; click a node for its details.
 1. **New job** (sidebar, or *New job* on a partition in Cluster), kind **Script job**.
 2. Choose a partition and GPU type. The numbers show *potential* availability at the last snapshot;
    they are not a reservation. Set GPUs (default 1), CPUs, RAM and wall time (within the partition limit).
-3. Enter the **working directory** (relative paths start in your home, e.g. `projects/semeval`) and **script** on ICF (inside your home), an optional virtualenv
-   (`source <env>/bin/activate` is added) and optional arguments (one per line, passed literally).
+3. Set the **working directory** and what to run, by typing a path (relative paths start in your
+   home, e.g. `projects/semeval`) or with **Browse…**, which lets you pick a folder or file on ICF.
+   *Run with* is one of:
+   - **Python script** or **Bash script**: a file on ICF inside your home, plus optional arguments
+     (one per line, passed literally). Picking a script with no working directory set uses its folder.
+   - **Terminal commands**: type the commands you would type in a terminal on the GPU node, for
+     example `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go
+     into the batch script exactly as written and start in the working directory; the job stops at the
+     first failing command. **Choose a file…** sets the working directory to that file's folder and
+     suggests a command for it (`python x.py`, `nvcc … x.cu` and run it, `bash x.sh`). Don't use
+     `cd "$(dirname "$0")"`: in a batch job `$0` is SLURM's copy of the script, not your folder.
+
+   An optional virtualenv (`source <env>/bin/activate` is added) works with all three.
 4. **Review script** shows the exact batch script and checksum. Acknowledge any notices, click
    **Submit job…**, then confirm. The job is submitted once.
 5. Outcomes: **Accepted** (you get a job ID; it may wait in the queue), **Not submitted** (the reason

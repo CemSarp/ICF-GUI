@@ -287,11 +287,10 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         r.workingDir +
         '/slurm-%j.err\n#SBATCH --comment=icfcc-0a1b2c3d4e5f\n' +
         (r.mailUser ? `#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=${r.mailUser}\n` : '') +
-        "set -e\nexec python3 '" +
-        r.workingDir +
-        '/' +
-        r.program +
-        "'\n",
+        'set -e\n' +
+        (r.runner === 'commands'
+          ? `# Your commands, exactly as typed. They start in ${r.workingDir}; the job stops at the first failing command.\n${r.commands}\n`
+          : `exec python3 '${r.workingDir}/${r.program}'\n`),
     };
   },
   projects_recent: () => [v3.project()],

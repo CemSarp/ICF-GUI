@@ -241,6 +241,7 @@ impl WorkflowConfig {
             python_env: None,
             setup_source: None,
             mail_user: self.mail_user.clone(),
+            commands: None,
         }
     }
 

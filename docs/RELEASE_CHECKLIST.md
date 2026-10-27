@@ -102,11 +102,12 @@
 
 ## v0.5.1 (Cluster and My Jobs tabs, Rename and Unpack; ADR-033)
 
-- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 97 UI tests, production build
-- [x] Rust gates locally: fmt, clippy `-D warnings`, 141 unit tests (incl. rename and unpack against a
-      sandbox home with `../x` and `/x` archive members), 15 auth + 5 job flows
+- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 100 UI tests, production build
+- [x] Rust gates locally: fmt, clippy `-D warnings`, 143 unit tests (incl. rename and unpack against a
+      sandbox home with `../x` and `/x` archive members, terminal-command jobs), 15 auth + 5 job flows
 - [x] Dev preview (demo data): Cluster → Overview/Nodes and a partition's Nodes, My Jobs → Training
-      runs, Rename (Enter no longer reopens the sheet) and the Unpack sheet
+      runs, Rename (Enter no longer reopens the sheet), the Unpack sheet, Terminal commands with
+      Choose a file… (`kernel.cu` → its folder and an `nvcc` command)
 - [ ] macOS CI green on the PR and on `main`
 - [ ] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
 - [ ] Merge the PR (merge commit), tag `v0.5.1` on `main`, push the tag
@@ -114,5 +115,7 @@
 - [ ] Downloaded zip: `shasum -a 256 -c` OK, `codesign --verify --deep --strict` passes; sidebar shows
       **Version 0.5.1**; demo data works
 - [ ] Live (owner): Unpack a Transfers archive on ICF gives the original folder; Rename a file; ICF has `unzip`
+- [ ] Live (owner): a Terminal commands job (e.g. `nvidia-smi -L` and building a `.cu` file) runs in
+      the chosen folder and its output is in `slurm-<id>.out`
 - [ ] Published
 

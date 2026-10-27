@@ -59,6 +59,7 @@ impl KernelRequest {
             python_env: None,
             setup_source: None,
             mail_user: None,
+            commands: None,
         }
     }
 }

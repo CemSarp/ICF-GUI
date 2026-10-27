@@ -26,6 +26,7 @@ fn req() -> JobRequest {
         python_env: Some("/home/demo/projects/icf-env".into()),
         setup_source: None,
         mail_user: None,
+        commands: None,
     }
 }
 
@@ -661,4 +662,60 @@ fn receipt_store_learns_partitions_and_dismisses() {
     let reloaded = ReceiptStore::load(&dir.path);
     assert!(reloaded.find("a").unwrap().dismissed, "persisted");
     assert_eq!(reloaded.partition_record("default", "s1", "ICF-Free"), PartitionRecord::Denied, "dismissing keeps what was learned");
+}
+
+#[test]
+fn terminal_commands_are_reviewed_verbatim_and_need_no_script_file() {
+    let mut r = req();
+    r.runner = Runner::Commands;
+    r.program = String::new();
+    r.program_args = vec![];
+    r.python_env = None;
+    r.commands = Some("set -e\nexport PATH=/opt/cuda-12.8.0/bin:$PATH\nhostname; nvidia-smi -L\nmake && make test1 2>&1 | tee task1.log\n\n".into());
+    let v = check(&r);
+    assert!(v.errors.is_empty(), "{:?}", v.errors);
+    assert!(v.warnings.iter().all(|w| w.field.as_deref() != Some("commands")));
+    let s = render_script(&r, "t");
+    assert!(s.ends_with(
+        "# Your commands, exactly as typed. They start in /home/demo/projects/semeval; the job stops at the first failing command.\n\
+set -e\nexport PATH=/opt/cuda-12.8.0/bin:$PATH\nhostname; nvidia-smi -L\nmake && make test1 2>&1 | tee task1.log\n"
+    ));
+    assert!(!s.contains("exec "), "no program line");
+
+    // `$0` is SLURM's copy of the script, and #SBATCH lines in the body are ignored: say so.
+    r.commands = Some("cd \"$(dirname \"$0\")\"\n#SBATCH --gres=gpu:2\n./run.sh".into());
+    let w: Vec<_> = check(&r).warnings.into_iter().filter(|w| w.field.as_deref() == Some("commands")).collect();
+    assert_eq!(w.len(), 2, "{w:?}");
+
+    for (bad, why) in [(Some("   \n"), "empty"), (None, "missing"), (Some("make\r\n"), "CRLF"), (Some("echo \u{1b}[2J"), "control")] {
+        r.commands = bad.map(Into::into);
+        assert!(fields(&check(&r)).contains(&"commands".to_string()), "{why}");
+    }
+    r.commands = Some("x".repeat(MAX_COMMANDS_BYTES + 1));
+    assert!(fields(&check(&r)).contains(&"commands".to_string()));
+    r.commands = Some("make".into());
+    r.program = "train.py".into();
+    assert!(fields(&check(&r)).contains(&"commands".to_string()), "a script alongside is refused");
+}
+
+#[test]
+fn terminal_commands_submit_without_a_program_check_and_run_in_the_working_directory() {
+    let sb = Sandbox::new();
+    let mut r = sb.req();
+    r.runner = Runner::Commands;
+    r.program = String::new();
+    r.program_args = vec![];
+    r.python_env = None;
+    r.commands = Some("pwd > where.txt\n".into());
+    let job = render_script(&r, "t");
+    let out = sb.run(&submit_script(&r, &job, "t"));
+    assert!(matches!(classify_submit(cap(&out, false)), SubmitOutcome::Accepted { .. }), "{out}");
+    assert_eq!(std::fs::read_to_string(sb.root.join("submitted.sh")).unwrap(), job);
+    // A missing working directory still blocks sbatch.
+    let sb2 = Sandbox::new();
+    let mut r2 = r.clone();
+    r2.working_dir = sb2.home().join("nope").display().to_string();
+    let out = sb2.run(&submit_script(&r2, &render_script(&r2, "t"), "t"));
+    assert!(!matches!(classify_submit(cap(&out, false)), SubmitOutcome::Accepted { .. }), "{out}");
+    assert!(!sb2.calls().contains("sbatch"));
 }

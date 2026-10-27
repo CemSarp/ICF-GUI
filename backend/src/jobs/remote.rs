@@ -49,7 +49,9 @@ pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
     s += &format!("need_dir {} workingDir\n", q(&r.working_dir));
     s += &format!("[ -w {} ] || {{ printf '@@err unwritable workingDir\\n'; exit 0; }}\n", q(&r.working_dir));
-    s += &format!("need_file {} program home\n", q(&r.program_path()));
+    if r.runner != super::request::Runner::Commands {
+        s += &format!("need_file {} program home\n", q(&r.program_path()));
+    }
     if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("need_file {} pythonEnv home\n", q(&format!("{env}/bin/activate")));
     }

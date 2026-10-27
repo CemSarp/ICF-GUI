@@ -270,7 +270,8 @@ export interface JobsResponse {
   requests: number;
 }
 
-export type Runner = 'python' | 'bash';
+/** `commands`: the user's own shell lines, run in the working directory (ADR-034). */
+export type Runner = 'python' | 'bash' | 'commands';
 
 export interface JobRequest {
   partition: string;
@@ -288,6 +289,8 @@ export interface JobRequest {
   setupSource: string | null;
   /** SLURM e-mails this address when the job ends or fails. */
   mailUser: string | null;
+  /** Shell lines for runner `commands`; null otherwise. */
+  commands: string | null;
 }
 
 export interface Issue {

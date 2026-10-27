@@ -5,6 +5,7 @@ import { maxGpusFor } from '../cluster/gpu';
 import { usePersistentState } from '../persist';
 import type {
   ClusterSnapshot,
+  Runner,
   ConnectionStatus,
   Issue,
   JobReceipt,
@@ -24,8 +25,10 @@ export interface Draft {
   minutes: number;
   jobName: string;
   workingDir: string;
-  runner: 'python' | 'bash';
+  runner: Runner;
   program: string;
+  /** Shell lines for runner `commands`. */
+  commands: string;
   args: string;
   pythonEnv: string;
   setupSource: string;
@@ -42,6 +45,33 @@ export function resolveWorkingDir(dir: string, home: string): string {
 }
 
 /** Newest decisive outcome per partition from this Mac's submissions (receipts arrive newest first). */
+const shellWord = (s: string) => (/^[\w.+@=,/-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
+
+/** A starting command for a chosen file, by its type (the user edits it before reviewing). */
+export function commandsFor(name: string): string {
+  const f = shellWord(name);
+  const out = shellWord(name.replace(/\.[^.]+$/, '') || 'a.out');
+  if (/\.py$/i.test(name)) return `python ${f}`;
+  if (/\.cu$/i.test(name)) return `nvcc -O2 -o ${out} ${f}\n./${out}`;
+  if (/\.(cpp|cc|cxx)$/i.test(name)) return `g++ -O2 -o ${out} ${f}\n./${out}`;
+  if (/\.c$/i.test(name)) return `gcc -O2 -o ${out} ${f}\n./${out}`;
+  if (/\.sh$/i.test(name)) return `bash ${f}`;
+  return `./${f}`;
+}
+
+/**
+ * Where a file picked on ICF goes in the form: a path relative to the working directory when it is
+ * inside it; with no working directory yet, its folder becomes the working directory.
+ */
+export function placePickedFile(path: string, workingDir: string, home: string) {
+  const i = path.lastIndexOf('/');
+  const dir = path.slice(0, i) || '/';
+  const name = path.slice(i + 1);
+  if (!workingDir.trim()) return { workingDir: dir, program: name, dir, name };
+  const wd = resolveWorkingDir(workingDir, home);
+  return { workingDir, program: path.startsWith(`${wd}/`) ? path.slice(wd.length + 1) : path, dir, name };
+}
+
 export function learnedPartitions(receipts: JobReceipt[]): Map<string, 'accepted' | 'denied'> {
   const out = new Map<string, 'accepted' | 'denied'>();
   for (const r of receipts) {
@@ -63,14 +93,18 @@ export function toRequest(d: Draft, home: string): JobRequest {
     jobName: d.jobName.trim(),
     workingDir: resolveWorkingDir(d.workingDir, home),
     runner: d.runner,
-    program: d.program.trim(),
-    programArgs: d.args
-      .split('\n')
-      .map((a) => a.trim())
-      .filter(Boolean),
+    program: d.runner === 'commands' ? '' : d.program.trim(),
+    programArgs:
+      d.runner === 'commands'
+        ? []
+        : d.args
+            .split('\n')
+            .map((a) => a.trim())
+            .filter(Boolean),
     pythonEnv: d.pythonEnv.trim() || null,
     setupSource: d.setupSource.trim() || null,
     mailUser: d.mail ? d.mailUser.trim() : null,
+    commands: d.runner === 'commands' ? d.commands.replace(/\r\n?/g, '\n') : null,
   };
 }
 
@@ -96,13 +130,15 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
     workingDir: '',
     runner: 'python',
     program: 'train.py',
+    commands: '',
     args: '',
     pythonEnv: '',
     setupSource: '',
     mail: false,
     mailUser: '',
   });
-  const draft: Draft = Object.assign({ mail: false, mailUser: '' }, stored); // drafts saved before the e-mail option
+  // Drafts saved before the e-mail option or terminal commands lack those fields.
+  const draft: Draft = Object.assign({ mail: false, mailUser: '', commands: '' }, stored);
   const [override, setOverride] = useState(initialPartition); // e.g. from a partition card; applies until the first edit
   const partitionName = override ?? draft.partition;
   const partition =
@@ -123,14 +159,41 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
   const submittingRef = useRef(false);
   const qc = useQueryClient();
 
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
-    setDraft({ ...effective, [k]: v });
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => patch({ [k]: v } as Partial<Draft>);
+  const patch = (p: Partial<Draft>) => {
+    setDraft({ ...effective, ...p });
     setOverride(null);
     setPreview(null); // any edit invalidates the reviewed script
     setResult(null);
   };
 
   const maxGpus = maxGpusFor(snapshot, partition, gres);
+
+  /** Which ICF picker is open: the working directory, the script, or a file to run with commands. */
+  const [picking, setPicking] = useState<'dir' | 'program' | 'file' | null>(null);
+  const pickDir = (path: string) => {
+    setPicking(null);
+    set('workingDir', path);
+  };
+  const pickFile = (path: string) => {
+    const kind = picking;
+    setPicking(null);
+    if (kind === 'file') {
+      const { dir, name } = placePickedFile(path, '', home);
+      patch({ workingDir: dir, ...(draft.commands.trim() ? {} : { commands: commandsFor(name) }) });
+    } else {
+      const { workingDir, program } = placePickedFile(path, draft.workingDir, home);
+      patch({
+        workingDir,
+        program,
+        ...(/\.py$/i.test(path)
+          ? { runner: 'python' as const }
+          : /\.sh$/i.test(path)
+            ? { runner: 'bash' as const }
+            : {}),
+      });
+    }
+  };
 
   const review = async () => {
     setBusy(true);
@@ -184,6 +247,10 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
     gres,
     effective,
     maxGpus,
+    picking,
+    setPicking,
+    pickDir,
+    pickFile,
     preview,
     setPreview,
     issues,

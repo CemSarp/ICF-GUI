@@ -6,6 +6,8 @@ import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
+import { commandsFor, placePickedFile } from '../src/logic/jobs/jobRequest';
+import * as v3 from './v3Fixtures';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
   previewId: 'pv1',
@@ -424,6 +426,65 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
         ),
       ).toBe(1),
     );
+  });
+});
+
+describe('Script job: pick files on ICF, or run terminal commands', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  async function chooseInPicker(dialogName: string, folders: string[], file: string) {
+    const dialog = await screen.findByRole('dialog', { name: dialogName });
+    for (const f of folders) await userEvent.click(await within(dialog).findByRole('button', { name: f }));
+    const row = (await within(dialog).findByText(file)).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
+  }
+
+  it('fills the working directory and script from a picked file instead of a typed path', async () => {
+    await openWizard();
+    await userEvent.clear(screen.getByLabelText('Working directory'));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[1]!);
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(screen.getByLabelText('Script')).toHaveValue('train.py');
+    expect(backend.count('jobs_preview')).toBe(0); // the picker never submits the form
+  });
+
+  it('runs terminal commands in the folder of a chosen file, with no script or arguments', async () => {
+    await openWizard();
+    await userEvent.selectOptions(screen.getByLabelText('Run with'), 'Terminal commands');
+    expect(screen.queryByLabelText('Script')).toBeNull();
+    expect(screen.queryByLabelText('Arguments (optional, one per line)')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }));
+    await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
+    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    const box = screen.getByLabelText('Commands');
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    await userEvent.type(box, '{Enter}nvidia-smi -L');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).toMatchObject({
+      runner: 'commands',
+      workingDir: v3.PROJECT,
+      program: '',
+      programArgs: [],
+      commands: 'nvcc -O2 -o kernel kernel.cu\n./kernel\nnvidia-smi -L',
+    });
+  });
+
+  it('suggests a command per file type and places picked paths relative to the working directory', () => {
+    expect(commandsFor('train.py')).toBe('python train.py');
+    expect(commandsFor('run.sh')).toBe('bash run.sh');
+    expect(commandsFor('main.cpp')).toBe('g++ -O2 -o main main.cpp\n./main');
+    expect(commandsFor("my k'1.cu")).toBe(`nvcc -O2 -o 'my k'\\''1' 'my k'\\''1.cu'\n./'my k'\\''1'`);
+    expect(placePickedFile('/home/s1/p/src/a.py', 'p', '/home/s1')).toMatchObject({
+      workingDir: 'p',
+      program: 'src/a.py',
+    });
+    expect(placePickedFile('/home/s1/q/a.py', 'p', '/home/s1')).toMatchObject({ program: '/home/s1/q/a.py' });
+    expect(placePickedFile('/home/s1/q/a.py', '', '/home/s1')).toMatchObject({
+      workingDir: '/home/s1/q',
+      program: 'a.py',
+    });
   });
 });
 

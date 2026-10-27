@@ -4,6 +4,7 @@ import { granularityLabel } from '../../logic/cluster/gpu';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
 import { resolveWorkingDir, useRequestGpu, type Draft } from '../../logic/jobs/jobRequest';
 import type { ClusterSnapshot, ConnectionStatus, Issue } from '../../types';
+import { PickRemote } from '../projects/RemoteBrowser';
 
 function FieldError({ issues, field }: { issues: Issue[]; field: string }) {
   const mine = issues.filter((i) => i.field === field);
@@ -103,6 +104,10 @@ export function RequestGpuView({
     gres,
     effective,
     maxGpus,
+    picking,
+    setPicking,
+    pickDir,
+    pickFile,
     preview,
     setPreview,
     issues,
@@ -198,6 +203,27 @@ export function RequestGpuView({
       </ol>
       {status.demo && <Notice tone="info">Demo mode: you can review scripts, but submission is disabled.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
+      {/* Outside the form: the browser's buttons must not submit it. */}
+      {picking === 'dir' && (
+        <PickRemote
+          status={status}
+          start={draft.workingDir.trim() ? resolveWorkingDir(draft.workingDir, home) : null}
+          kind="dir"
+          onPick={pickDir}
+          onClose={() => setPicking(null)}
+          title="Choose the working directory"
+        />
+      )}
+      {(picking === 'program' || picking === 'file') && (
+        <PickRemote
+          status={status}
+          start={draft.workingDir.trim() ? resolveWorkingDir(draft.workingDir, home) : null}
+          kind="file"
+          onPick={pickFile}
+          onClose={() => setPicking(null)}
+          title={picking === 'file' ? 'Choose the file to run' : 'Choose the script'}
+        />
+      )}
 
       {!preview ? (
         <form
@@ -336,38 +362,78 @@ export function RequestGpuView({
               </>
             }
           >
-            <input
-              id="f-workingDir"
-              placeholder={`e.g. projects/semeval (inside ${home})`}
-              value={draft.workingDir}
-              onChange={(e) => set('workingDir', e.target.value)}
-              autoCapitalize="off"
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
-          <div className="grid-2">
-            <Field label="Run with" field="runner" issues={issues}>
-              <select
-                id="f-runner"
-                value={draft.runner}
-                onChange={(e) => set('runner', e.target.value as Draft['runner'])}
-              >
-                <option value="python">Python</option>
-                <option value="bash">Bash script</option>
-              </select>
-            </Field>
-            <Field label="Script" field="program" issues={issues} help="Relative to the working directory, or absolute">
+            <div className="input-row">
               <input
-                id="f-program"
-                value={draft.program}
-                onChange={(e) => set('program', e.target.value)}
+                id="f-workingDir"
+                placeholder={`e.g. projects/semeval (inside ${home})`}
+                value={draft.workingDir}
+                onChange={(e) => set('workingDir', e.target.value)}
                 autoCapitalize="off"
                 spellCheck={false}
                 className="mono"
               />
+              <button type="button" className="btn" onClick={() => setPicking('dir')}>
+                Browse…
+              </button>
+            </div>
+          </Field>
+          <Field label="Run with" field="runner" issues={issues}>
+            <select
+              id="f-runner"
+              value={draft.runner}
+              onChange={(e) => set('runner', e.target.value as Draft['runner'])}
+            >
+              <option value="python">Python script</option>
+              <option value="bash">Bash script</option>
+              <option value="commands">Terminal commands</option>
+            </select>
+          </Field>
+          {draft.runner === 'commands' ? (
+            <Field
+              label="Commands"
+              field="commands"
+              issues={issues}
+              help={
+                <>
+                  Typed into the batch script exactly as written, like a terminal on the GPU node. They start in the
+                  working directory; the job stops at the first failing command. <em>Choose a file</em> sets the working
+                  directory to its folder and suggests a command.
+                </>
+              }
+            >
+              <div className="actions start">
+                <button type="button" className="btn" onClick={() => setPicking('file')}>
+                  Choose a file…
+                </button>
+              </div>
+              <textarea
+                id="f-commands"
+                rows={8}
+                value={draft.commands}
+                placeholder={'nvidia-smi -L\nmake && ./run.sh 2>&1 | tee run.log'}
+                onChange={(e) => set('commands', e.target.value)}
+                spellCheck={false}
+                autoCapitalize="off"
+                className="mono"
+              />
             </Field>
-          </div>
+          ) : (
+            <Field label="Script" field="program" issues={issues} help="Relative to the working directory, or absolute">
+              <div className="input-row">
+                <input
+                  id="f-program"
+                  value={draft.program}
+                  onChange={(e) => set('program', e.target.value)}
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="mono"
+                />
+                <button type="button" className="btn" onClick={() => setPicking('program')}>
+                  Browse…
+                </button>
+              </div>
+            </Field>
+          )}
           <Field
             label="Python environment (optional)"
             field="pythonEnv"
@@ -383,21 +449,23 @@ export function RequestGpuView({
               className="mono"
             />
           </Field>
-          <Field
-            label="Arguments (optional, one per line)"
-            field="programArgs"
-            issues={issues}
-            help="Passed literally; nothing is interpreted by a shell."
-          >
-            <textarea
-              id="f-programArgs"
-              rows={3}
-              value={draft.args}
-              onChange={(e) => set('args', e.target.value)}
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
+          {draft.runner !== 'commands' && (
+            <Field
+              label="Arguments (optional, one per line)"
+              field="programArgs"
+              issues={issues}
+              help="Passed literally; nothing is interpreted by a shell."
+            >
+              <textarea
+                id="f-programArgs"
+                rows={3}
+                value={draft.args}
+                onChange={(e) => set('args', e.target.value)}
+                spellCheck={false}
+                className="mono"
+              />
+            </Field>
+          )}
           <MailOption draft={draft} issues={issues} set={set} id="f-mailUser" />
           <details>
             <summary>Advanced</summary>

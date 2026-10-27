@@ -326,6 +326,23 @@ files and folders, and to simplify My Jobs vs Runs.
   partitions and *Not permitted* is a badge). GPU Nodes stays as the *Nodes* tab (view id `nodes`). A
   remembered `partitions` view is read as `overview`. No change to what is fetched or how often.
 
+## ADR-034 — Terminal commands as a Script job
+*Status: accepted (0.5.1).* The user wanted to run commands such as `make && ./run.sh | tee log` on
+the GPU node without first writing a script file.
+- **What changes.** `Runner::Commands` puts the user's own lines verbatim in the body of the batch
+  script, after the generated `#SBATCH` header, `set -e`, the optional setup file and virtualenv. This
+  is the one place user text is not quoted (request.rs's injection policy). It is acceptable because
+  the text is the user's own program, runs only inside their SLURM allocation with their account, is
+  shown byte-for-byte with its checksum before submission, and never reaches a `#SBATCH` line (SLURM
+  stops reading those at the first command) or the login node's shell: the reviewed script travels to
+  `sbatch` in a quoted here-document whose random delimiter is checked against the script.
+- **Limits.** Plain text only (no control characters or `\r`), at most 16 KB, and no script or
+  arguments alongside. Warnings, not errors, for `$0` (SLURM's spool copy, so `dirname "$0"` is not the
+  project) and for `#SBATCH` lines in the body (ignored). The submit pre-check still requires the
+  working directory to exist inside home and be writable; there is no script file to check.
+- **Pickers.** Working directory, script and "file to run" use the existing home-confined remote
+  browser (read-only). The picker dialog is rendered outside the form so its buttons cannot submit it.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

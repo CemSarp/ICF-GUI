@@ -3,6 +3,12 @@
 ## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Terminal commands in Script job.** *Run with → Terminal commands* runs the lines you type in the
+  working directory on the GPU node, without writing a script file. **Choose a file…** picks e.g. a
+  `.cu` or `.py` file on ICF, sets the working directory to its folder and suggests a command. The
+  lines appear verbatim in the reviewed batch script (ADR-034).
+- **Browse… for paths in Script job**: pick the working directory and the script on ICF instead of
+  typing them.
 - **Rename** on every file, folder and link in Projects and Notebooks: renames in place, never over
   an existing name (a link is renamed, not what it points to).
 - **Unpack** on archives (`.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.zip`): unpacks next to
@@ -22,6 +28,7 @@
 ### Internal
 - `files_rename` and `files_unpack` (file-mutations capability), fixed scripts tested against a
   sandbox home, including archive members named `../x` or `/x`.
+- `JobRequest` gains `runner: "commands"` and `commands`; no script-file check for that runner.
 
 ## [0.5.0] — 2026-10-27 · Notebooks
 

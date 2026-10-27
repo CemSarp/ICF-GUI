@@ -2,7 +2,9 @@
 //!
 //! Injection policy: every value that reaches a `#SBATCH` line or the job body is either
 //! (a) restricted to a charset without whitespace/quotes/shell metacharacters, or
-//! (b) a program argument, which is single-quoted with `'` escaped. Remote paths are checked
+//! (b) a program argument, which is single-quoted with `'` escaped. The one exception is
+//! `Runner::Commands`: the user's own shell lines, placed verbatim in the body they review before
+//! submitting (ADR-034); they never reach a `#SBATCH` line or the login node's shell. Remote paths are checked
 //! again on ICF (existence, symlink resolution under $HOME) right before `sbatch` runs.
 
 use super::store::PartitionRecord;
@@ -19,7 +21,11 @@ pub const MIN_TIME_SECS: u64 = 60;
 pub enum Runner {
     Python,
     Bash,
+    /// The user's own shell lines (`commands`), run in the working directory like a terminal there.
+    Commands,
 }
+
+pub const MAX_COMMANDS_BYTES: usize = 16 * 1024;
 
 /// Exactly what the wizard sends. Unknown fields are rejected.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -36,7 +42,8 @@ pub struct JobRequest {
     /// Absolute remote directory under the user's home; also where logs go.
     pub working_dir: String,
     pub runner: Runner,
-    /// Path relative to `working_dir`, or absolute under home.
+    /// Path relative to `working_dir`, or absolute under home. Empty for `Runner::Commands`.
+    #[serde(default)]
     pub program: String,
     #[serde(default)]
     pub program_args: Vec<String>,
@@ -49,6 +56,9 @@ pub struct JobRequest {
     /// SLURM e-mails this address when the job ends or fails (`--mail-type=END,FAIL`).
     #[serde(default)]
     pub mail_user: Option<String>,
+    /// Shell lines for `Runner::Commands` (newline-separated).
+    #[serde(default)]
+    pub commands: Option<String>,
 }
 
 impl JobRequest {
@@ -282,25 +292,30 @@ pub fn validate_resources(r: &JobRequest, cx: &Context, v: &mut Validation) {
 }
 
 fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
-    let (e, w) = (&mut v.errors, &mut v.warnings);
     match check_abs_path(&r.working_dir) {
-        Err(m) => e.push(issue("workingDir", format!("Working directory {m}."))),
-        Ok(()) if !under(&r.working_dir, cx.home) => e.push(issue("workingDir", format!("Working directory must be inside your home ({}).", cx.home))),
+        Err(m) => v.errors.push(issue("workingDir", format!("Working directory {m}."))),
+        Ok(()) if !under(&r.working_dir, cx.home) => v.errors.push(issue("workingDir", format!("Working directory must be inside your home ({}).", cx.home))),
         Ok(()) => {}
     }
-    let prog_ok = if r.program.starts_with('/') { check_abs_path(&r.program) } else { check_rel_path(&r.program) };
-    match prog_ok {
-        Err(m) => e.push(issue("program", format!("Program {m}."))),
-        Ok(()) if !under(&r.program_path(), cx.home) => e.push(issue("program", "Program must be inside your home directory.")),
-        Ok(()) => {
-            if r.runner == Runner::Python && !r.program.ends_with(".py") {
-                w.push(issue("program", "Python runner selected but the program does not end in .py."));
-            }
-            if r.runner == Runner::Bash && r.program.ends_with(".py") {
-                w.push(issue("program", "Bash runner selected for a .py file."));
+    if r.runner == Runner::Commands {
+        validate_commands(r, v);
+    } else {
+        let (e, w) = (&mut v.errors, &mut v.warnings);
+        let prog_ok = if r.program.starts_with('/') { check_abs_path(&r.program) } else { check_rel_path(&r.program) };
+        match prog_ok {
+            Err(m) => e.push(issue("program", format!("Program {m}."))),
+            Ok(()) if !under(&r.program_path(), cx.home) => e.push(issue("program", "Program must be inside your home directory.")),
+            Ok(()) => {
+                if r.runner == Runner::Python && !r.program.ends_with(".py") {
+                    w.push(issue("program", "Python runner selected but the program does not end in .py."));
+                }
+                if r.runner == Runner::Bash && r.program.ends_with(".py") {
+                    w.push(issue("program", "Bash runner selected for a .py file."));
+                }
             }
         }
     }
+    let e = &mut v.errors;
     if r.program_args.len() > MAX_ARGS {
         e.push(issue("programArgs", format!("At most {MAX_ARGS} arguments.")));
     }
@@ -325,6 +340,33 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
                 .push(format!("The job will `source {src}`, which is outside your home and owned by someone else. It runs with your account's permissions.")),
             Ok(()) => {}
         }
+    }
+}
+
+/// Terminal commands: present, bounded, plain text, no program or arguments alongside.
+fn validate_commands(r: &JobRequest, v: &mut Validation) {
+    let c = r.commands.as_deref().unwrap_or("");
+    if c.trim().is_empty() {
+        v.errors.push(issue("commands", "Enter at least one command."));
+        return;
+    }
+    if c.len() > MAX_COMMANDS_BYTES {
+        v.errors.push(issue("commands", "Commands are limited to 16 KB; put longer work in a script file."));
+    }
+    if c.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
+        v.errors.push(issue("commands", "Commands must be plain text (no control characters or Windows line endings)."));
+    }
+    if !r.program.is_empty() || !r.program_args.is_empty() {
+        v.errors.push(issue("commands", "Terminal commands run on their own: leave the script and its arguments empty."));
+    }
+    if c.contains("$0") {
+        v.warnings.push(issue(
+            "commands",
+            "`$0` is SLURM's private copy of the batch script, not a file in your project, so `$(dirname \"$0\")` is not your folder. The commands already start in the working directory.",
+        ));
+    }
+    if c.lines().any(|l| l.trim_start().starts_with("#SBATCH")) {
+        v.warnings.push(issue("commands", "`#SBATCH` lines among the commands are ignored by SLURM; use the form's fields instead."));
     }
 }
 
@@ -353,10 +395,16 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
     if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("source {}\n", shell_quote(&format!("{env}/bin/activate")));
     }
+    if r.runner == Runner::Commands {
+        s += &format!("# Your commands, exactly as typed. They start in {wd}; the job stops at the first failing command.\n");
+        s += r.commands.as_deref().unwrap_or("").trim_end();
+        s.push('\n');
+        return s;
+    }
     let exe = match (r.runner, r.python_env.as_deref().is_some_and(|x| !x.is_empty())) {
         (Runner::Python, true) => "python",
         (Runner::Python, false) => "python3",
-        (Runner::Bash, _) => "bash",
+        (Runner::Bash, _) | (Runner::Commands, _) => "bash",
     };
     s += &format!("exec {exe} {}", shell_quote(&r.program_path()));
     for a in &r.program_args {
