@@ -1,4 +1,4 @@
-import { BackButton, Badge, Dialog, EmptyState, Icon, Notice, Row } from '../components/ui';
+import { BackButton, Badge, CollapsibleCard, Dialog, EmptyState, Icon, Notice, Row } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { formatTime } from '../../logic/format';
 import { homePrefix, useEnvPanel } from '../../logic/projects/env';
@@ -148,7 +148,7 @@ function ProjectDetail({
         </Notice>
       )}
       {launchError && <Notice tone="bad">{launchError}</Notice>}
-      <VsCodePanel status={status} />
+      <VsCodePanel status={status} collapsible />
       <EnvPanel
         project={project}
         onChanged={refresh}
@@ -176,18 +176,44 @@ function ProjectDetail({
   );
 }
 
-export function VsCodePanel({ status }: { status: ConnectionStatus }) {
+export function VsCodePanel({ status, collapsible = false }: { status: ConnectionStatus; collapsible?: boolean }) {
   const { q, recheck, copied, copySnippet, openGuide } = useVsCodeStatus(status);
   const v = q.data;
   const via = v?.alias.proxyJump ?? (v?.alias.usesProxyCommand ? 'ProxyCommand' : null);
-  return (
-    <section className="card" aria-labelledby="vscode-title">
-      <div className="card-head">
-        <h3 id="vscode-title">VS Code</h3>
-        <button className="btn ghost" onClick={recheck} disabled={q.isFetching}>
-          {q.isFetching ? 'Checking…' : 'Check again'}
-        </button>
-      </div>
+  const actions = (
+    <button className="btn ghost" onClick={recheck} disabled={q.isFetching}>
+      {q.isFetching ? 'Checking…' : 'Check again'}
+    </button>
+  );
+  const summary = v && (
+    <>
+      {v.install ? (
+        <Badge tone="ok" glyph="✓">
+          VS Code {v.install.version ?? ''}
+        </Badge>
+      ) : (
+        <Badge tone="bad" glyph="✕">
+          VS Code not found
+        </Badge>
+      )}
+      {v.install?.remoteSsh ? (
+        <Badge tone="ok" glyph="✓">
+          Remote - SSH
+        </Badge>
+      ) : (
+        <Badge tone="bad" glyph="✕">
+          No Remote - SSH
+        </Badge>
+      )}
+      {v.problems.length > 0 && (
+        <Badge tone="warn" glyph="!">
+          Needs setup
+        </Badge>
+      )}
+    </>
+  );
+  const body = (
+    <>
       {q.error && <Notice tone="bad">{errorMessage(q.error)}</Notice>}
       {v && (
         <>
@@ -277,6 +303,21 @@ export function VsCodePanel({ status }: { status: ConnectionStatus }) {
           )}
         </>
       )}
+    </>
+  );
+  if (collapsible)
+    return (
+      <CollapsibleCard id="vscode" title="VS Code" summary={summary} actions={actions}>
+        {body}
+      </CollapsibleCard>
+    );
+  return (
+    <section className="card" aria-labelledby="vscode-title">
+      <div className="card-head">
+        <h3 id="vscode-title">VS Code</h3>
+        {actions}
+      </div>
+      {body}
     </section>
   );
 }
@@ -339,15 +380,40 @@ function EnvPanel({
   const version = info?.version ?? null;
   const cudaMatch = torchCuda && tc?.cuda ? torchCuda === tc.cuda : null;
 
+  const summary = (
+    <>
+      {project.interpreter ? (
+        <Badge tone="ok" glyph="✓">
+          {version ? `Python ${version}` : 'Python'}
+          {info?.envType ? ` · ${info.envType}` : ''}
+        </Badge>
+      ) : (
+        <Badge tone="warn" glyph="!">
+          No interpreter selected
+        </Badge>
+      )}
+      {tc ? (
+        <Badge tone={cudaMatch === false ? 'warn' : 'info'} glyph={cudaMatch === false ? '!' : undefined}>
+          {tc.cuda ? `CUDA ${tc.cuda} toolchain` : tc.label}
+          {cudaMatch === false ? ` · PyTorch built for ${torchCuda}` : ''}
+        </Badge>
+      ) : (
+        <Badge tone="muted">No CUDA toolchain</Badge>
+      )}
+    </>
+  );
+
   return (
-    <section className="card" aria-labelledby="env-title">
-      <div className="card-head">
-        <h3 id="env-title">Python environment</h3>
+    <CollapsibleCard
+      id="env"
+      title="Python environment"
+      summary={summary}
+      actions={
         <button className="btn" onClick={() => void discover()} disabled={busy}>
           {busy ? 'Checking on ICF…' : report ? 'Check again' : 'Discover interpreters'}
         </button>
-      </div>
-
+      }
+    >
       <div className={`env-hero${project.interpreter ? ' is-set' : ''}`}>
         <span className={`list-glyph tone-${project.interpreter ? 'ok' : 'muted'}`}>
           <Icon name="code" size={22} />
@@ -542,7 +608,7 @@ function EnvPanel({
           </div>
         </Dialog>
       )}
-    </section>
+    </CollapsibleCard>
   );
 }
 

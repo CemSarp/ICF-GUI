@@ -29,6 +29,9 @@
   goes with everything in it, and deleting a link never touches what it points to (ADR-032).
 
 ### Changed
+- On a project's page, the **VS Code** and **Python environment** cards fold to a one-line status
+  (VS Code and Remote - SSH found; selected Python and CUDA toolchain) and open on click. The app
+  remembers which ones you keep open.
 - `.ipynb` files open in the Notebooks tab instead of the file editor.
 - Settings → Jupyter and the batch-notebook notice describe interactive kernels instead of "disabled".
 - The app now uses `srun` for exactly one thing, the kernel you start from a notebook or the editor

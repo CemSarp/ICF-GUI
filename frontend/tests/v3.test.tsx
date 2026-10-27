@@ -19,6 +19,11 @@ async function openProject() {
   return screen.findByRole('heading', { name: v3.PROJECT });
 }
 
+/** The VS Code and Python environment cards start collapsed. */
+async function expand(name: string) {
+  await userEvent.click(await screen.findByRole('button', { name, expanded: false }));
+}
+
 describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
   beforeEach(() =>
     backend.reset(connectedLive, {
@@ -79,6 +84,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
   it('shows actionable problems when Remote - SSH or the ssh config is missing', async () => {
     backend.handlers.vscode_status = () => v3.vscodeStatus(false);
     await openProject();
+    await expand('VS Code');
     expect(await screen.findByText(/Remote - SSH extension .* is not installed/)).toBeInTheDocument();
     expect(screen.getByLabelText('Suggested ~/.ssh/config block')).toHaveTextContent('ProxyJump edinburgh-jump');
     expect(screen.getByText(/the app never edits that file/)).toBeInTheDocument();
@@ -86,6 +92,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
 
   it('discovers interpreters on request, selects one and writes settings only after preview + confirmation', async () => {
     await openProject();
+    await expand('Python environment');
     expect(backend.count('python_discover')).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Discover interpreters' }));
     const row = (await screen.findByText('/usr/bin/python3')).closest('li')!;
@@ -115,6 +122,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
       manualSnippet: '{\n  "python.defaultInterpreterPath": "/x"\n}\n',
     });
     await openProject();
+    await expand('Python environment');
     await userEvent.click(screen.getByRole('button', { name: 'Set as VS Code interpreter…' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/not plain JSON/)).toBeInTheDocument();
@@ -185,8 +193,24 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     expect(screen.getByRole('button', { name: 'Runs' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('folds VS Code and Python environment to a summary until opened, and remembers that', async () => {
+    await openProject();
+    const env = screen.getByRole('button', { name: 'Python environment' });
+    expect(env).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Discover interpreters' })).toBeNull();
+    const card = screen.getByRole('region', { name: 'Python environment' });
+    expect(within(card).getByText(/Python 3\.12\.4 · venv/)).toBeInTheDocument();
+    expect(within(card).getByText('CUDA 12.8 toolchain')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'VS Code' })).getByText(/VS Code 1\./)).toBeInTheDocument();
+    await userEvent.click(env);
+    expect(env).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Discover interpreters' })).toBeInTheDocument();
+    expect(localStorage.getItem('icfcc.fold.env')).toBe('true');
+  });
+
   it('offers the GPU smoke test as a short SLURM job, never on the login node', async () => {
     await openProject();
+    await expand('Python environment');
     await userEvent.click(screen.getByRole('button', { name: /Run the GPU smoke test/ }));
     await screen.findByRole('heading', { name: 'Workflow' });
     expect(screen.getByLabelText('GPU smoke test')).toBeChecked();

@@ -137,6 +137,10 @@ with unsaved edits asks first.
 
 ### Python environment
 
+On a project's page the **VS Code** and **Python environment** cards start folded to one line that
+shows their status (VS Code and Remote - SSH found; the selected Python and CUDA toolchain). Click
+the title to open or close a card; the app remembers your choice.
+
 **Discover interpreters** checks `.venv`, `venv`, `env` in the project, interpreters you used before,
 the system `python3` and a path you type (e.g. `~/projects/icf-env/bin/python`). Each one runs a tiny
 `python -I -c` on the login node that reports its version and installed package versions (PyTorch,

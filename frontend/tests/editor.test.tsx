@@ -160,6 +160,7 @@ describe('Sign VS Code in through this app', () => {
 
   it('shows both local changes and applies them only after confirmation', async () => {
     await openProject();
+    await userEvent.click(await screen.findByRole('button', { name: 'VS Code', expanded: false }));
     await userEvent.click(await screen.findByLabelText('Sign VS Code in through this app (no password prompts)'));
     const sheet = await screen.findByRole('dialog', { name: 'Let VS Code reuse this connection?' });
     expect(within(sheet).getByText(/ControlPath/)).toBeInTheDocument();

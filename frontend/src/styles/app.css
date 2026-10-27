@@ -1771,3 +1771,43 @@ input.switch:checked::before {
 input.switch:focus-visible {
   box-shadow: 0 0 0 3px var(--focus);
 }
+
+/* ---------- Collapsible cards (Projects: VS Code, Python environment) ---------- */
+.card.fold:not(.is-open) > .card-head {
+  margin-bottom: 0;
+}
+.fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.fold-toggle::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.75px solid var(--muted);
+  border-bottom: 1.75px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform var(--dur) var(--ease);
+  margin: 0 4px 0 2px;
+}
+.fold-toggle[aria-expanded='true']::before {
+  transform: rotate(45deg);
+}
+.fold-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.fold-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}

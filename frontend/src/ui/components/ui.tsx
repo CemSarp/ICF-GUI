@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { usePersistentState } from '../../logic/persist';
 
 /** Outline icons drawn on a 24-pt grid with SF Symbols-like proportions (1.75 stroke, round caps). */
 const PATHS = {
@@ -145,6 +146,44 @@ export function Row({
       </div>
       {trailing && <div className="list-trailing">{trailing}</div>}
     </div>
+  );
+}
+
+/**
+ * A card that folds to its title and a one-line summary. Starts closed; open or closed is
+ * remembered per card. The header actions only show while it is open.
+ */
+export function CollapsibleCard({
+  id,
+  title,
+  summary,
+  actions,
+  children,
+}: {
+  id: string;
+  title: string;
+  summary?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = usePersistentState(`fold.${id}`, false);
+  return (
+    <section className={`card fold${open ? ' is-open' : ''}`} aria-labelledby={`${id}-title`}>
+      <div className="card-head">
+        <h3 id={`${id}-title`}>
+          <button
+            className="fold-toggle"
+            aria-expanded={open}
+            aria-controls={`${id}-body`}
+            onClick={() => setOpen(!open)}
+          >
+            {title}
+          </button>
+        </h3>
+        {open ? actions : summary && <div className="fold-summary">{summary}</div>}
+      </div>
+      {open && <div id={`${id}-body`}>{children}</div>}
+    </section>
   );
 }
 
