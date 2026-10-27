@@ -81,6 +81,16 @@ Notes:
   window opening (the CLI is exercised with a fake bundle; detection was checked read-only against the
   real install).
 
+## Interactive kernels, the Notebooks tab and Run on GPU (0.5.0)
+
+| Suite | What |
+|---|---|
+| Rust `kernel::tests` (12) | validation (Interactive only, MaxTime, hostile paths, runnable file types, unknown fields), rendering (quoting, one `exec srun`, heredoc delimiters), driver/srun line parsing, oversized lines, final messages |
+| Rust `kernel::tests::real_driver_*`, `closing_stdin_alone_*`, `missing_notebook_*` | the **real** launch script through `/bin/sh -s` with a fake `srun` on `PATH` and the real `driver.py` + ipykernel: handshake, outputs, `stop_on_error` aborts, interrupt, restart, stop, EOF exit, precheck refusal; after the restart, compiled cells: `%%cpp` with args and a local header, a compile error, `%%c` exit codes and `-lm`, `%%cuda` without `nvcc`, `%%icfcc_script` with `sys.argv` and `sys.exit(2)` (g++/gcc cases need the compilers; CI's macos-14 has them). Needs a Python with `ipykernel` (`ICFCC_TEST_PYTHON`; CI installs one in a throwaway venv), else skipped |
+| Rust `workflow::tests::toolchain_lines_are_rendered_exactly` | the shared toolchain lines keep the batch wrapper byte-identical |
+| Frontend `tests/notebooks.test.tsx` (14) | Markdown/HTML whitelisting (scripts, styles, `on*`, remote images, `javascript:` links), ANSI and progress bars, stream merging, MIME priority, Jupyter keys, byte-for-byte serialisation; Notebooks tab: open from Projects, save only edited source, reviewed kernel start, live run + saved outputs, Run all stops at the first error, leave guard stops the kernel, full screen, command-mode keys; cell language from the magic line, switching a cell to CUDA from its menu |
+| Frontend `tests/run.test.tsx` (5) | which files run and the cell sent for each; editor Run on GPU for CUDA (unsaved text, arguments, reviewed kernel start, output panel) and Python (`%%icfcc_script` with the path); leaving asks first and stops the kernel; no run bar for other text files |
+
 ## Live ICF smoke tests (manual, need explicit approval)
 
 See the test table in `docs/examples/workflow-smoke/README.md`. `make_dataset.py` output was checked locally against the

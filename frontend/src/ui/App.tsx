@@ -19,6 +19,7 @@ import { CONN_STATE, formatTime } from '../logic/format';
 
 // CodeMirror is only needed once a file is opened: keep it out of the startup bundle.
 const EditorView = lazy(() => import('./editor/EditorView').then((m) => ({ default: m.EditorView })));
+const NotebooksView = lazy(() => import('./notebooks/NotebooksView').then((m) => ({ default: m.NotebooksView })));
 
 type NavItem = { id: View; label: string; icon: IconName };
 const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
@@ -43,6 +44,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
     heading: 'Workspace',
     items: [
       { id: 'projects', label: 'Projects', icon: 'folder' },
+      { id: 'notebooks', label: 'Notebooks', icon: 'notebook' },
       { id: 'transfers', label: 'Transfers', icon: 'transfers' },
     ],
   },
@@ -85,8 +87,13 @@ export function App() {
     uploadDir,
     editingFile,
     setEditingFile,
-    editorDirty,
-    setEditorDirty,
+    openNotebook,
+    setOpenNotebook,
+    guard,
+    setGuard,
+    focusMode,
+    toggleFocus,
+    openFile,
     pendingLeave,
     setPendingLeave,
     startTraining,
@@ -104,7 +111,7 @@ export function App() {
 
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
-  }, [view, selectedNode, selectedJob, project, selectedRun, editingFile]);
+  }, [view, selectedNode, selectedJob, project, selectedRun, editingFile, openNotebook]);
 
   if (!live) {
     return (
@@ -118,7 +125,7 @@ export function App() {
   const conn = CONN_STATE[status.state];
 
   return (
-    <div className="shell">
+    <div className={focusMode && view === 'notebooks' ? 'shell focus' : 'shell'}>
       <a href="#main" className="skip">
         Skip to content
       </a>
@@ -231,7 +238,10 @@ export function App() {
         </header>
 
         <main id="main" tabIndex={-1} ref={mainRef} className="main">
-          <div className="page" key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}|${editingFile ?? ''}`}>
+          <div
+            className={view === 'notebooks' ? 'page wide' : 'page'}
+            key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}|${editingFile ?? ''}`}
+          >
             <h1 className="page-title">{NAV.find((n) => n.id === view)?.label}</h1>
             {view === 'projects' && editingFile ? (
               <Suspense
@@ -241,7 +251,16 @@ export function App() {
                   </div>
                 }
               >
-                <EditorView path={editingFile} onClose={() => setEditingFile(null)} onDirtyChange={setEditorDirty} />
+                <EditorView
+                  path={editingFile}
+                  status={status}
+                  snapshot={snapshot}
+                  onClose={() => {
+                    setGuard(null);
+                    setEditingFile(null);
+                  }}
+                  onGuard={setGuard}
+                />
               </Suspense>
             ) : view === 'projects' ? (
               <ProjectsView
@@ -251,9 +270,33 @@ export function App() {
                 nav={{
                   onStartTraining: (init) => startTraining(init),
                   onUpload: uploadTo,
-                  onEditFile: setEditingFile,
+                  onEditFile: openFile,
                 }}
               />
+            ) : view === 'notebooks' ? (
+              <Suspense
+                fallback={
+                  <div className="skeleton" aria-busy="true">
+                    Opening Notebooks…
+                  </div>
+                }
+              >
+                <NotebooksView
+                  status={status}
+                  snapshot={snapshot}
+                  path={openNotebook}
+                  startDir={project}
+                  focus={focusMode}
+                  onToggleFocus={toggleFocus}
+                  onOpen={setOpenNotebook}
+                  onClose={() => {
+                    setGuard(null);
+                    if (focusMode) toggleFocus();
+                    setOpenNotebook(null);
+                  }}
+                  onGuard={setGuard}
+                />
+              </Suspense>
             ) : view === 'training' ? (
               <RunsView
                 status={status}
@@ -330,13 +373,24 @@ export function App() {
       </div>
       {pendingLeave && (
         <Dialog
-          title={pendingLeave === 'disconnect' ? 'Disconnect from ICF?' : 'Discard unsaved changes?'}
+          title={
+            pendingLeave === 'disconnect'
+              ? 'Disconnect from ICF?'
+              : guard?.dirty
+                ? 'Discard unsaved changes?'
+                : 'Stop the kernel?'
+          }
           labelledBy="leave-title"
           onClose={() => setPendingLeave(null)}
         >
-          {editorDirty && (
+          {guard?.dirty && (
             <p>
-              Your edits to <code>{editingFile?.split('/').pop()}</code> have not been saved to ICF and will be lost.
+              Your edits to <code>{guard.name}</code> have not been saved to ICF and will be lost.
+            </p>
+          )}
+          {guard?.kernel && (
+            <p>
+              The kernel of <code>{guard.name}</code> stops and its GPU is released.
             </p>
           )}
           {pendingLeave === 'disconnect' && vscodeInUse && (
@@ -344,12 +398,14 @@ export function App() {
           )}
           <div className="actions">
             <button className="btn" onClick={() => setPendingLeave(null)} data-autofocus>
-              {editorDirty ? 'Keep editing' : 'Stay connected'}
+              {guard?.dirty ? 'Keep editing' : guard ? 'Stay' : 'Stay connected'}
             </button>
             <button className="btn danger" onClick={confirmLeave}>
               {pendingLeave !== 'disconnect'
-                ? 'Discard changes'
-                : editorDirty
+                ? guard?.dirty
+                  ? 'Discard changes'
+                  : 'Stop kernel and leave'
+                : guard?.dirty
                   ? 'Discard and disconnect'
                   : 'Disconnect'}
             </button>

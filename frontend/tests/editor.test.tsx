@@ -2,7 +2,6 @@ import { EditorView } from '@codemirror/view';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { parseNotebook, serializeNotebook } from '../src/logic/editor/notebook';
 import { backend, connectedLive } from './mockBackend';
 import { renderApp } from './render';
 import * as v3 from './v3Fixtures';
@@ -90,23 +89,6 @@ describe('In-app editor', () => {
     expect(saves()).toHaveLength(0);
   });
 
-  it('edits a notebook cell and saves only that cell’s source', async () => {
-    const path = `${v3.PROJECT}/analysis.ipynb`;
-    await openFile('analysis.ipynb');
-    expect(screen.getByText('KeyError: 44')).toBeInTheDocument(); // read-only output, ANSI stripped
-    edit(1, '  # cell edited'); // second cell (the first code cell)
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await screen.findByText('Saved to ICF.');
-    const before = JSON.parse(v3.FILES[path]!);
-    const after = JSON.parse(saves()[0]!.args.content as string);
-    expect(after.cells[1].source).toEqual([
-      'for seed in (42, 43):\n',
-      '    print(f"seed {seed}: {score[seed]:.3f}")  # cell edited',
-    ]);
-    after.cells[1].source = before.cells[1].source;
-    expect(after).toEqual(before); // outputs, metadata, ids and execution counts untouched
-  });
-
   it('creates a new file without overwriting and opens it in the editor', async () => {
     await openProject();
     await userEvent.click(await screen.findByRole('button', { name: 'New file…' }));
@@ -125,16 +107,51 @@ describe('In-app editor', () => {
       { dir: v3.PROJECT, name: 'saxpy.cu', content: '' },
     ]);
   });
+});
 
-  it('serialises an untouched notebook byte-for-byte', () => {
-    const text = v3.FILES[`${v3.PROJECT}/analysis.ipynb`]!;
-    const p = parseNotebook(text);
-    expect(
-      serializeNotebook(
-        p,
-        p.nb.cells.map((cell) => ({ cell, text: [cell.source].flat().join('') })),
-      ),
-    ).toBe(text);
+describe('Deleting files and folders', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('deletes a file only after confirmation, and says a folder goes with everything in it', async () => {
+    await openProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    let sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    expect(within(sheet).getByText(`${v3.PROJECT}/train.py`)).toBeInTheDocument();
+    expect(within(sheet).getByText(/cannot be undone/)).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+    expect(backend.count('files_delete')).toBe(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete train.py' })).not.toBeInTheDocument());
+    expect(backend.calls.find((c) => c.cmd === 'files_delete')!.args).toEqual({
+      dir: v3.PROJECT,
+      name: 'train.py',
+      kind: 'file',
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete data' }));
+    sheet = screen.getByRole('dialog', { name: 'Delete this folder?' });
+    expect(within(sheet).getByText(/everything inside it/)).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete folder' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete data' })).not.toBeInTheDocument());
+    expect(backend.count('files_delete')).toBe(2);
+  });
+
+  it('shows why a delete failed and keeps the sheet open', async () => {
+    backend.reset(connectedLive, {
+      files_delete: () => {
+        throw { code: 'INVALID_INPUT', message: 'It changed on ICF since the folder was listed. Nothing was deleted.' };
+      },
+    });
+    await openProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete train.py' }));
+    const sheet = screen.getByRole('dialog', { name: 'Delete this file?' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete' }));
+    expect(await within(sheet).findByText(/Nothing was deleted/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete train.py' })).toBeInTheDocument();
   });
 });
 

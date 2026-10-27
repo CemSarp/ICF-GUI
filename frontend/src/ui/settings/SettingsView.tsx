@@ -142,13 +142,13 @@ export function SettingsView({
           <strong>Batch notebooks</strong> are supported: New job → Training workflow → "Notebook, batch execution" runs
           a notebook top to bottom on a GPU node and saves the executed copy with the results.
         </p>
-        <Notice tone="info" title="Interactive Jupyter is disabled">
-          A safe interactive session needs Jupyter bound to 127.0.0.1 on the allocated compute node and an SSH tunnel to
-          that node. Whether ICF lets users SSH into the node running their job, and how those host keys are verified,
-          has not been confirmed, and binding Jupyter to a cluster-visible address would expose it to other users. Until
-          this is verified with Informatics, the app does not start interactive notebook servers or hold idle GPU
-          allocations.
-        </Notice>
+        <p>
+          <strong>Interactive kernels</strong> (experimental): open a notebook in the Notebooks tab and start a kernel
+          to run cells one at a time on a GPU node of the Interactive partition. The kernel is started with{' '}
+          <code>srun</code> and reached over this app&apos;s own SSH connection, with no notebook server, port forward
+          or token. It stops, and the GPU is released, when you stop it, leave the notebook, disconnect, after 30
+          minutes without running a cell, or at its time limit.
+        </p>
       </section>
 
       <section className="card">

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import type { AppError, FileContent } from '../../types';
 import { fileKind } from './languages';
-import { parseNotebook, type ParsedNotebook } from './notebook';
+import { parseNotebook, type ParsedNotebook } from '../notebooks/notebook';
 
 const isConflict = (e: unknown) => (e as AppError | undefined)?.code === 'CONFLICT';
 
@@ -83,6 +83,8 @@ export function useFileEditor(path: string, onDirtyChange: (dirty: boolean) => v
   };
 
   return {
+    /** The editor's current text (also unsaved edits). */
+    currentText: () => (kind === 'notebook' ? (serialize.current?.() ?? '') : text.current),
     kind,
     file,
     notebook,

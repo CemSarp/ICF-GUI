@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "file-mutations",
-  "description": "V3 commands that write files: create one folder in the remote home, replace .vscode/settings.json after a reviewed preview (with backup), turn VS Code connection sharing on/off (an app-managed ssh config plus one reviewed, backed-up key in VS Code's local settings.json; never ~/.ssh/config), create a new file (never overwriting) or save a file from the in-app editor only if it is unchanged on ICF since it was opened, upload/download/resume a file through sftp (verified, never overwriting), and discard the app's own partial transfer files.",
+  "description": "V3 commands that write files: create one folder in the remote home, replace .vscode/settings.json after a reviewed preview (with backup), turn VS Code connection sharing on/off (an app-managed ssh config plus one reviewed, backed-up key in VS Code's local settings.json; never ~/.ssh/config), create a new file (never overwriting) or save a file from the in-app editor only if it is unchanged on ICF since it was opened, upload/download/resume a file through sftp (verified, never overwriting), discard the app's own partial transfer files, and delete one listed file, link or folder (with everything in it) after confirmation.",
   "windows": [
     "main"
   ],
@@ -15,6 +15,7 @@
     "allow-files-write",
     "allow-vscode-share-apply",
     "allow-vscode-share-disable",
-    "allow-files-create"
+    "allow-files-create",
+    "allow-files-delete"
   ]
 }

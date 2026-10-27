@@ -1,6 +1,52 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] — 2026-10-24 · Notebooks
+
+### Added
+- **Notebooks tab** (Workspace). Opens `.ipynb` files from Projects or its own browser, with recent
+  notebooks. The page reads like JupyterLab: rendered Markdown (headings, lists, tables, code,
+  attached images) until double-clicked, code cells with `[n]` prompts, outputs with tables (pandas),
+  images and SVG plots, coloured tracebacks, collapsed progress bars, a toolbar per cell, insert bars,
+  run timings and Jupyter keys (⇧/⌘/⌥ Enter, A/B, M/Y, D D, I I, 0 0). New notebooks from New file….
+- **Interactive kernels (experimental, ADR-031).** Start kernel… reviews the resources on an
+  Interactive partition, the project's Python and toolchain, the exact `srun` line and every notice.
+  Cells then run one at a time on the GPU node and keep their variables; Save writes outputs into the
+  notebook. No notebook server, port forward or token: the kernel talks to the app over the app's own
+  SSH connection. It stops on Stop, leaving the notebook (asked first), Disconnect or quit, after 30
+  minutes without running a cell, or at its time limit; Interrupt and Restart work as in Jupyter.
+- **Full screen** for notebooks (button or ⌃⌘F): hides the sidebar and status bar and makes the
+  window full screen.
+- **CUDA, C++ and C cells.** Pick CUDA, C++ or C in a cell's type menu (or start the cell with
+  `%%cuda`, `%%cpp` or `%%c`): the cell is compiled with `nvcc`, `g++` or `gcc` on the GPU node and run
+  there, with its output streamed into the notebook. Compiler flags go on the first line, program
+  arguments after `--`; headers next to the notebook are found. `nvcc` targets the allocated GPU
+  (`-arch=native`) unless you pass an architecture. The kernel chip lists the compilers it found.
+- **Run on GPU in the file editor.** Python, CUDA, C++ and C files get a run bar: start a kernel,
+  type program arguments and press **Run on GPU** (⌘⇧Enter). The current text runs, saved or not, and
+  the output appears below the editor. Leaving the file stops the kernel (asked first).
+- **Delete files and folders on ICF.** The project and notebook file lists have **Delete** on each
+  file, folder and link. A confirmation names the full path and says it cannot be undone; a folder
+  goes with everything in it, and deleting a link never touches what it points to (ADR-032).
+
+### Changed
+- `.ipynb` files open in the Notebooks tab instead of the file editor.
+- Settings → Jupyter and the batch-notebook notice describe interactive kernels instead of "disabled".
+- The app now uses `srun` for exactly one thing, the kernel you start from a notebook or the editor
+  (docs updated).
+
+### Fixed
+- Number fields (GPUs, CPUs, RAM, wall time, kernel resources, workflow settings) can be emptied
+  while typing: clearing "12" to type "8" no longer shows 0 or 08.
+- Kernels that take more than about a second to start (a cold start on a busy node) no longer end
+  with `kernel_start_failed: RuntimeError`: the driver waited on jupyter_client's 1 s heartbeat,
+  which counted a slow start as a dead kernel. It now waits up to 2 minutes and calls a kernel dead
+  only when its process has exited. A kernel that does fail to start shows Python's own error line.
+
+### Internal
+- New command `files_delete` in `file-mutations.json`.
+- New capability `kernel-mutations.json`; `kernel_preview` and window full screen in `default.json`.
+- New dependency: `markdown-it` 14.1.0 (used as a parser only).
+- CI installs `ipykernel` in a throwaway venv so the real relay test runs.
 
 ## [0.4.1] — 2026-10-24 · Housekeeping
 

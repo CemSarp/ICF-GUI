@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Badge, Dialog, EmptyState, Icon, Notice } from '../components/ui';
+import { Badge, Dialog, EmptyState, Icon, Notice, NumberInput } from '../components/ui';
 import { bytes, formatTime, nominalVram } from '../../logic/format';
 import { useTrainingWizard } from '../../logic/training/useTrainingWizard';
 import { expandHome, importCounts, isArchiveName, type Draft, type WizardInit } from '../../logic/training/wizardDraft';
@@ -299,8 +299,8 @@ export function TrainingWizard({
           {draft.kind === 'notebook' && (
             <Notice tone="info">
               The notebook is executed top to bottom on the compute node with <code>nbconvert</code> (must be installed
-              in the environment) and the executed copy is saved with the results. Interactive Jupyter sessions are not
-              offered (see Settings).
+              in the environment) and the executed copy is saved with the results. To run cells one at a time instead,
+              open the notebook in the Notebooks tab and start an interactive kernel.
             </Notice>
           )}
 
@@ -525,12 +525,11 @@ export function TrainingWizard({
               issues={issues}
               help="Staging fails early if the node's scratch disk cannot hold data plus this"
             >
-              <input
+              <NumberInput
                 id="w-expectedOutputGib"
-                type="number"
                 min={0}
                 value={draft.expectedOutputGib}
-                onChange={(e) => set('expectedOutputGib', Number(e.target.value))}
+                onChange={(n) => set('expectedOutputGib', n)}
               />
             </Field>
           </div>
@@ -606,13 +605,12 @@ export function TrainingWizard({
           <div className="grid-4">
             {draft.checkpointMode === 'scratch_sync' && (
               <Field label="Sync every (minutes)" field="checkpointSyncMinutes" issues={issues}>
-                <input
+                <NumberInput
                   id="w-checkpointSyncMinutes"
-                  type="number"
                   min={5}
                   max={720}
                   value={draft.checkpointSyncMinutes}
-                  onChange={(e) => set('checkpointSyncMinutes', Number(e.target.value))}
+                  onChange={(n) => set('checkpointSyncMinutes', n)}
                 />
               </Field>
             )}
@@ -622,13 +620,12 @@ export function TrainingWizard({
               issues={issues}
               help="SIGTERM to your program this long before the time limit"
             >
-              <input
+              <NumberInput
                 id="w-signalGraceSeconds"
-                type="number"
                 min={60}
                 max={1800}
                 value={draft.signalGraceSeconds}
-                onChange={(e) => set('signalGraceSeconds', Number(e.target.value))}
+                onChange={(n) => set('signalGraceSeconds', n)}
               />
             </Field>
           </div>
@@ -694,50 +691,30 @@ export function TrainingWizard({
           </div>
           <div className="grid-4">
             <Field label="GPUs" field="gpuCount" issues={issues} help={`Max ${maxGpus} on one node`}>
-              <input
+              <NumberInput
                 id="w-gpuCount"
-                type="number"
                 min={1}
                 max={maxGpus}
                 value={draft.gpuCount}
-                onChange={(e) => set('gpuCount', Number(e.target.value))}
+                onChange={(n) => set('gpuCount', n)}
               />
             </Field>
             <Field label="CPUs" field="cpus" issues={issues}>
-              <input
-                id="w-cpus"
-                type="number"
-                min={1}
-                value={draft.cpus}
-                onChange={(e) => set('cpus', Number(e.target.value))}
-              />
+              <NumberInput id="w-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
             </Field>
             <Field label="RAM (GB)" field="memoryMib" issues={issues}>
-              <input
-                id="w-memoryMib"
-                type="number"
-                min={1}
-                value={draft.memoryGb}
-                onChange={(e) => set('memoryGb', Number(e.target.value))}
-              />
+              <NumberInput id="w-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
             </Field>
             <Field label="Wall time" field="timeLimitSeconds" issues={issues}>
               <div className="input-row" id="w-timeLimitSeconds">
-                <input
-                  aria-label="Hours"
-                  type="number"
-                  min={0}
-                  value={draft.hours}
-                  onChange={(e) => set('hours', Number(e.target.value))}
-                />
+                <NumberInput aria-label="Hours" min={0} value={draft.hours} onChange={(n) => set('hours', n)} />
                 <span className="muted">h</span>
-                <input
+                <NumberInput
                   aria-label="Minutes"
-                  type="number"
                   min={0}
                   max={59}
                   value={draft.minutes}
-                  onChange={(e) => set('minutes', Number(e.target.value))}
+                  onChange={(n) => set('minutes', n)}
                 />
                 <span className="muted">m</span>
               </div>

@@ -58,8 +58,9 @@ that accepted your last job shows *✓ accepted your last job* and needs no elig
 one that rejected your account shows *rejected you before* and warns before review. In My Jobs, **✕**
 hides a finished submission from the list (it is still remembered for this purpose).
 
-Use **Teaching** for normal training. **Interactive** is for short debugging; the app only ever uses
-`sbatch` and never holds an interactive GPU shell open.
+Use **Teaching** for normal training. **Interactive** is for short debugging: batch jobs there use
+`sbatch` like any other, and the Notebooks tab can start an interactive kernel there (see
+[Notebooks](#notebooks)). The app never opens an interactive GPU shell.
 
 ### Allocated vs utilised
 A job that is *Pending* holds no GPU. When *Running*, SLURM has allocated the GPU to you, whether or
@@ -78,7 +79,7 @@ jobs (`sacct`, when the site provides it). Open a job for scheduler details, fai
 ## Projects and VS Code
 
 **Projects** (sidebar) lists folders you opened before and lets you browse your ICF home one folder
-at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder…*). Very large folders show the first
+at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder*). Very large folders show the first
 1000 entries. Folders reached through a symlink must still be inside your home. Choose **Open as
 project** on a folder to see its detail page.
 
@@ -117,8 +118,16 @@ without VS Code:
 - **Supported files:** Python, C/C++, CUDA (`.cu`, `.cuh`) and Markdown get colours; other text files
   (`.txt`, `.sh`, `.json`, `.yaml`, …) open as plain text.
 - **Keys:** Tab indents (press Esc, then Tab, to leave the editor). ⌘F searches and ⌘S saves.
-- **Notebooks** (`.ipynb`) open as cells, with outputs shown read-only. You can edit, add, move and
-  delete cells. Saving changes only the cells' source, so outputs and metadata stay as they were.
+- **Notebooks** (`.ipynb`) open in the [Notebooks](#notebooks) tab instead.
+
+**Run on GPU (experimental).** Python (`.py`), CUDA (`.cu`), C++ (`.cpp`, `.cc`, `.cxx`) and C (`.c`)
+files have a run bar above the editor. **Start kernel…** reviews an interactive kernel exactly as in
+the [Notebooks](#notebooks) tab; then type the program's arguments and press **Run on GPU** (⌘⇧Enter).
+The text in the editor runs, saved or not, in the file's folder on the GPU node: Python as a script
+(`__name__ == "__main__"`, `sys.argv` set), CUDA/C++/C compiled first (see
+[compiled cells](#cuda-c-and-c-cells) for the compiler options). Output appears below the editor; a
+compile error or a non-zero exit code is shown in red. The kernel keeps running between runs and stops
+when you leave the file (the app asks first), like a notebook's.
 
 **Saving.** Save writes to ICF only if nobody changed the file since you opened it, for example in
 VS Code. If someone did, you choose **Reload from ICF** or **Overwrite the version on ICF**. Leaving
@@ -227,12 +236,72 @@ this submission* before submitting again.
 The Runs screen checks SLURM and the runs' status files at most once a minute, only while it is
 visible and a run is still active.
 
-### Jupyter
+### Batch notebooks
 
-Notebooks run as **batch jobs** (workflow type *Notebook*): executed top to bottom on the GPU node with
-`nbconvert` (install it in your environment), and the executed notebook is saved with the results.
-Interactive Jupyter servers are **not offered**: a safe version needs SSH access to the compute node,
-which is not confirmed for ICF (see Settings → Jupyter).
+A notebook can also run as a **batch job** (workflow type *Notebook*): executed top to bottom on the
+GPU node with `nbconvert` (install it in your environment), and the executed notebook is saved with the
+results. Use this for long or unattended runs; use the [Notebooks](#notebooks) tab to work cell by cell.
+
+## Notebooks
+
+The **Notebooks** tab opens `.ipynb` files from your projects (click one in Project files, or use
+**Open a notebook on ICF**; **New file…** there creates an empty notebook). Recent notebooks are listed
+for one-click reopening.
+
+**The page.** Notebooks look as they do in JupyterLab: Markdown cells are rendered (headings, lists,
+tables, code, images attached to the cell) until you double-click them; code cells show `[n]:` prompts
+and their outputs: text, coloured errors, progress bars, tables (e.g. pandas), images and plots. Each
+selected cell has a small toolbar (type, move, clear output, delete), and hovering between cells shows
+**+ Code** / **+ Markdown**. Links are shown, not opened.
+
+**Interactive kernel (experimental).** Click **Start kernel…**, check the resources (an Interactive
+partition, GPU type and count, CPUs, memory, time limit up to the partition's maximum) and the Python
+environment (taken from the notebook's project; it needs `ipykernel`: `pip install ipykernel`), then
+**Review**. The sheet shows the exact `srun` line and the notices to confirm; **Start kernel** asks SLURM
+for the GPU. The chip shows *Queued · job N* until it starts, then the Python version, the node and the
+time left. Variables stay in memory between cells. Outputs appear as they arrive, and **Save** writes
+them into the notebook, as Jupyter does.
+
+The kernel holds the GPU until you **Stop** it, leave the notebook or disconnect (the app asks first),
+after 30 minutes without running a cell, or at its time limit. **Interrupt** stops the running cell;
+**Restart** clears all variables. *Run all* stops at the first error.
+
+### CUDA, C and C++ cells
+
+Choose **CUDA**, **C++** or **C** in a cell's type menu, or start a code cell with `%%cuda`, `%%cpp` or
+`%%c` (the notebook stays an ordinary Jupyter notebook). Running the cell compiles it on the GPU node
+and runs the program there; its output streams into the cell:
+
+```
+%%cuda -O3 -lcublas -- 1048576
+#include <cstdio>
+int main(int argc, char **argv) { … }
+```
+
+- **First line:** compiler flags, then `--` and the program's arguments.
+- **Compilers:** `nvcc -O2 -arch=native` (the GPU of your allocation; pass `-arch=sm_75` or
+  `-gencode …` to choose, e.g. for CUDA older than 11.6), `g++ -std=c++17 -O2`, `gcc -O2`. Headers in
+  the notebook's folder are found (`-I`), and the program runs in that folder.
+- **`nvcc` comes from the project's CUDA toolchain** (Projects → Python environment); choose one before
+  starting the kernel. The kernel chip's tooltip lists the compilers it found.
+- **Errors:** compiler messages appear in the cell, and a failed build or a non-zero exit code marks the
+  cell as an error, so *Run all* stops there. **Interrupt** stops a running program.
+- Each run is a new process: C/C++ variables do not persist between cells, unlike Python's.
+
+**Full screen.** The ⤢ button (or ⌃⌘F) hides the sidebar and status bar and makes the window full
+screen, like an editor's zen mode.
+
+| Keys (outside a cell's editor) | |
+|---|---|
+| ⇧ Enter / ⌘ Enter / ⌥ Enter | Run, then select next / stay / insert a cell below |
+| Enter, Esc | Edit the selected cell / leave its editor |
+| A / B | Insert a cell above / below |
+| M / Y | Make the cell Markdown / code |
+| D D | Delete the cell |
+| ↑ ↓ (K J) | Select the previous / next cell |
+| I I / 0 0 | Interrupt / restart the kernel |
+
+The keyboard button in the toolbar lists them too.
 
 ## Refresh and load on ICF
 

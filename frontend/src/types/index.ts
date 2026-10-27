@@ -634,6 +634,52 @@ export interface WorkflowPreview {
   prechecks: string[];
 }
 
+/** One nbformat v4 output (stored in a notebook, or streamed live from a kernel). */
+export interface NotebookOutput {
+  output_type: string;
+  name?: string;
+  text?: string | string[];
+  data?: Record<string, string | string[]>;
+  metadata?: Record<string, unknown>;
+  execution_count?: number | null;
+  ename?: string;
+  evalue?: string;
+  traceback?: string[];
+}
+
+/** Interactive Jupyter kernel on an Interactive partition (ADR-031). */
+export interface KernelRequest {
+  /** Notebook or runnable source file (.py .cu .cpp .cc .cxx .c); the kernel runs in its folder. */
+  path: string;
+  interpreter: string;
+  toolchain: Toolchain;
+  resources: WorkflowConfig['resources'];
+}
+
+export interface KernelPreview {
+  previewId: string | null;
+  /** The srun line as reviewed (heredoc bodies left out). */
+  command: string;
+  checksum: string;
+  errors: Issue[];
+  warnings: Issue[];
+  acknowledgements: string[];
+  snapshotAt: string | null;
+  timeLimit: string;
+  prechecks: string[];
+}
+
+export type KernelEvent =
+  | { event: 'starting' }
+  | { event: 'queued'; jobId: string }
+  | { event: 'ready'; jobId: string; node: string; python: string; tools: string; endsAtMs: number }
+  | { event: 'status'; busy: boolean }
+  | { event: 'output'; id: string; output: NotebookOutput }
+  | { event: 'clear'; id: string; wait: boolean }
+  | { event: 'done'; id: string; count: number | null; status: 'ok' | 'error' | 'aborted' }
+  | { event: 'restarted' }
+  | { event: 'ended'; reason: string; message: string };
+
 export interface Preset {
   id: string;
   label: string;

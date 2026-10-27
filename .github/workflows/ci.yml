@@ -16,5 +16,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - working-directory: frontend
         run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
+      # Throwaway venv so the interactive-kernel relay test runs the real driver + ipykernel.
+      - run: python3 -m venv "$RUNNER_TEMP/kvenv" && "$RUNNER_TEMP/kvenv/bin/pip" install -q ipykernel && echo "ICFCC_TEST_PYTHON=$RUNNER_TEMP/kvenv/bin/python" >> "$GITHUB_ENV"
       - working-directory: backend
         run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

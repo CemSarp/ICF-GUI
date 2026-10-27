@@ -535,6 +535,25 @@ impl Session {
         super::run_capture_partial(c, Some(script), timeout, max_bytes).await
     }
 
+    /// A long-lived `sh -s` over the existing master (interactive kernels, ADR-031). The fixed
+    /// script is written to stdin, which stays open for the caller; killing the returned child
+    /// ends the remote session. Never re-authenticates.
+    pub async fn spawn_stream(&self, script: &str) -> AppResult<tokio::process::Child> {
+        if !self.is_alive().await {
+            return Err(AppError::new(ErrorCode::NotConnected, "The SSH session has ended. Connect again to resume."));
+        }
+        self.last_used_ms.store(crate::util::now_ms(), std::sync::atomic::Ordering::Relaxed);
+        let mut c = ssh_command(&self.ssh_bin);
+        c.args(self.mux_args()).args(["-T", "--", &self.profile.ssh_alias, "sh", "-s"]).stdin(std::process::Stdio::piped());
+        let mut child = c.spawn().map_err(|_| AppError::new(ErrorCode::SshUnavailable, "Could not start /usr/bin/ssh"))?;
+        let stdin = child.stdin.as_mut().expect("piped stdin");
+        if tokio::io::AsyncWriteExt::write_all(stdin, script.as_bytes()).await.is_err() {
+            let _ = child.kill().await;
+            return Err(AppError::new(ErrorCode::SshNetwork, "The SSH session closed before the kernel could start."));
+        }
+        Ok(child)
+    }
+
     /// `sftp` over the existing master: same generated config, same ssh binary (`-S`), BatchMode,
     /// batch commands on stdin. It can never trigger a new login; a dead master just fails.
     pub fn sftp_command(&self, sftp_bin: &Path, limit_kbps: Option<u32>) -> tokio::process::Command {

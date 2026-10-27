@@ -26,6 +26,22 @@ fn render_arg(a: &str) -> String {
     }
 }
 
+/// Shell lines that load the CUDA toolchain; `fail` is the caller's failure command prefix
+/// (it gets one reason word). Shared with the interactive kernel step (ADR-031).
+pub(crate) fn toolchain_lines(t: &Toolchain, fail: &str) -> String {
+    let mut s = String::new();
+    match t {
+        Toolchain::None => {}
+        Toolchain::Rc { path } => s += &format!("[ -r {p} ] || {fail} toolchain_missing\nsource {p} || {fail} toolchain_failed\n", p = q(path)),
+        Toolchain::Modules { names } => {
+            s += "if ! command -v module >/dev/null 2>&1; then for f in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh; do if [ -r \"$f\" ]; then . \"$f\"; break; fi; done; fi\n";
+            s += &format!("command -v module >/dev/null 2>&1 || {fail} module_command_missing\n");
+            s += &format!("module load {} || {fail} module_load_failed\n", names.iter().map(|n| q(n)).collect::<Vec<_>>().join(" "));
+        }
+    }
+    s
+}
+
 /// The exact script given to `sbatch` (on stdin). `tag` makes scratch paths and heredoc delimiters unique.
 pub fn render(c: &WorkflowConfig, tag: &str) -> String {
     let r = &c.resources;
@@ -137,15 +153,7 @@ if command -v nvidia-smi >/dev/null 2>&1; then ev GPU "$(nvidia-smi --query-gpu=
 
     // Environment bootstrap (before staging, so a broken environment fails cheaply).
     s += "ev STAGE ENV\nset +u\n";
-    match &c.toolchain {
-        Toolchain::None => {}
-        Toolchain::Rc { path } => s += &format!("[ -r {p} ] || fail ENV_SETUP toolchain_missing\nsource {p} || fail ENV_SETUP toolchain_failed\n", p = q(path)),
-        Toolchain::Modules { names } => {
-            s += "if ! command -v module >/dev/null 2>&1; then for f in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh; do if [ -r \"$f\" ]; then . \"$f\"; break; fi; done; fi\n";
-            s += "command -v module >/dev/null 2>&1 || fail ENV_SETUP module_command_missing\n";
-            s += &format!("module load {} || fail ENV_SETUP module_load_failed\n", names.iter().map(|n| q(n)).collect::<Vec<_>>().join(" "));
-        }
-    }
+    s += &toolchain_lines(&c.toolchain, "fail ENV_SETUP");
     s += &format!("PY={}\n", q(&c.interpreter));
     s += r#"[ -x "$PY" ] || fail ENV_SETUP interpreter_missing
 PYBIN=$(dirname -- "$PY")

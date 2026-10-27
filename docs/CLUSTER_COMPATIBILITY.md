@@ -19,8 +19,11 @@
 | **Submit** (confirmed) | path checks with `readlink -f`, then one `sbatch --parsable` with the script on stdin |
 | **Cancel** (confirmed, own job) | `squeue -h -j <id> -o '%u\|%T'` then one `scancel <id>` |
 
-The app never uses `srun`, `salloc`, `scontrol update`, `scancel -u` or interactive GPU shells. Tools
-assumed on the login host: GNU coreutils (`readlink -f`, `stat -c`, `tail -c`, `head -c`).
+The app never uses `salloc`, `scontrol update`, `scancel -u` or interactive GPU shells (`srun --pty`).
+It uses `srun` in exactly one place: an interactive notebook kernel you start and confirm in the
+Notebooks tab, on a partition whose name contains "interactive", with a fixed relay as the only program
+(ADR-031, [ICF_COMMANDS.md §4.7](ICF_COMMANDS.md#47-interactive-kernel-kernelscriptrs-kerneldriverpy)).
+Tools assumed on the login host: GNU coreutils (`readlink -f`, `stat -c`, `tail -c`, `head -c`).
 
 ### V3 commands (login node, each after a user action unless noted)
 

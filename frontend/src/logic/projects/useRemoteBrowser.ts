@@ -6,8 +6,8 @@ import { isDir, joinPath, NEW_FILE_TYPES, parentOf, type NewFileType } from './p
 
 /**
  * One folder at a time inside the remote home (bounded listing; never recursive), with back/forward
- * history, a typed path, and creating one folder or file. Navigation is re-validated by the backend and
- * re-resolved on ICF, so symlinks cannot leave the home folder.
+ * history, a typed path, creating one folder or file, and deleting one entry after confirmation.
+ * Navigation is re-validated by the backend and re-resolved on ICF, so symlinks cannot leave home.
  */
 export function useRemoteBrowser({
   status,
@@ -28,6 +28,7 @@ export function useRemoteBrowser({
   const [newName, setNewName] = useState('');
   const [mkdirError, setMkdirError] = useState<string | null>(null);
   const [newFile, setNewFile] = useState<{ name: string; type: NewFileType; error: string | null } | null>(null);
+  const [toDelete, setToDelete] = useState<{ entry: Entry; error: string | null; busy: boolean } | null>(null);
   const qc = useQueryClient();
   const current = history[pos] ?? null;
   const key = ['browse', current, status.connectedAt];
@@ -77,6 +78,19 @@ export function useRemoteBrowser({
     }
   };
 
+  /** Deletes the entry chosen with Delete (after the user confirmed it), then refreshes. */
+  const deleteEntry = async () => {
+    if (!listing || !toDelete) return;
+    setToDelete({ ...toDelete, busy: true, error: null });
+    try {
+      await api.filesDelete(listing.path, toDelete.entry.name, toDelete.entry.kind);
+      setToDelete(null);
+    } catch (e) {
+      setToDelete({ ...toDelete, busy: false, error: errorMessage(e) });
+    }
+    void qc.invalidateQueries({ queryKey: key });
+  };
+
   const entries = (listing?.entries ?? []).filter(
     (e) => (showHidden || !e.name.startsWith('.')) && (!fileFilter || isDir(e) || fileFilter(e)),
   );
@@ -108,5 +122,9 @@ export function useRemoteBrowser({
     newFile,
     setNewFile,
     createFile,
+    toDelete,
+    askDelete: (entry: Entry) => setToDelete({ entry, error: null, busy: false }),
+    cancelDelete: () => setToDelete(null),
+    deleteEntry,
   };
 }

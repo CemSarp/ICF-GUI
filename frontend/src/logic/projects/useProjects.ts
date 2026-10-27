@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api, errorMessage } from '../api';
 import type { ConnectionStatus, LaunchResult, ProjectRecord } from '../../types';
 
-const recentKey = (s: ConnectionStatus) => ['projects', s.profileId, s.connectedAt];
+export const recentKey = (s: ConnectionStatus) => ['projects', s.profileId, s.connectedAt];
 
 /** Recent projects of this identity; opening one validates it on ICF first. */
 export function useProjects(

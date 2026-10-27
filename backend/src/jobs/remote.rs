@@ -62,10 +62,22 @@ pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
 /// V3 workflow submission: only the listed checks (the wrapper script carries its own program).
 pub fn submit_script_with(checks: &[Precheck], job_script: &str, tag: &str) -> String {
     let mut s = String::from("# icfcc:submit\numask 077\n");
-    s += PATH_HELPERS;
+    s += &precheck_helpers();
+    s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
+    s += &precheck_lines(checks);
+    finish_submit(s, job_script, tag)
+}
+
+/// Shell helpers the precheck lines call (each failure prints `@@err <kind> <label>` and exits 0).
+pub(crate) fn precheck_helpers() -> String {
+    let mut s = String::from(PATH_HELPERS);
     s += "need_exec() { r=$(readlink -f -- \"$1\" 2>/dev/null) && [ -f \"$r\" ] && [ -x \"$r\" ] || { printf '@@err missing %s\\n' \"$2\"; exit 0; }; }\n";
     s += "make_dir() { a=$1; while [ ! -e \"$a\" ] && [ ! -L \"$a\" ]; do a=$(dirname -- \"$a\"); done; r=$(readlink -f -- \"$a\" 2>/dev/null) && inside \"$r\" || { printf '@@err outside %s\\n' \"$2\"; exit 0; }; mkdir -p -- \"$1\" 2>/dev/null || { printf '@@err unwritable %s\\n' \"$2\"; exit 0; }; need_dir \"$1\" \"$2\"; [ -w \"$1\" ] || { printf '@@err unwritable %s\\n' \"$2\"; exit 0; }; }\n";
-    s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
+    s
+}
+
+pub(crate) fn precheck_lines(checks: &[Precheck]) -> String {
+    let mut s = String::new();
     for c in checks {
         s += &match c {
             Precheck::File(p, l) => format!("need_file {} {l} home\n", q(p)),
@@ -76,7 +88,7 @@ pub fn submit_script_with(checks: &[Precheck], job_script: &str, tag: &str) -> S
             Precheck::MakeDir(p, l) => format!("make_dir {} {l}\n", q(p)),
         };
     }
-    finish_submit(s, job_script, tag)
+    s
 }
 
 fn finish_submit(mut s: String, job_script: &str, tag: &str) -> String {
@@ -97,7 +109,7 @@ pub enum SubmitOutcome {
     Uncertain { message: String },
 }
 
-fn precheck_message(what: &str) -> (ErrorCode, String) {
+pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
     let (kind, field) = what.split_once(' ').unwrap_or((what, ""));
     let field = match field.trim() {
         "workingDir" => "working directory",
@@ -113,6 +125,8 @@ fn precheck_message(what: &str) -> (ErrorCode, String) {
         "hfHome" => "Hugging Face cache directory",
         "resume" => "checkpoint to resume from",
         "resultsRoot" => "results directory",
+        "notebook" => "notebook",
+        "file" => "file",
         _ => "path",
     };
     match kind {

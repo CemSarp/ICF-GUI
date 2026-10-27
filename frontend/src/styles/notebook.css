@@ -1,0 +1,979 @@
+/* Notebooks tab (loaded with the lazy Notebooks chunk). A notebook reads like a JupyterLab page:
+   one document surface, a prompt gutter, selection bar, code areas, typeset Markdown, outputs. */
+
+:root {
+  --nb-gutter: 76px;
+  --nb-code-bg: #f6f6f8;
+  --nb-out-prompt: #b4232c;
+  --nb-in-prompt: #3b5bdb;
+  /* Terminal palette for ANSI output (light). */
+  --ansi-0: #1d1d1f;
+  --ansi-1: #c4141b;
+  --ansi-2: #1a7f37;
+  --ansi-3: #9a6700;
+  --ansi-4: #0b5cad;
+  --ansi-5: #8e3aa8;
+  --ansi-6: #0b7285;
+  --ansi-7: #6e6e73;
+  --ansi-8: #52525b;
+  --ansi-9: #e5484d;
+  --ansi-10: #2f9e44;
+  --ansi-11: #b08800;
+  --ansi-12: #1c7ed6;
+  --ansi-13: #ae3ec9;
+  --ansi-14: #1098ad;
+  --ansi-15: #3f3f46;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --nb-code-bg: #1b1b1e;
+    --nb-out-prompt: #ff8a80;
+    --nb-in-prompt: #91a7ff;
+    --ansi-0: #a1a1a6;
+    --ansi-1: #ff6b6b;
+    --ansi-2: #69db7c;
+    --ansi-3: #ffd43b;
+    --ansi-4: #74c0fc;
+    --ansi-5: #e599f7;
+    --ansi-6: #66d9e8;
+    --ansi-7: #dee2e6;
+    --ansi-8: #868e96;
+    --ansi-9: #ff8787;
+    --ansi-10: #8ce99a;
+    --ansi-11: #ffe066;
+    --ansi-12: #a5d8ff;
+    --ansi-13: #eebefa;
+    --ansi-14: #99e9f2;
+    --ansi-15: #f8f9fa;
+  }
+}
+:root[data-theme='dark'] {
+  --nb-code-bg: #1b1b1e;
+  --nb-out-prompt: #ff8a80;
+  --nb-in-prompt: #91a7ff;
+  --ansi-0: #a1a1a6;
+  --ansi-1: #ff6b6b;
+  --ansi-2: #69db7c;
+  --ansi-3: #ffd43b;
+  --ansi-4: #74c0fc;
+  --ansi-5: #e599f7;
+  --ansi-6: #66d9e8;
+  --ansi-7: #dee2e6;
+  --ansi-8: #868e96;
+  --ansi-9: #ff8787;
+  --ansi-10: #8ce99a;
+  --ansi-11: #ffe066;
+  --ansi-12: #a5d8ff;
+  --ansi-13: #eebefa;
+  --ansi-14: #99e9f2;
+  --ansi-15: #f8f9fa;
+}
+
+/* ---------- Page ---------- */
+.nb-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s3);
+}
+.nb-title h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 20px;
+  margin: 0 0 2px;
+}
+.nb-page.focus .nb-head {
+  margin-top: var(--s1);
+}
+
+/* ---------- Toolbar ---------- */
+.nb-toolbar {
+  position: sticky;
+  /* Flush with the top of the scrolling area (it has padding above the page). */
+  top: calc(-1 * var(--main-pad-top, 0px));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  margin: 0 0 var(--s3);
+  background: var(--material);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.nb-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.nb-tool-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+  margin: 0 6px;
+}
+.nb-toolbar .btn.icon-btn.small {
+  width: 28px;
+  min-height: 28px;
+}
+.nb-kernel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-right: 4px;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.nb-spinner {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  flex: none;
+  animation: nb-spin 0.8s linear infinite;
+}
+@keyframes nb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nb-readonly {
+  margin: 0 0 var(--s2) var(--s2);
+}
+
+/* ---------- Document surface ---------- */
+.nb-cells {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: var(--s3) var(--s5) var(--s6) 0;
+  margin-bottom: var(--s5);
+}
+.nb-empty {
+  padding: var(--s6) 0 var(--s4) var(--nb-gutter);
+  text-align: center;
+}
+.nb-empty .nb-insert {
+  opacity: 1;
+}
+
+/* ---------- Cells ---------- */
+.nb-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--nb-gutter) minmax(0, 1fr);
+  padding: 6px 0;
+  border-radius: var(--r-control);
+  outline: none;
+  scroll-margin: 64px 0 24px;
+}
+/* Selection bar, JupyterLab style: a soft bar when selected, solid while editing. */
+.nb-cell::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease);
+}
+.nb-cell:not(.selected):hover::before {
+  background: var(--fill-strong);
+}
+.nb-cell.selected::before {
+  background: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+.nb-cell.selected.editing::before {
+  background: var(--primary);
+}
+.nb-cell:focus-visible::before {
+  background: var(--primary);
+}
+.nb-gutter {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 7px 10px 0 18px;
+}
+.nb-prompt {
+  font: 11.5px/22px var(--mono);
+  white-space: nowrap;
+}
+/* Language badge of a compiled cell (%%cuda / %%cpp / %%c), under its prompt. */
+.nb-lang {
+  position: absolute;
+  top: 32px;
+  right: 10px;
+  font: 600 10px/16px var(--font);
+  letter-spacing: 0.02em;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--syn-cuda);
+  background: color-mix(in srgb, var(--syn-cuda) 14%, transparent);
+}
+.nb-lang.lang-cpp,
+.nb-lang.lang-c {
+  color: var(--syn-type);
+  background: color-mix(in srgb, var(--syn-type) 14%, transparent);
+}
+.nb-prompt.in {
+  color: var(--nb-in-prompt);
+  opacity: 0.85;
+}
+.nb-run {
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.nb-cell:hover .nb-run,
+.nb-cell.selected .nb-run,
+.nb-cell.running .nb-run,
+.nb-run:focus-visible {
+  opacity: 1;
+}
+.nb-run:hover {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+.nb-cell.running .nb-run {
+  color: var(--busy);
+}
+.nb-body {
+  position: relative;
+  min-width: 0;
+}
+
+/* Source: a quiet code area that lights up while editing. */
+.nb-input {
+  --cm-bg: var(--nb-code-bg);
+  background: var(--nb-code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  overflow: hidden;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.nb-cell.selected .nb-input {
+  border-color: var(--border-strong);
+}
+.nb-cell.editing .nb-input {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.nb-cell.type-markdown .nb-input {
+  --cm-bg: var(--surface);
+  background: var(--surface);
+}
+.code-editor.cell .cm-editor {
+  font-size: 13px;
+}
+
+/* Floating per-cell toolbar. */
+.nb-cell-tools {
+  position: absolute;
+  top: -15px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  box-shadow: var(--shadow-seg);
+  animation: fade-in var(--dur-fast) var(--ease-out);
+}
+.nb-cell-tools select {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.nb-cell-tools select:hover {
+  background: var(--fill);
+}
+.nb-cell-tools .btn.icon-btn.small {
+  width: 24px;
+  min-height: 24px;
+}
+
+/* Insert bars between cells (VS Code style). */
+.nb-insert {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  height: 14px;
+  margin-left: var(--nb-gutter);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.nb-insert::before {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.nb-insert:hover,
+.nb-insert:focus-within {
+  opacity: 1;
+}
+.nb-insert-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+}
+.nb-insert-btn:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+
+/* Run status under a code cell. */
+.nb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 0 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.nb-status.ok {
+  color: var(--ok);
+}
+.nb-status.bad {
+  color: var(--bad);
+}
+.nb-status.busy {
+  color: var(--busy);
+}
+
+/* ---------- Rendered Markdown ---------- */
+.nb-markdown {
+  padding: 2px 14px;
+  font-size: 14.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  border-radius: var(--r-control);
+}
+.nb-markdown.empty {
+  padding: 8px 14px;
+}
+.nb-markdown > :first-child {
+  margin-top: 0;
+}
+.nb-markdown > :last-child {
+  margin-bottom: 0;
+}
+.nb-markdown h1,
+.nb-markdown h2,
+.nb-markdown h3,
+.nb-markdown h4,
+.nb-markdown h5,
+.nb-markdown h6,
+.nb-rich h1,
+.nb-rich h2,
+.nb-rich h3 {
+  font-family: var(--font-display);
+  line-height: 1.25;
+  margin: 0.9em 0 0.45em;
+}
+.nb-markdown h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+}
+.nb-markdown h2 {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.016em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+.nb-markdown h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.nb-markdown h4 {
+  font-size: 15px;
+}
+.nb-markdown h5,
+.nb-markdown h6 {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.nb-markdown p,
+.nb-rich p {
+  margin: 0 0 0.75em;
+}
+.nb-markdown ul,
+.nb-markdown ol {
+  margin: 0 0 0.75em;
+  padding-left: 1.6em;
+}
+.nb-markdown li + li {
+  margin-top: 0.2em;
+}
+.nb-markdown blockquote {
+  margin: 0 0 0.75em;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--muted);
+}
+.nb-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.2em 0;
+}
+.nb-markdown code,
+.nb-rich code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--fill);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+pre.md-code {
+  margin: 0 0 0.85em;
+  padding: 10px 14px;
+  background: var(--nb-code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  overflow: auto;
+  font: 12.5px/1.55 var(--mono);
+}
+pre.md-code code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.md-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+.md-img {
+  max-width: 100%;
+  border-radius: var(--r-sm);
+}
+.nb-markdown table,
+.nb-rich table {
+  border-collapse: collapse;
+  margin: 0 0 0.85em;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.nb-markdown th,
+.nb-markdown td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.nb-markdown thead th {
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+.align-left {
+  text-align: left !important;
+}
+.align-center {
+  text-align: center !important;
+}
+.align-right {
+  text-align: right !important;
+}
+
+/* Static highlighting (fenced code), same colours as the editor. */
+.tok-keyword {
+  color: var(--syn-keyword);
+  font-weight: 600;
+}
+.tok-string,
+.tok-string2 {
+  color: var(--syn-string);
+}
+.tok-comment {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+.tok-number,
+.tok-bool,
+.tok-atom {
+  color: var(--syn-number);
+}
+.tok-typeName,
+.tok-className,
+.tok-namespace {
+  color: var(--syn-type);
+}
+.tok-variableName.tok-definition,
+.tok-propertyName.tok-definition {
+  color: var(--syn-definition);
+}
+.tok-meta {
+  color: var(--syn-macro);
+}
+
+/* ---------- Outputs ---------- */
+.nb-outputs {
+  position: relative;
+  margin-top: 4px;
+}
+.nb-collapse {
+  position: absolute;
+  /* In the gutter, beside the selection bar (clear of the [n]: prompt). */
+  left: calc(16px - var(--nb-gutter));
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.nb-collapse .icon {
+  transform: rotate(90deg);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.nb-outputs.collapsed .nb-collapse .icon {
+  transform: none;
+}
+.nb-outputs:hover .nb-collapse,
+.nb-outputs.collapsed .nb-collapse,
+.nb-collapse:focus-visible {
+  opacity: 1;
+}
+.nb-collapse:hover {
+  background: var(--fill);
+}
+.nb-collapsed-note {
+  margin: 4px 0 0 12px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.nb-output {
+  position: relative;
+}
+.nb-prompt.out {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 3px;
+  color: var(--nb-out-prompt);
+  opacity: 0.85;
+}
+.nb-output-body {
+  padding: 4px 6px 4px 14px;
+  max-height: 680px;
+  overflow: auto;
+}
+pre.nb-out {
+  margin: 0;
+  font: 12.5px/1.55 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre.nb-stderr {
+  background: color-mix(in srgb, var(--warn) 7%, transparent);
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+}
+pre.nb-error {
+  background: color-mix(in srgb, var(--bad) 7%, transparent);
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+}
+.nb-img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--r-sm);
+  background: #fff;
+}
+.nb-unsupported {
+  margin: 4px 0;
+}
+/* HTML outputs such as pandas DataFrames. */
+.nb-rich {
+  font-size: 13px;
+  overflow-x: auto;
+}
+.nb-rich th,
+.nb-rich td {
+  padding: 5px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.nb-rich thead th {
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+.nb-rich tbody th {
+  text-align: left;
+  font-weight: 600;
+}
+.nb-rich tbody tr:nth-child(odd) {
+  background: color-mix(in srgb, var(--fill) 45%, transparent);
+}
+.nb-rich tbody tr:hover {
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+/* ANSI colours (tracebacks, coloured logs). */
+.ansi-bold {
+  font-weight: 700;
+}
+.ansi-italic {
+  font-style: italic;
+}
+.ansi-underline {
+  text-decoration: underline;
+}
+.ansi-fg-0 {
+  color: var(--ansi-0);
+}
+.ansi-fg-1 {
+  color: var(--ansi-1);
+}
+.ansi-fg-2 {
+  color: var(--ansi-2);
+}
+.ansi-fg-3 {
+  color: var(--ansi-3);
+}
+.ansi-fg-4 {
+  color: var(--ansi-4);
+}
+.ansi-fg-5 {
+  color: var(--ansi-5);
+}
+.ansi-fg-6 {
+  color: var(--ansi-6);
+}
+.ansi-fg-7 {
+  color: var(--ansi-7);
+}
+.ansi-fg-8 {
+  color: var(--ansi-8);
+}
+.ansi-fg-9 {
+  color: var(--ansi-9);
+}
+.ansi-fg-10 {
+  color: var(--ansi-10);
+}
+.ansi-fg-11 {
+  color: var(--ansi-11);
+}
+.ansi-fg-12 {
+  color: var(--ansi-12);
+}
+.ansi-fg-13 {
+  color: var(--ansi-13);
+}
+.ansi-fg-14 {
+  color: var(--ansi-14);
+}
+.ansi-fg-15 {
+  color: var(--ansi-15);
+}
+.ansi-bg-0 {
+  background: var(--ansi-0);
+}
+.ansi-bg-1 {
+  background: color-mix(in srgb, var(--ansi-1) 25%, transparent);
+}
+.ansi-bg-2 {
+  background: color-mix(in srgb, var(--ansi-2) 25%, transparent);
+}
+.ansi-bg-3 {
+  background: color-mix(in srgb, var(--ansi-3) 25%, transparent);
+}
+.ansi-bg-4 {
+  background: color-mix(in srgb, var(--ansi-4) 25%, transparent);
+}
+.ansi-bg-5 {
+  background: color-mix(in srgb, var(--ansi-5) 25%, transparent);
+}
+.ansi-bg-6 {
+  background: color-mix(in srgb, var(--ansi-6) 25%, transparent);
+}
+.ansi-bg-7 {
+  background: color-mix(in srgb, var(--ansi-7) 25%, transparent);
+}
+.ansi-bg-8 {
+  background: color-mix(in srgb, var(--ansi-8) 25%, transparent);
+}
+.ansi-bg-9 {
+  background: color-mix(in srgb, var(--ansi-9) 25%, transparent);
+}
+.ansi-bg-10 {
+  background: color-mix(in srgb, var(--ansi-10) 25%, transparent);
+}
+.ansi-bg-11 {
+  background: color-mix(in srgb, var(--ansi-11) 25%, transparent);
+}
+.ansi-bg-12 {
+  background: color-mix(in srgb, var(--ansi-12) 25%, transparent);
+}
+.ansi-bg-13 {
+  background: color-mix(in srgb, var(--ansi-13) 25%, transparent);
+}
+.ansi-bg-14 {
+  background: color-mix(in srgb, var(--ansi-14) 25%, transparent);
+}
+.ansi-bg-15 {
+  background: color-mix(in srgb, var(--ansi-15) 25%, transparent);
+}
+
+/* ---------- Kernel sheet ---------- */
+.dialog:has(.kernel-form) {
+  width: min(680px, 100%);
+}
+.kernel-form {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--s3);
+}
+.kernel-form .field {
+  grid-column: span 3;
+}
+.kernel-form .field.half {
+  grid-column: span 6;
+}
+.kernel-form .field {
+  margin-bottom: var(--s3);
+}
+.kernel-form .field.wide {
+  grid-column: 1 / -1;
+}
+.kernel-form select,
+.kernel-form input {
+  width: 100%;
+  min-width: 0;
+}
+.kernel-review h3 {
+  margin: var(--s3) 0 var(--s2);
+}
+.nb-srun {
+  margin: 0 0 var(--s2);
+  padding: 10px 12px;
+  background: var(--nb-code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+}
+.acks {
+  border: 0;
+  padding: 0;
+  margin: var(--s3) 0 0;
+}
+.acks .check {
+  align-items: flex-start;
+  font-size: 13px;
+}
+.acks .check input {
+  margin-top: 3px;
+}
+table.shortcuts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.shortcuts th {
+  text-align: left;
+  font-weight: 400;
+  padding: 5px 12px 5px 0;
+  white-space: nowrap;
+  width: 1%;
+}
+table.shortcuts td {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+table.shortcuts th {
+  border-bottom: 1px solid var(--border);
+}
+kbd {
+  font: 600 11.5px var(--mono);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--fill);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+}
+
+/* ---------- Landing ---------- */
+.nb-landing {
+  max-width: 960px;
+}
+.nb-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nb-recent li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  border-top: 1px solid var(--border);
+}
+.nb-recent li:first-child {
+  border-top: 0;
+}
+.nb-recent-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--r-control);
+}
+.nb-recent-open:hover {
+  background: var(--fill);
+}
+.nb-recent-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #f37726;
+  background: color-mix(in srgb, #f37726 14%, transparent);
+  flex: none;
+}
+.nb-recent-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nb-recent-text .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nb-about p {
+  margin: 0;
+}
+
+/* ---------- Editor: Run on GPU ---------- */
+.run-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 0 0 var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.run-args {
+  flex: 1;
+  min-width: 180px;
+  font-size: 12.5px;
+}
+/* With output showing, the editor gives the output panel room below it. */
+.editor.with-output .code-editor {
+  height: calc(62vh - 220px);
+  min-height: 240px;
+}
+.run-output {
+  padding: var(--s3) var(--s4) var(--s4);
+}
+.run-output-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+}
+.run-output-head h3 {
+  margin: 0;
+}
+.run-output-head .nb-status {
+  margin: 0;
+}
+.run-output .nb-output-body {
+  max-height: 38vh;
+  padding-left: 0;
+}
+.run-output .nb-collapse {
+  display: none;
+}

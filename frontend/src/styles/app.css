@@ -587,7 +587,8 @@ input[type='radio'] {
   letter-spacing: 0.02em;
 }
 .main {
-  padding: var(--s5) var(--s6) 48px;
+  --main-pad-top: var(--s5);
+  padding: var(--main-pad-top) var(--s6) 48px;
   overflow: auto;
   flex: 1;
   outline: none;
@@ -600,6 +601,26 @@ input[type='radio'] {
 }
 .page-title {
   margin-bottom: var(--s5);
+}
+.page.wide {
+  max-width: 1120px;
+}
+/* Full screen (notebooks): the content takes the whole window, like an editor's zen mode. */
+.shell.focus {
+  grid-template-columns: 1fr;
+}
+.shell.focus .sidebar,
+.shell.focus .banner,
+.shell.focus .page-title {
+  display: none;
+}
+.shell.focus .main {
+  --main-pad-top: var(--s3);
+  padding: var(--main-pad-top) var(--s5) 48px;
+}
+.shell.focus .page.wide {
+  max-width: 1400px;
+  margin: 0 auto;
 }
 .settings {
   max-width: 760px;
@@ -1449,71 +1470,7 @@ pre.log {
   height: auto;
   min-height: 0;
 }
-.notebook {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: var(--s3);
-}
-.nb-cell {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  padding: 6px 0 0;
-  overflow: hidden;
-}
-.nb-cell-head {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 var(--s2) 0 var(--s4);
-}
-.nb-cell .nb-add {
-  border-top: 1px solid var(--border);
-}
-.nb-add {
-  display: flex;
-  justify-content: center;
-  gap: var(--s1);
-  padding: 2px 0;
-  opacity: 0.6;
-  transition: opacity var(--dur-fast) var(--ease);
-}
-.nb-add:hover,
-.nb-add:focus-within {
-  opacity: 1;
-}
-.notebook > .nb-add {
-  margin-bottom: var(--s1);
-}
-.nb-cell + .nb-cell {
-  margin-top: var(--s2);
-}
-.nb-outputs {
-  border-top: 1px solid var(--border);
-  padding: var(--s2) var(--s4);
-  max-height: 420px;
-  overflow: auto;
-  background: var(--surface-2);
-}
-pre.nb-out {
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 0 0 6px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-pre.nb-error {
-  color: var(--bad);
-}
-.nb-img {
-  display: block;
-  max-width: 100%;
-  border-radius: var(--r-sm);
-  background: #fff;
-  margin-bottom: 6px;
-}
-.row-actions {
+.table td.row-actions {
   text-align: right;
   white-space: nowrap;
 }

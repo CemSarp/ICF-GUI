@@ -541,3 +541,50 @@ mod editor_files {
         assert_eq!(std::fs::read_to_string(&outside).unwrap(), "outside\n");
     }
 }
+
+#[test]
+fn delete_removes_one_listed_entry_and_never_follows_links() {
+    let s = Sandbox::new();
+    let proj = s.home().join("projects/semeval");
+    let dir = proj.display().to_string();
+    std::fs::write(proj.join("old run.log"), "x").unwrap();
+    std::fs::create_dir_all(proj.join("runs/a/b")).unwrap();
+    std::fs::write(proj.join("runs/a/b/out.txt"), "x").unwrap();
+    std::fs::write(s.root.join("elsewhere/keep.txt"), "x").unwrap();
+    std::os::unix::fs::symlink(s.root.join("elsewhere"), proj.join("out")).unwrap();
+    let del = |name: &str, kind| parse_ok(&s.run(&delete_script(&dir, name, kind)));
+
+    // A file whose name has a space; asking for the wrong kind deletes nothing.
+    assert!(del("old run.log", EntryKind::Dir).unwrap_err().message.contains("changed on ICF"));
+    assert!(proj.join("old run.log").exists());
+    del("old run.log", EntryKind::File).unwrap();
+    assert!(!proj.join("old run.log").exists());
+    assert!(del("old run.log", EntryKind::File).unwrap_err().message.contains("no longer exists"));
+
+    // A link to a folder outside home: only the link goes, never what it points to.
+    assert!(del("out", EntryKind::Dir).unwrap_err().message.contains("changed on ICF"));
+    del("out", EntryKind::Symlink).unwrap();
+    assert!(std::fs::symlink_metadata(proj.join("out")).is_err());
+    assert!(s.root.join("elsewhere/keep.txt").exists());
+
+    // A folder goes with everything in it.
+    del("runs", EntryKind::Dir).unwrap();
+    assert!(!proj.join("runs").exists());
+
+    // The folder itself must resolve inside home.
+    std::os::unix::fs::symlink(s.root.join("elsewhere"), s.home().join("link")).unwrap();
+    let e = parse_ok(&s.run(&delete_script(&s.home().join("link").display().to_string(), "keep.txt", EntryKind::File))).unwrap_err();
+    assert!(e.message.contains("outside your home"));
+    assert!(s.root.join("elsewhere/keep.txt").exists());
+
+    for bad in ["", ".", "..", "a/b", "x\ny", &"n".repeat(256)] {
+        assert!(!valid_entry_name(bad), "{bad:?}");
+    }
+    for ok in ["old run.log", "résumé.txt", "-rf", "$(id)", ".hidden"] {
+        assert!(valid_entry_name(ok), "{ok:?}");
+    }
+    // Names are quoted, so shell syntax in a name is just a name.
+    std::fs::write(proj.join("$(touch pwned)"), "x").unwrap();
+    del("$(touch pwned)", EntryKind::File).unwrap();
+    assert!(!proj.join("pwned").exists() && !s.root.join("pwned").exists());
+}

@@ -48,7 +48,7 @@ pub struct WorkflowPreview {
     pub prechecks: Vec<String>,
 }
 
-fn describe(c: &crate::jobs::remote::Precheck) -> String {
+pub(crate) fn describe(c: &crate::jobs::remote::Precheck) -> String {
     use crate::jobs::remote::Precheck::*;
     match c {
         File(p, l) | Readable(p, l) | Exec(p, l) | Dir(p, l) | Path(p, l) => format!("check {l}: {p}"),
@@ -94,6 +94,7 @@ pub async fn workflow_preview(state: State<'_, AppState>, config: WorkflowConfig
                 profile_id: c.profile_id.clone(),
                 user: c.user.clone(),
                 workflow: Some(Box::new(Pending { config: config.clone(), checks: checks.clone() })),
+                kernel: None,
             },
         );
         id

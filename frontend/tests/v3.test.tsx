@@ -47,12 +47,12 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
   it('browses the remote home without recursion and opens a folder as a project', async () => {
     await nav('Projects');
     const browser = await screen.findByRole('region', { name: 'Remote folder browser' });
-    expect(within(browser).getByRole('button', { name: /projects/ })).toBeInTheDocument();
+    expect(within(browser).getByRole('button', { name: 'projects' })).toBeInTheDocument();
     expect(within(browser).queryByText('.cache')).toBeNull();
     await userEvent.click(within(browser).getByLabelText('Show hidden'));
     expect(within(browser).getByText('.cache')).toBeInTheDocument();
-    await userEvent.click(within(browser).getByRole('button', { name: /projects/ }));
-    await userEvent.click(await within(browser).findByRole('button', { name: /semeval/ }));
+    await userEvent.click(within(browser).getByRole('button', { name: 'projects' }));
+    await userEvent.click(await within(browser).findByRole('button', { name: 'semeval' }));
     await within(browser).findByText('train.py');
     expect(backend.calls.filter((c) => c.cmd === 'projects_browse').map((c) => c.args.path)).toEqual([
       null,
@@ -60,7 +60,7 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
       v3.PROJECT,
     ]);
     await userEvent.click(within(browser).getByRole('button', { name: 'Back' }));
-    await within(browser).findByRole('button', { name: /semeval/ });
+    await within(browser).findByRole('button', { name: 'semeval' });
     await userEvent.click(within(browser).getByRole('button', { name: 'Open as project' }));
     expect(backend.count('projects_open', (a) => a.path === `${v3.HOME}/projects`)).toBe(1);
   });

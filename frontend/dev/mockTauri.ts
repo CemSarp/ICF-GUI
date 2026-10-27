@@ -3,6 +3,7 @@ import demo from '../fixtures/slurm/demo_snapshot.json';
 import * as v3 from '../tests/v3Fixtures';
 
 let shareOn = false;
+const deleted = new Set<string>(); // files_delete, until the page reloads
 
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
@@ -73,6 +74,65 @@ const receipt = (o: Record<string, unknown>) => ({
   dismissed: false,
   ...o,
 });
+
+// Preview kernel: replays the stored outputs of the showcase notebook's cells (explore.ipynb), else
+// echoes print("…") lines and a last bare expression; never runs code.
+type StoredCell = { cell_type: string; source: string[]; outputs?: Record<string, unknown>[] };
+const replay = new Map<string, Record<string, unknown>[]>(
+  (JSON.parse(v3.FILES[`${v3.PROJECT}/explore.ipynb`]!).cells as StoredCell[])
+    .filter((c) => c.cell_type === 'code')
+    .map((c) => [c.source.join(''), c.outputs ?? []]),
+);
+let kernelSend: ((m: unknown) => void) | null = null;
+let kernelCount = 0;
+const kernelChannel = (ch: { id: number }) => {
+  let index = 0;
+  return (message: unknown) => callbacks.get(ch.id)?.({ index: index++, message });
+};
+const fakeKernelRun = (id: string, code: string) => {
+  const send = kernelSend;
+  if (!send) return;
+  const n = ++kernelCount;
+  const lines = code
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const printed = lines.map((l) => /^print\((['"])(.*)\1\)$/.exec(l)?.[2]).filter((x) => x !== undefined);
+  const magic = /^%%(cuda|cpp|c)\b/.exec(code)?.[1];
+  if (magic) {
+    const size = /--\s*(\d+)/.exec(code.slice(0, code.indexOf('\n')))?.[1] ?? '1048576';
+    const text = code.includes('saxpy')
+      ? `saxpy on ${size} elements, max error 0.000000\n`
+      : `Hello from ${magic === 'cuda' ? 'the GPU' : 'the node'}\n`;
+    setTimeout(() => {
+      send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text } });
+      send({ event: 'done', id, count: n, status: 'ok' });
+    }, 900);
+    return;
+  }
+  if (code.startsWith('%%icfcc_script')) code = code.slice(code.indexOf('\n') + 1);
+  const stored = replay.get(code);
+  if (stored) {
+    setTimeout(() => {
+      for (const o of stored)
+        send({ event: 'output', id, output: o.output_type === 'execute_result' ? { ...o, execution_count: n } : o });
+      send({ event: 'done', id, count: n, status: stored.some((o) => o.output_type === 'error') ? 'error' : 'ok' });
+    }, 700);
+    return;
+  }
+  setTimeout(() => {
+    if (printed.length)
+      send({ event: 'output', id, output: { output_type: 'stream', name: 'stdout', text: printed.join('\n') + '\n' } });
+    const last = lines[lines.length - 1];
+    if (last && !last.startsWith('print(') && !last.includes('=') && !/^(import|from|def|for|if)\b/.test(last))
+      send({
+        event: 'output',
+        id,
+        output: { output_type: 'execute_result', execution_count: n, data: { 'text/plain': last }, metadata: {} },
+      });
+    send({ event: 'done', id, count: n, status: 'ok' });
+  }, 400);
+};
 
 const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   connection_status: status,
@@ -234,11 +294,21 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
     };
   },
   projects_recent: () => [v3.project()],
-  projects_browse: (a) => v3.listing((a.path as string | null) ?? null),
+  projects_browse: (a) => {
+    const l = v3.listing((a.path as string | null) ?? null);
+    return { ...l, entries: l.entries.filter((e) => !deleted.has(`${l.path}/${e.name}`)) };
+  },
+  files_delete: (a) => {
+    deleted.add(`${a.dir}/${a.name}`);
+    return `${a.dir}/${a.name}`;
+  },
   files_create: (a) => {
     const path = `${a.dir}/${a.name}`;
     if (v3.FILES[path] !== undefined)
-      throw { code: 'INVALID_INPUT', message: 'Something with that name already exists there. Nothing was overwritten.' };
+      throw {
+        code: 'INVALID_INPUT',
+        message: 'Something with that name already exists there. Nothing was overwritten.',
+      };
     v3.FILES[path] = a.content as string;
     return { path, sha256: v3.fakeSha(a.content as string) };
   },
@@ -246,7 +316,10 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   files_write: (a) => {
     const cur = v3.FILES[a.path as string];
     if (cur === undefined || v3.fakeSha(cur) !== a.expectedSha256)
-      throw { code: 'CONFLICT', message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.' };
+      throw {
+        code: 'CONFLICT',
+        message: 'The file changed on ICF since you opened it (for example in VS Code). Nothing was saved.',
+      };
     v3.FILES[a.path as string] = a.content as string;
     return { path: a.path, sha256: v3.fakeSha(a.content as string) };
   },
@@ -311,6 +384,40 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   transfers_upload: () => v3.transfer({ phase: 'queued', doneBytes: 0 }),
   transfers_download: () => null,
   workflow_preview: (a) => v3.workflowPreview(a.config as never),
+  kernel_preview: (a) => v3.kernelPreview(a.request as never),
+  kernel_start: (a) => {
+    const send = kernelChannel(a.events as { id: number });
+    kernelSend = send;
+    kernelCount = 0;
+    setTimeout(() => send({ event: 'starting' }), 100);
+    setTimeout(() => send({ event: 'queued', jobId: '5150' }), 500);
+    setTimeout(
+      () =>
+        send({
+          event: 'ready',
+          jobId: '5150',
+          node: 'landonia01',
+          python: '3.11.9',
+          tools: 'nvcc 12.8 · g++ 11.4.0 · gcc 11.4.0',
+          endsAtMs: Date.now() + 3_600_000,
+        }),
+      1500,
+    );
+    return { kernelId: 'k1' };
+  },
+  kernel_execute: (a) => (fakeKernelRun(a.requestId as string, a.code as string), null),
+  kernel_interrupt: () => null,
+  kernel_restart: () => ((kernelCount = 0), setTimeout(() => kernelSend?.({ event: 'restarted' }), 200), null),
+  kernel_stop: () => {
+    const send = kernelSend;
+    kernelSend = null;
+    if (send)
+      setTimeout(
+        () => send({ event: 'ended', reason: 'stopped', message: 'Kernel stopped; the GPU was released.' }),
+        200,
+      );
+    return null;
+  },
   workflow_refresh: () => v3.runs(),
   workflow_runs: () => v3.runs().runs,
   workflow_list_files: (a) => v3.listing(`${v3.PROJECT}/runs/train-4242/${a.which}`),

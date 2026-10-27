@@ -4,11 +4,11 @@
 
 **A friendly macOS app for the University of Edinburgh Informatics Compute Facility (ICF) GPU cluster.**
 
-See which GPUs are free, run jobs and training on GPU nodes, edit your code on ICF, open projects in
-VS Code without password prompts, move datasets, and follow everything — without remembering a single
-`sinfo`, `sbatch` or `squeue` flag.
+See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter notebooks on a GPU, edit
+your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
+everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.4.1-blue)
+![version](https://img.shields.io/badge/version-0.5.0-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -23,7 +23,19 @@ VS Code without password prompts, move datasets, and follow everything — witho
 
 ---
 
-## 🆕 New in 0.4
+## 🆕 New in 0.5
+
+- 📓 **Notebooks on a GPU** *(experimental)*. A Notebooks tab that reads like JupyterLab: run cells
+  one at a time on an Interactive-partition GPU with variables kept between cells, and see tables,
+  plots, progress bars and errors as they arrive. Jupyter keys and full screen (⌃⌘F). No notebook
+  server, port or token. → [Notebooks](docs/USER_GUIDE.md#notebooks)
+- ⚡ **CUDA, C++ and C cells.** Pick CUDA, C++ or C in a cell's menu (or start it with `%%cuda`,
+  `%%cpp`, `%%c`): it is compiled with `nvcc`/`g++`/`gcc` on the GPU node and run there.
+  → [Compiled cells](docs/USER_GUIDE.md#cuda-c-and-c-cells)
+- ▶️ **Run on GPU from the editor.** Python, CUDA, C++ and C files run on a GPU node with one click
+  (⌘⇧Enter), with arguments, and the output appears under the code — saved or not.
+
+## New in 0.4
 
 - ✏️ **Edit files on ICF, right in the app.** Python, C/C++, CUDA and Markdown with syntax colours,
   other text files as plain text, and Jupyter notebooks as cells. A save replaces the file on ICF only
@@ -36,7 +48,7 @@ VS Code without password prompts, move datasets, and follow everything — witho
 - 🚀 **One *New job* screen** for script jobs and training workflows, and **Runs** in the sidebar.
 - 🎨 **A cleaner, Apple-style look** across every screen.
 
-0.4.1 is a housekeeping release with the same features; see the [changelog](docs/CHANGELOG.md).
+0.4.1 was a housekeeping release; see the [changelog](docs/CHANGELOG.md).
 
 ## ✨ What is it for?
 
@@ -52,7 +64,8 @@ worked. **ICF Control Center puts all of that in one window.**
 | 📜 **Live logs** | Read your job's output and errors in the app, and follow them while it runs. |
 | 🛑 **Cancel safely** | Cancel your own jobs, with a confirmation. Other people's jobs can't be touched. |
 | 🗂️ **Projects** | Browse your ICF home, create folders and files, and keep your recent projects one click away. |
-| ✏️ **Edit on ICF** | Code and notebook editor with syntax colours, search and ⌘S. Saves are checked, so they never silently overwrite someone else's change. |
+| ✏️ **Edit on ICF** | Code editor with syntax colours, search and ⌘S. Saves are checked, so they never silently overwrite someone else's change. **Run on GPU** runs a Python, CUDA, C++ or C file on a GPU node and shows its output. |
+| 📓 **Notebooks** *(experimental)* | Jupyter notebooks as a real notebook page: run cells one at a time on an Interactive-partition GPU, see tables, plots and errors as they arrive, Jupyter keys, full screen. Python, CUDA, C++ and C cells. No notebook server, port or token. |
 | 🧑‍💻 **VS Code** | Open a project in VS Code over Remote - SSH, optionally signed in through the app so it never asks for passwords. Pick the remote Python interpreter and CUDA toolchain. |
 | ⇅ **Transfers** | Upload datasets and download results over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
 | 🏋️ **Training workflows** | One reviewed job that stages data to the GPU node's fast local disk, trains, saves checkpoints, copies results back and cleans up. |
@@ -73,11 +86,21 @@ worked. **ICF Control Center puts all of that in one window.**
 
 ### Edit files on ICF
 
-| Python, with syntax colours | Jupyter notebooks as cells |
+| Python, with syntax colours | CUDA (dark mode) |
 |---|---|
-| ![Editing train.py on ICF in the app](docs/screenshots/editor-python.jpg) | ![Editing a notebook: markdown and code cells with read-only outputs](docs/screenshots/editor-notebook.jpg) |
-| **CUDA (dark mode)** | **New file…** |
-| ![Editing a CUDA kernel in dark mode](docs/screenshots/editor-cuda-dark.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
+| ![Editing train.py on ICF in the app](docs/screenshots/editor-python.jpg) | ![Editing a CUDA kernel in dark mode](docs/screenshots/editor-cuda-dark.jpg) |
+| **Run on GPU** | **New file…** |
+| ![The editor running kernel.cu on a GPU node with program arguments; the output appears below the code](docs/screenshots/editor-run-gpu.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
+
+### Notebooks on a GPU (experimental)
+
+| A notebook with a running kernel | Start a kernel: the exact `srun` line, reviewed |
+|---|---|
+| ![Notebook page: rendered Markdown, code cells with outputs, kernel chip showing Python, node and time left](docs/screenshots/notebook-page.jpg) | ![Start kernel sheet: Interactive partition, GPU, CPUs, memory, time, Python, the srun line and notices to confirm](docs/screenshots/notebook-kernel.jpg) |
+| **Plots, progress and errors** | **Full screen (dark mode)** |
+| ![Notebook outputs: a bar chart, run timings and Markdown](docs/screenshots/notebook-outputs.jpg) | ![Notebook in full screen, dark mode, with a pandas table](docs/screenshots/notebook-fullscreen-dark.jpg) |
+| **A CUDA cell, compiled and run on the node** | |
+| ![A %%cuda cell with a CUDA badge: a saxpy kernel compiled with nvcc on the GPU node, and its output](docs/screenshots/notebook-cuda.jpg) | |
 
 ### VS Code and Python environments
 
@@ -170,15 +193,21 @@ flowchart LR
 - Passwords travel only through a private, in-memory channel to `ssh`. They're never put in command
   lines, environment variables, logs or files, and go into the Keychain only if you tick *Remember*.
 - The interface can't run arbitrary commands, only fixed, typed operations: read-only SLURM queries,
-  `sbatch`/`scancel` after your confirmation, bounded folder listings, SFTP transfers, and explicit
-  file writes. Every one of them is listed in [ICF_COMMANDS.md](docs/ICF_COMMANDS.md).
+  `sbatch`/`scancel` after your confirmation, one `srun` per notebook kernel you confirm, bounded
+  folder listings, SFTP transfers, and explicit file writes. Every one of them is listed in
+  [ICF_COMMANDS.md](docs/ICF_COMMANDS.md).
+- **Notebook kernels have no server.** The kernel runs on the GPU node and talks to the app over the
+  app's own SSH connection: nothing listens on your Mac or the node, nothing is port-forwarded, and
+  there is no token. It stops, and the GPU is released, when you stop it, leave the notebook, disconnect,
+  after 30 idle minutes or at its time limit.
 - **Editor saves are safe:** a file is replaced only if it is unchanged since you opened it; otherwise
   you choose to reload or overwrite. Symbolic links and files outside your home are refused.
 - **VS Code sharing is opt-in.** VS Code reuses the app's connection through a socket only your macOS
   user can reach; it is never given a password. The app shows both local changes (a VS Code-only ssh
   config and one `settings.json` key, backed up) before making them, and never edits `~/.ssh/config`.
 - It's gentle on the cluster: one small query a minute while the window is visible, nothing while
-  it's minimised, and the connection closes after 30 minutes of inactivity (unless VS Code is using it).
+  it's minimised, and the connection closes after 30 minutes of inactivity (unless VS Code or a
+  notebook kernel is using it).
 
 Details: [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -188,8 +217,9 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
   The scheduler decides when a job actually starts.
 - **Times** are shown as SLURM reports them (cluster-local, UK time).
 - **VRAM** figures are nominal per GPU model, not live free memory.
-- The app never uses `srun`/`salloc` or keeps an interactive GPU shell open. Interactive Jupyter is
-  off; notebooks run as batch jobs (and can be edited in the app).
+- The app never uses `salloc` or opens an interactive GPU shell. It uses `srun` only for a notebook
+  kernel you start (Interactive partition only). For long or unattended notebook runs, use a batch
+  notebook run (New job → Training workflow → Notebook).
 - **Scratch is temporary and `/home` is not backed up.** Results reach `/home` when a job ends, fails,
   is cancelled or nears its time limit — but nothing can be copied from a node that fails. Use the
   periodic checkpoint sync and keep your own copies of important results.

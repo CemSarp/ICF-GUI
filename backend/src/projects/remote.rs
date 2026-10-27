@@ -109,6 +109,12 @@ pub fn path_error(what: &str) -> AppError {
         "vscode_not_dir" => AppError::new(ErrorCode::InvalidPath, "The project contains a .vscode file that is not a folder."),
         "backup_exists" | "backup_failed" => AppError::invalid("Could not create a backup of the existing settings file, so nothing was written."),
         "home" => AppError::new(ErrorCode::InvalidPath, "Your remote home directory could not be resolved."),
+        "gone" => AppError::invalid("It no longer exists on ICF (already deleted or renamed). Refresh the folder."),
+        "kind_changed" => AppError::invalid("It changed on ICF since the folder was listed. Nothing was deleted; refresh and try again."),
+        "partial" => AppError::new(
+            ErrorCode::SlurmPermission,
+            "Some items inside could not be deleted (no permission). The rest was deleted; refresh to see what is left.",
+        ),
         _ => AppError::new(ErrorCode::SlurmError, "The operation failed on ICF."),
     }
 }
@@ -177,6 +183,40 @@ inside "$r" || { printf '@@err outside\n'; exit 0; }
 if [ -e "$r/$n" ] || [ -L "$r/$n" ]; then printf '@@err exists\n'; exit 0; fi
 mkdir -- "$r/$n" 2>/dev/null || { printf '@@err failed\n'; exit 0; }
 printf '@@ok %s\n' "$r/$n"
+"#;
+    s
+}
+
+/// One entry name as a listing shows it (spaces and Unicode allowed): a single printable segment.
+pub fn valid_entry_name(n: &str) -> bool {
+    !n.is_empty() && n.len() <= 255 && n != "." && n != ".." && !n.contains('/') && !n.chars().any(char::is_control)
+}
+
+/// Deletes one entry of `dir` that a listing showed as `kind`: a file or a link (never its target)
+/// with `rm -f`, a folder with everything in it via `rm -rf` (which does not follow links). If the
+/// entry is gone or is no longer that kind, nothing is deleted.
+pub fn delete_script(dir: &str, name: &str, kind: EntryKind) -> String {
+    let k = match kind {
+        EntryKind::Dir => "d",
+        EntryKind::File => "f",
+        _ => "l",
+    };
+    let mut s = String::from("# icfcc:delete\n");
+    s += HOME_GUARD;
+    s += &format!("p={}\nn={}\nk={k}\n", q(dir), q(name));
+    s += r#"r=$(cd -P -- "$p" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+t="$r/$n"
+if [ ! -e "$t" ] && [ ! -L "$t" ]; then printf '@@err gone\n'; exit 0; fi
+case "$k" in
+d) [ -d "$t" ] && [ ! -L "$t" ] ;;
+f) [ -f "$t" ] && [ ! -L "$t" ] ;;
+*) [ -L "$t" ] ;;
+esac || { printf '@@err kind_changed\n'; exit 0; }
+[ -w "$r" ] || { printf '@@err unwritable\n'; exit 0; }
+if [ "$k" = d ]; then rm -rf -- "$t" 2>/dev/null; else rm -f -- "$t" 2>/dev/null; fi
+if [ -e "$t" ] || [ -L "$t" ]; then printf '@@err partial\n'; exit 0; fi
+printf '@@ok %s\n' "$t"
 "#;
     s
 }

@@ -9,16 +9,19 @@ frontend/src/
 ui/       .tsx components only: rendering and view state (dialogs, tabs, toggles)
   App.tsx            shell, connection banner, sidebar
   components/ui.tsx  shared widgets (Badge, Dialog, Notice, icons)
-  cluster/ connection/ jobs/ editor/ projects/ training/ transfers/ settings/   one folder per screen
+  cluster/ connection/ jobs/ editor/ notebooks/ projects/ training/ transfers/ settings/   one folder per screen
 logic/    .ts only: what each screen knows and does
   api.ts             the only invoke()/listen() wrapper (typed IPC to the backend)
   format.ts          display formatting and state labels
   persist.ts         remembered UI preferences (localStorage, never secrets)
-  app/               useAppShell: connection, settings, snapshot, navigation, guarded disconnect
+  app/               useAppShell: connection, settings, snapshot, navigation, leave guard (guard.ts),
+                     guarded disconnect
   cluster/           useSnapshot (polling budget), node/partition filters, fleet totals, GPU limits
   connection/        useConnection (status + SSH prompts), useLogin, useChallenge
   jobs/              useJobs, script-job draft + preview/submit, My Jobs, job detail + cancel, log stream
-  editor/            file editor (hash-checked save), notebook parse/serialize/cells, languages
+  editor/            file editor (hash-checked save), languages, Run on GPU (useEditorPage, runFile)
+  notebooks/         notebook parse/serialize + cells and modes, Jupyter keys, Markdown/HTML → safe
+                     element tree, ANSI, outputs, kernel (useKernel, start sheet), recent notebooks
   projects/          remote browser, recent projects, VS Code status/sharing, Python environment
   training/          workflow draft ↔ WorkflowConfig, wizard flow, run monitoring
   transfers/         transfer queue and actions
@@ -63,6 +66,10 @@ workflow/script.rs      the reviewed wrapper script, compute-node archive stager
 workflow/status.rs      stage markers → workflow state, failure classification, bounded status read
 workflow/store.rs       runs.json (submitted runs, last observation; never resubmits)
 workflow/commands.rs    workflow_preview / refresh / runs / reconcile / files / metrics
+kernel/mod.rs           KernelRequest + plan() (Interactive only, shared resource/env checks)
+kernel/script.rs        the reviewed launch script (prechecks, heredocs, one exec srun)
+kernel/driver.py        node-side relay: ipykernel over IPC ↔ JSON lines on stdin/stdout
+kernel/commands.rs      kernel_preview / start / execute / interrupt / restart / stop, lifetime hooks
         ⇅  logic/api.ts
 logic/projects   useProjects, useRemoteBrowser, env (Python), vscode (status, sharing)  →  ui/projects
 logic/training   wizardDraft + useTrainingWizard (DRAFT→UPLOADING→VALIDATING→READY→SUBMITTING),
@@ -86,6 +93,23 @@ on the compute node (wrapper):
       ─▶ CLEANUP (only the dir created above) ─▶ DONE exit=…
 monitoring: workflow_refresh ─▶ jobs_list_mine (shared, rate-limited) + one bounded status read
            ─▶ derive(submission, scheduler state, markers, stderr tail) ─▶ runs.json
+```
+
+## Interactive kernel (ADR-031)
+
+```text
+Notebook or editor page ─kernel_preview(request)─▶ Interactive partition only + resource/interpreter checks
+       ◀─ srun line + notices (stored like a V2 preview)
+Start ─kernel_start(previewId, ack, Channel)─▶ take preview (consumed) ─▶ re-validate
+       ─▶ Session::spawn_stream: ssh -T … sh -s  (one long-lived mux session, stdin kept open)
+login node:  prechecks ─▶ @@starting ─▶ exec srun … /bin/bash -c "$ICFCC_STEP"
+compute node: toolchain, venv, import check ─▶ python -u driver.py ─ipc (0700 dir)─▶ ipykernel
+       ◀─ srun stderr: queued (job id) | error;  driver stdout: ready / out / done / bye (JSON lines)
+cells ─kernel_execute(id, code)─▶ one JSON line on stdin ─▶ outputs stream back on the Channel
+       %%cuda/%%cpp/%%c: compile in a 0700 mkdtemp on the node, run, remove (driver MAGICS)
+       editor Run on GPU: the buffer as one cell (%%cuda… or %%icfcc_script '<path>' for Python)
+end:  Stop | leave page | Disconnect/quit | 30 min idle | --time | SSH drop ─▶ driver exits, srun ends
+       kernel_stop: stop line + EOF, then owner-checked scancel if the job is still there, then kill
 ```
 
 ## Transfers (V3)
