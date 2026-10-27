@@ -246,7 +246,7 @@ describe('New job: one screen for script jobs and training workflows', () => {
   it('opens the script form with the partition chosen from a partition card', async () => {
     await openWizard();
     await userEvent.click(screen.getByLabelText('Training workflow'));
-    await userEvent.click(screen.getByRole('button', { name: 'Partitions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     await userEvent.click(await screen.findByRole('button', { name: 'New job on Interactive' }));
     await screen.findByRole('heading', { name: 'New job' });
     expect(screen.getByLabelText('Script job')).toBeChecked();

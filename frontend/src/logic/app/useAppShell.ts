@@ -12,16 +12,7 @@ import type { WizardInit } from '../training/wizardDraft';
 import type { Settings } from '../../types';
 
 export type View =
-  | 'overview'
-  | 'partitions'
-  | 'nodes'
-  | 'request'
-  | 'jobs'
-  | 'projects'
-  | 'notebooks'
-  | 'training'
-  | 'transfers'
-  | 'settings';
+  'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'training' | 'transfers' | 'settings';
 
 /**
  * App-wide state: connection, settings, the cluster snapshot, which screen and item is open, and
@@ -31,7 +22,9 @@ export type View =
 export function useAppShell() {
   const { status, challenges, setChallenges } = useConnection();
   const [settings, setSettings] = useState<Settings>({ pollIntervalSecs: 60 });
-  const [view, setView] = usePersistentState<View>('view', 'overview');
+  const [savedView, setView] = usePersistentState<View | 'partitions'>('view', 'overview');
+  // Partitions became part of Cluster → Overview; a screen remembered from before opens there.
+  const view: View = savedView === 'partitions' ? 'overview' : savedView;
   const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
   const [partitionFilter, setPartitionFilter] = usePersistentState('nodes.partition', '');
   const [selectedNode, setSelectedNode] = useState<string | null>(null);

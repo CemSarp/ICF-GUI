@@ -275,12 +275,12 @@ describe('Notebooks tab', () => {
   it('asks before leaving while the kernel runs, then stops it', async () => {
     await openNotebook();
     await startKernel();
-    await userEvent.click(screen.getByRole('button', { name: 'Overview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     const sheet = await screen.findByRole('dialog', { name: 'Stop the kernel?' });
     expect(within(sheet).getByText(/stops and its GPU is released/)).toBeInTheDocument();
     expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(0);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Stop kernel and leave' }));
-    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cluster' })).toBeInTheDocument();
     await waitFor(() => expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(1));
   });
 

@@ -27,6 +27,11 @@ a jump host typed under *Advanced* always takes precedence.
 
 ## Reading the dashboard
 
+**Cluster** (sidebar) has two tabs. **Overview** shows the fleet numbers, GPUs by type, and one row
+per partition with its time limit, nodes and GPUs; each row has **Nodes** (opens the Nodes tab
+filtered to that partition) and **New job**. **Nodes** lists every node with its state, GPUs, CPUs and
+memory, with search and filters; click a node for its details.
+
 | Symbol | Meaning |
 |---|---|
 | ○ green | Potentially free — the scheduler reports these GPUs unallocated. Not a reservation. |
@@ -34,7 +39,7 @@ a jump host typed under *Advanced* always takes precedence.
 | ✕ red | Unavailable: node down or draining. |
 | ? hatched | Unknown: the scheduler did not report allocation; never treated as free. |
 
-- Each physical node is counted once even if it belongs to several partitions; partition cards can
+- Each physical node is counted once even if it belongs to several partitions; partition rows can
   therefore add up to more than the fleet total.
 - MIG slices (e.g. *H200 3g.71gb*) are listed separately from full GPUs.
 - *Visibility does not imply eligibility*: the scheduler decides which partitions accept your jobs.
@@ -42,7 +47,7 @@ a jump host typed under *Advanced* always takes precedence.
 
 ## Requesting a GPU (batch jobs)
 
-1. **New job** (sidebar, or *New job* on a partition card), kind **Script job**.
+1. **New job** (sidebar, or *New job* on a partition in Cluster), kind **Script job**.
 2. Choose a partition and GPU type. The numbers show *potential* availability at the last snapshot;
    they are not a reservation. Set GPUs (default 1), CPUs, RAM and wall time (within the partition limit).
 3. Enter the **working directory** (relative paths start in your home, e.g. `projects/semeval`) and **script** on ICF (inside your home), an optional virtualenv

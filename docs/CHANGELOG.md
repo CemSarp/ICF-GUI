@@ -11,6 +11,10 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **One Cluster screen instead of Overview, Partitions and GPU Nodes.** Its *Overview* tab keeps the
+  fleet numbers and GPUs by type and adds one table row per partition (time limit, nodes, GPUs, and
+  *Nodes* / *New job*), replacing both the old partition list and the partition cards. Its *Nodes*
+  tab is the node table. A screen remembered from before opens in the right tab.
 - **Runs is now a tab of My Jobs.** My Jobs has *All jobs* (every job of yours on ICF) and
   *Training runs* (this app's workflows with stage, failure type, metrics, checkpoints and results).
   A job that is a training run links to it from the job list. Runs left the sidebar.

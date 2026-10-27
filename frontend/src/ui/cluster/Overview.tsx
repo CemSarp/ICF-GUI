@@ -1,16 +1,19 @@
 import { Badge, EmptyState, Notice } from '../components/ui';
 import { granularityLabel } from '../../logic/cluster/gpu';
-import { fleetSummary, partitionSummary } from '../../logic/cluster/overview';
+import { fleetSummary } from '../../logic/cluster/overview';
 import { formatDuration, nominalVram } from '../../logic/format';
 import type { ClusterSnapshot } from '../../types';
 import { GpuBar, Legend } from './GpuBar';
 
+/** Cluster → Overview: fleet numbers, GPUs by type, and one row per partition. */
 export function Overview({
   snapshot,
-  onOpenPartition,
+  onOpenNodes,
+  onRequest,
 }: {
   snapshot: ClusterSnapshot;
-  onOpenPartition: (name: string) => void;
+  onOpenNodes: (partition: string) => void;
+  onRequest: (partition: string) => void;
 }) {
   const fleet = fleetSummary(snapshot);
   const free = fleet.free;
@@ -102,35 +105,87 @@ export function Overview({
 
       <section className="card">
         <h2>Partitions</h2>
-        <ul className="partition-list">
-          {snapshot.partitions.map((p) => {
-            const { free: f, unknown: u } = partitionSummary(p);
-            return (
-              <li key={p.name}>
-                <button className="row-button" onClick={() => onOpenPartition(p.name)}>
-                  <span className="pname">
-                    {p.name} {p.isDefault && <Badge tone="info">Default</Badge>}{' '}
-                    {p.state !== 'up' && (
-                      <Badge tone="bad" glyph="✕">
-                        {p.stateRaw || 'Unknown'}
-                      </Badge>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th scope="col">Partition</th>
+                <th scope="col">Max time</th>
+                <th scope="col" className="num">
+                  Nodes
+                </th>
+                <th scope="col">GPUs</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {snapshot.partitions.map((p) => (
+                <tr key={p.name}>
+                  <th scope="row">
+                    {p.name}
+                    {p.warnings.length > 0 && (
+                      <span className="warn-mark" title={p.warnings.join('\n')}>
+                        {' '}
+                        ⚠<span className="sr-only">{p.warnings.length} warnings</span>
+                      </span>
                     )}
-                    {p.eligibility === 'not_permitted' && <Badge tone="muted">Not permitted</Badge>}
-                  </span>
-                  <span className="muted">
-                    {p.nodeIds.length} nodes · max {formatDuration(p.maxTimeSeconds, p.maxTimeRaw)}
-                  </span>
-                  <span>
-                    <span aria-hidden="true">○ </span>
-                    {f} potentially free{u > 0 ? ` · ${u} unknown` : ''}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <div className="badges">
+                      {p.isDefault && <Badge tone="info">Default</Badge>}
+                      {p.state !== 'up' && (
+                        <Badge tone="bad" glyph="✕">
+                          {p.stateRaw || 'Unknown'}
+                        </Badge>
+                      )}
+                      {p.eligibility === 'not_permitted' && <Badge tone="muted">Not permitted</Badge>}
+                    </div>
+                  </th>
+                  <td className="nowrap">{formatDuration(p.maxTimeSeconds, p.maxTimeRaw)}</td>
+                  <td className="num">{p.nodeIds.length}</td>
+                  <td>
+                    {p.gpuTotals.length === 0 ? (
+                      <span className="muted">{p.nodeIds.length === 0 ? 'No nodes' : 'No GPUs'}</span>
+                    ) : (
+                      <ul className="gpu-lines">
+                        {p.gpuTotals.map((t) => (
+                          <li key={t.gresName}>
+                            <div>
+                              <strong>{t.modelLabel}</strong>{' '}
+                              {t.granularity === 'mig' && <span className="muted small">MIG</span>}
+                            </div>
+                            <GpuBar t={t} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
+                  <td className="row-actions">
+                    <button
+                      className="btn ghost small-btn"
+                      onClick={() => onOpenNodes(p.name)}
+                      disabled={p.nodeIds.length === 0}
+                      aria-label={`Nodes of ${p.name}`}
+                    >
+                      Nodes
+                    </button>
+                    <button
+                      className="btn small-btn"
+                      onClick={() => onRequest(p.name)}
+                      aria-label={`New job on ${p.name}`}
+                      disabled={p.gpuTotals.length === 0 || p.eligibility === 'not_permitted'}
+                    >
+                      New job
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="muted small">
-          {snapshot.permissionScope}. “Potentially free” is not a reservation; the scheduler decides at submission.
+          Partitions visible to your account. Visibility does not imply eligibility: account, QoS and group limits are
+          enforced by the scheduler. “Potentially free” is not a reservation; the scheduler decides at submission.
         </p>
       </section>
     </>

@@ -300,7 +300,7 @@ host-key-changed errors (ADR-003), and a second login.
 - **No trash.** ICF has none, and a copy would fill the quota, so the confirmation says it cannot
   be undone and Cancel has the focus.
 
-## ADR-033 — Rename, Unpack, and Runs as a tab of My Jobs
+## ADR-033 — Rename, Unpack, and fewer screens (Cluster, My Jobs tabs)
 *Status: accepted (unreleased).* The user asked to unpack the archives Transfers makes and to rename
 files and folders, and to simplify My Jobs vs Runs.
 - **Rename.** `files_rename` takes the listed folder, the entry name and kind (as for delete,
@@ -320,6 +320,11 @@ files and folders, and to simplify My Jobs vs Runs.
   still work) but shown as the *Training runs* tab of My Jobs. All jobs links rows to their run
   from the local run list (`workflow_runs`, no ICF request), so the polling budget is unchanged:
   the run status read still happens only while the Training runs tab is open.
+- **Overview + Partitions + GPU Nodes → Cluster.** All three rendered the same snapshot: Overview and
+  Partitions both listed partitions with free GPUs, so they merge into Cluster → *Overview* (one
+  partition table; its search/sort/"hide not permitted" filters are dropped, ICF has a handful of
+  partitions and *Not permitted* is a badge). GPU Nodes stays as the *Nodes* tab (view id `nodes`). A
+  remembered `partitions` view is read as `overview`. No change to what is fetched or how often.
 
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).

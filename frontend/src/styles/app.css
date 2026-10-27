@@ -659,9 +659,6 @@ input[type='radio'] {
   font-size: 15px;
   overflow-wrap: anywhere;
 }
-.card-foot {
-  margin-top: auto;
-}
 details.card > summary,
 details > summary {
   cursor: pointer;
@@ -973,7 +970,6 @@ pre.log {
 .row-button:hover {
   background: var(--fill);
 }
-.partition-list,
 .project-list,
 .run-list,
 .transfer-list,
@@ -985,14 +981,12 @@ pre.log {
   padding: 0;
   margin: 0;
 }
-.partition-list li {
-  border-bottom: 1px solid var(--border);
-}
-.partition-list li:last-child {
-  border-bottom: 0;
-}
-.pname {
-  font-weight: 600;
+/* Badges under a name in a table row (partition: Default, Down, Not permitted). */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
 }
 .project-list li,
 .file-rows li {

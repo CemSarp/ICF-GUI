@@ -3,7 +3,6 @@ import { Badge, Dialog, EmptyState, Icon, Notice, type IconName } from './compon
 import { Nodes } from './cluster/Nodes';
 import { NodeDetail } from './cluster/NodeDetail';
 import { Overview } from './cluster/Overview';
-import { Partitions } from './cluster/Partitions';
 import { ChallengeDialog } from './connection/ChallengeDialog';
 import { LoginView } from './connection/LoginView';
 import { JobDetailView } from './jobs/JobDetailView';
@@ -22,15 +21,9 @@ const EditorView = lazy(() => import('./editor/EditorView').then((m) => ({ defau
 const NotebooksView = lazy(() => import('./notebooks/NotebooksView').then((m) => ({ default: m.NotebooksView })));
 
 type NavItem = { id: View; label: string; icon: IconName };
-const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
-  {
-    heading: 'Cluster',
-    items: [
-      { id: 'overview', label: 'Overview', icon: 'overview' },
-      { id: 'partitions', label: 'Partitions', icon: 'partitions' },
-      { id: 'nodes', label: 'GPU Nodes', icon: 'nodes' },
-    ],
-  },
+const NAV_GROUPS: { heading: string; items: NavItem[]; bottom?: boolean }[] = [
+  // Partitions and GPU Nodes are tabs of Cluster ('overview' / 'nodes').
+  { heading: '', items: [{ id: 'overview', label: 'Cluster', icon: 'overview' }] },
   {
     heading: 'Jobs',
     items: [
@@ -48,25 +41,40 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { id: 'transfers', label: 'Transfers', icon: 'transfers' },
     ],
   },
-  { heading: '', items: [{ id: 'settings', label: 'Settings', icon: 'settings' }] },
+  { heading: '', items: [{ id: 'settings', label: 'Settings', icon: 'settings' }], bottom: true },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 /** The sidebar item a screen belongs to. */
-const navOf = (v: View): View => (v === 'training' ? 'jobs' : v);
-const JOB_TABS: { id: View; label: string; help: string }[] = [
-  {
-    id: 'jobs',
-    label: 'All jobs',
-    help: 'Every job of yours on ICF, however it was submitted: scheduler state, logs and cancel.',
-  },
-  {
-    id: 'training',
-    label: 'Training runs',
-    help: 'Training workflows from this app: stage, failure type, metrics, checkpoints and copied-back results.',
-  },
-];
+const navOf = (v: View): View => (v === 'training' ? 'jobs' : v === 'nodes' ? 'overview' : v);
+/** Screens shown as tabs of one sidebar item, with a line saying what each tab shows. */
+const PAGE_TABS: Partial<Record<View, { id: View; label: string; help: string }[]>> = {
+  overview: [
+    {
+      id: 'overview',
+      label: 'Overview',
+      help: 'Free GPUs by type and by partition. Start a job on a partition from here.',
+    },
+    {
+      id: 'nodes',
+      label: 'Nodes',
+      help: 'Every node with its state, GPUs, CPUs and memory. Filter by partition, state or GPU type.',
+    },
+  ],
+  jobs: [
+    {
+      id: 'jobs',
+      label: 'All jobs',
+      help: 'Every job of yours on ICF, however it was submitted: scheduler state, logs and cancel.',
+    },
+    {
+      id: 'training',
+      label: 'Training runs',
+      help: 'Training workflows from this app: stage, failure type, metrics, checkpoints and copied-back results.',
+    },
+  ],
+};
 /** Screens that use the cluster snapshot; only they show the snapshot's Refresh in the toolbar. */
-const USES_SNAPSHOT: View[] = ['overview', 'partitions', 'nodes', 'request'];
+const USES_SNAPSHOT: View[] = ['overview', 'nodes', 'request'];
 
 export function App() {
   const {
@@ -125,6 +133,7 @@ export function App() {
 
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
+    mainRef.current?.scrollTo?.(0, 0); // a new screen or tab starts at its top
   }, [view, selectedNode, selectedJob, project, selectedRun, editingFile, openNotebook]);
 
   if (!live) {
@@ -151,7 +160,7 @@ export function App() {
           ICF Control Center
         </div>
         {NAV_GROUPS.map((g) => (
-          <div className={g.heading ? 'nav-group' : 'nav-group bottom'} key={g.heading}>
+          <div className={g.bottom ? 'nav-group bottom' : 'nav-group'} key={g.heading || g.items[0]!.id}>
             {g.heading && (
               <div className="nav-heading" aria-hidden="true">
                 {g.heading}
@@ -257,10 +266,10 @@ export function App() {
             key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}|${editingFile ?? ''}`}
           >
             <h1 className="page-title">{NAV.find((n) => n.id === navOf(view))?.label}</h1>
-            {navOf(view) === 'jobs' && (
+            {PAGE_TABS[navOf(view)] && (
               <div className="page-tabs">
-                <div role="tablist" className="tabs" aria-label="Jobs">
-                  {JOB_TABS.map((t) => (
+                <div role="tablist" className="tabs" aria-label={NAV.find((n) => n.id === navOf(view))?.label}>
+                  {PAGE_TABS[navOf(view)]!.map((t) => (
                     <button
                       key={t.id}
                       role="tab"
@@ -275,7 +284,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <span className="muted small">{JOB_TABS.find((t) => t.id === view)?.help}</span>
+                <span className="muted small">{PAGE_TABS[navOf(view)]!.find((t) => t.id === view)?.help}</span>
               </div>
             )}
             {view === 'projects' && editingFile ? (
@@ -381,10 +390,8 @@ export function App() {
               </EmptyState>
             ) : selectedNode ? (
               <NodeDetail nodeId={selectedNode} version={snapshot.fetchedAtMs} onBack={() => setSelectedNode(null)} />
-            ) : view === 'overview' ? (
-              <Overview snapshot={snapshot} onOpenPartition={openNodes} />
-            ) : view === 'partitions' ? (
-              <Partitions snapshot={snapshot} onOpenNodes={openNodes} onRequest={requestOn} />
+            ) : view !== 'nodes' ? (
+              <Overview snapshot={snapshot} onOpenNodes={openNodes} onRequest={requestOn} />
             ) : (
               <Nodes
                 snapshot={snapshot}
@@ -393,7 +400,7 @@ export function App() {
                 onSelect={setSelectedNode}
               />
             )}
-            {snapshot && snapshot.warnings.length > 0 && ['overview', 'partitions', 'nodes'].includes(view) && (
+            {snapshot && snapshot.warnings.length > 0 && ['overview', 'nodes'].includes(view) && (
               <details className="card small">
                 <summary>{snapshot.warnings.length} data warning(s)</summary>
                 <ul>

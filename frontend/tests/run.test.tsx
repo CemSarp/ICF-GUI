@@ -109,7 +109,7 @@ describe('Run on GPU in the editor', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'kernel.cu' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Start kernel…' }));
     await startKernel();
-    await userEvent.click(screen.getByRole('button', { name: 'Overview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     expect(await screen.findByRole('dialog', { name: 'Stop the kernel?' })).toBeInTheDocument();
   });
 

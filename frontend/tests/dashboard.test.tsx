@@ -16,11 +16,25 @@ describe('dashboard (V1-AC04..AC09)', () => {
   it('labels demo data and lists every visible partition', async () => {
     renderApp();
     expect(await screen.findByText(/DEMO MODE — synthetic data, not live ICF/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Partitions' }));
     for (const p of ['Interactive', 'Teaching', 'ICF-Free', 'ICF-Research', 'Open-Research']) {
-      expect(screen.getByRole('heading', { name: p })).toBeInTheDocument();
+      expect(await screen.findByRole('rowheader', { name: (n) => n.startsWith(p) })).toBeInTheDocument();
     }
     expect(screen.getByText(/Visibility does not imply eligibility/)).toBeInTheDocument();
+  });
+
+  it('is one Cluster screen: Overview and Nodes are tabs, and a partition opens its nodes', async () => {
+    localStorage.setItem('icfcc.view', JSON.stringify('partitions')); // remembered from before 0.6
+    renderApp();
+    await screen.findByText(/DEMO MODE/);
+    for (const gone of ['Overview', 'Partitions', 'GPU Nodes']) {
+      expect(screen.queryByRole('button', { name: gone })).toBeNull();
+    }
+    expect(screen.getByRole('button', { name: 'Cluster' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(await screen.findByRole('button', { name: 'Nodes of Teaching' }));
+    expect(screen.getByRole('tab', { name: 'Nodes' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Cluster' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByLabelText('Partition')).toHaveValue('Teaching');
   });
 
   it('shows the released version from package.json in the sidebar', async () => {
@@ -32,7 +46,7 @@ describe('dashboard (V1-AC04..AC09)', () => {
   it('shows Unknown rather than 0 when allocation cannot be determined', async () => {
     renderApp();
     await screen.findByText(/DEMO MODE/);
-    await userEvent.click(screen.getByRole('button', { name: 'GPU Nodes' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Nodes' }));
     const row = screen.getByRole('button', { name: 'landonia21' }).closest('tr')!;
     expect(within(row).getByText(/allocation unknown/)).toBeInTheDocument();
     expect(within(row).getByText('Unknown')).toBeInTheDocument();
@@ -41,7 +55,7 @@ describe('dashboard (V1-AC04..AC09)', () => {
   it('node detail shows MIG slices distinct from physical GPUs', async () => {
     renderApp();
     await screen.findByText(/DEMO MODE/);
-    await userEvent.click(screen.getByRole('button', { name: 'GPU Nodes' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Nodes' }));
     await userEvent.click(screen.getByRole('button', { name: 'saxa' }));
     expect(await screen.findByRole('heading', { name: 'Node saxa' })).toBeInTheDocument();
     expect(screen.getByText('H200 3g.71gb')).toBeInTheDocument();
@@ -123,7 +137,7 @@ describe('dashboard (V1-AC04..AC09)', () => {
   it('filters nodes locally without network calls', async () => {
     renderApp();
     await screen.findByText(/DEMO MODE/);
-    await userEvent.click(screen.getByRole('button', { name: 'GPU Nodes' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Nodes' }));
     const calls = backend.calls.length;
     await userEvent.type(screen.getByLabelText('Search'), 'zzz-nothing');
     expect(screen.getByRole('heading', { name: 'Filtered out' })).toBeInTheDocument();

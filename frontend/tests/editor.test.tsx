@@ -82,10 +82,10 @@ describe('In-app editor', () => {
     let sheet = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('heading', { name: /^train\.py/ })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Overview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     sheet = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Discard changes' }));
-    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cluster' })).toBeInTheDocument();
     expect(saves()).toHaveLength(0);
   });
 
