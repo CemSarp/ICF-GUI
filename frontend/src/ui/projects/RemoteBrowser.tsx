@@ -2,9 +2,20 @@ import { type ReactNode } from 'react';
 import { Dialog, Icon, Notice, type IconName } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { bytes, formatTime, formatUnix } from '../../logic/format';
-import { crumbTrail, editable, isDir, joinPath, NEW_FILE_TYPES, type NewFileType } from '../../logic/projects/paths';
+import {
+  crumbTrail,
+  editable,
+  isArchive,
+  isDir,
+  joinPath,
+  NEW_FILE_TYPES,
+  type NewFileType,
+} from '../../logic/projects/paths';
 import { useRemoteBrowser } from '../../logic/projects/useRemoteBrowser';
 import type { ConnectionStatus, Entry, Listing } from '../../types';
+
+const kindNoun = (e: Entry) => (e.kind === 'dir' ? 'folder' : e.kind === 'symlink' ? 'link' : 'file');
+const renameReady = (a: { name: string; entry: Entry }) => !!a.name.trim() && a.name.trim() !== a.entry.name;
 
 function icon(e: Entry): IconName {
   if (isDir(e)) return 'folder';
@@ -51,7 +62,7 @@ export function RemoteBrowser({
   status: ConnectionStatus;
   start: string | null;
   allowMkdir?: boolean;
-  /** Delete on each file, folder and link (after a confirmation that names what goes). */
+  /** Rename and Delete on each file, folder and link, and Unpack on archives (each after a confirmation). */
   allowDelete?: boolean;
   onSelectDir?: (path: string, listing: Listing) => void;
   selectDirLabel?: string;
@@ -90,12 +101,13 @@ export function RemoteBrowser({
     newFile,
     setNewFile,
     createFile,
-    toDelete,
-    askDelete,
-    cancelDelete,
-    deleteEntry,
+    act,
+    ask,
+    setActName,
+    cancelAct,
+    runAct,
   } = useRemoteBrowser({ status, start, fileFilter, onOpenFile });
-  const canDelete = (e: Entry) =>
+  const canChange = (e: Entry) =>
     allowDelete && !!listing?.writable && !e.unsupported && ['dir', 'file', 'symlink'].includes(e.kind);
   const hasActions = !!(fileAction || onOpenFile || allowDelete);
 
@@ -281,14 +293,32 @@ export function RemoteBrowser({
                           {fileAction.label}
                         </button>
                       )}
-                      {canDelete(e) && (
+                      {canChange(e) && isArchive(e) && (
                         <button
-                          className="btn ghost danger small-btn"
-                          aria-label={`Delete ${e.name}`}
-                          onClick={() => askDelete(e)}
+                          className="btn small-btn"
+                          aria-label={`Unpack ${e.name}`}
+                          onClick={() => ask('unpack', e)}
                         >
-                          Delete
+                          Unpack
                         </button>
+                      )}
+                      {canChange(e) && (
+                        <>
+                          <button
+                            className="btn ghost small-btn"
+                            aria-label={`Rename ${e.name}`}
+                            onClick={() => ask('rename', e)}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            className="btn ghost danger small-btn"
+                            aria-label={`Delete ${e.name}`}
+                            onClick={() => ask('delete', e)}
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                     </td>
                   )}
@@ -346,34 +376,84 @@ export function RemoteBrowser({
           </div>
         </Dialog>
       )}
-      {toDelete && listing && (
-        <Dialog
-          title={
-            toDelete.entry.kind === 'dir'
-              ? 'Delete this folder?'
-              : toDelete.entry.kind === 'symlink'
-                ? 'Delete this link?'
-                : 'Delete this file?'
-          }
-          labelledBy="delete-title"
-          onClose={cancelDelete}
-        >
+      {act?.op === 'delete' && listing && (
+        <Dialog title={`Delete this ${kindNoun(act.entry)}?`} labelledBy="delete-title" onClose={cancelAct}>
           <p>
-            <code>{joinPath(listing.path, toDelete.entry.name)}</code>
-            {toDelete.entry.kind === 'dir'
+            <code>{joinPath(listing.path, act.entry.name)}</code>
+            {act.entry.kind === 'dir'
               ? ' and everything inside it will be deleted from ICF.'
-              : toDelete.entry.kind === 'symlink'
+              : act.entry.kind === 'symlink'
                 ? ' will be deleted from ICF. Only the link goes; what it points to is kept.'
                 : ' will be deleted from ICF.'}
           </p>
           <Notice tone="warn">This cannot be undone: ICF has no trash, and the app keeps no copy.</Notice>
-          {toDelete.error && <Notice tone="bad">{toDelete.error}</Notice>}
+          {act.error && <Notice tone="bad">{act.error}</Notice>}
           <div className="actions">
-            <button className="btn" data-autofocus onClick={cancelDelete}>
+            <button className="btn" data-autofocus onClick={cancelAct}>
               Cancel
             </button>
-            <button className="btn danger" onClick={() => void deleteEntry()} disabled={toDelete.busy}>
-              {toDelete.busy ? 'Deleting…' : toDelete.entry.kind === 'dir' ? 'Delete folder' : 'Delete'}
+            <button className="btn danger" onClick={() => void runAct()} disabled={act.busy}>
+              {act.busy ? 'Deleting…' : act.entry.kind === 'dir' ? 'Delete folder' : 'Delete'}
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {act?.op === 'rename' && listing && (
+        <Dialog title={`Rename this ${kindNoun(act.entry)}`} labelledBy="rename-title" onClose={cancelAct}>
+          <p>
+            Renames <code>{joinPath(listing.path, act.entry.name)}</code> in place.
+            {act.entry.kind === 'symlink' && ' Only the link is renamed; what it points to is kept.'} An existing name
+            is never overwritten.
+          </p>
+          <div className="field">
+            <label htmlFor="rename-to">New name</label>
+            <input
+              id="rename-to"
+              data-autofocus
+              className="mono"
+              value={act.name}
+              onChange={(e) => setActName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || !renameReady(act)) return;
+                // Consumed, so the same key press cannot click the Rename button focus returns to.
+                e.preventDefault();
+                void runAct();
+              }}
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            <small className="muted">Letters, digits, . _ - + @ = , (no spaces; jobs need simple paths)</small>
+          </div>
+          {act.error && <Notice tone="bad">{act.error}</Notice>}
+          <div className="actions">
+            <button className="btn" onClick={cancelAct}>
+              Cancel
+            </button>
+            <button className="btn primary" onClick={() => void runAct()} disabled={act.busy || !renameReady(act)}>
+              {act.busy ? 'Renaming…' : 'Rename'}
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {act?.op === 'unpack' && listing && (
+        <Dialog title="Unpack this archive?" labelledBy="unpack-title" onClose={act.busy ? () => undefined : cancelAct}>
+          <p>
+            <code>{joinPath(listing.path, act.entry.name)}</code> is unpacked into a new folder next to it: the
+            archive&apos;s own folder if it holds exactly one, otherwise a folder named after the archive. The archive
+            is kept, and nothing that exists is overwritten.
+          </p>
+          <Notice tone="info">
+            This runs on the login node and can take several minutes for a large archive. Keep the app open until it
+            finishes. For datasets of many small files, a training workflow can unpack the archive on the compute
+            node&apos;s scratch disk instead, which is faster.
+          </Notice>
+          {act.error && <Notice tone="bad">{act.error}</Notice>}
+          <div className="actions">
+            <button className="btn" data-autofocus onClick={cancelAct} disabled={act.busy}>
+              Cancel
+            </button>
+            <button className="btn primary" onClick={() => void runAct()} disabled={act.busy}>
+              {act.busy ? 'Unpacking…' : 'Unpack'}
             </button>
           </div>
         </Dialog>

@@ -34,10 +34,10 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Jobs',
     items: [
-      // 'request' and 'training' keep their ids so saved navigation state stays valid.
+      // 'request' keeps its id so saved navigation state stays valid. Training runs ('training')
+      // are a tab of My Jobs, not a separate screen.
       { id: 'request', label: 'New job', icon: 'request' },
       { id: 'jobs', label: 'My Jobs', icon: 'jobs' },
-      { id: 'training', label: 'Runs', icon: 'training' },
     ],
   },
   {
@@ -51,6 +51,20 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   { heading: '', items: [{ id: 'settings', label: 'Settings', icon: 'settings' }] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
+/** The sidebar item a screen belongs to. */
+const navOf = (v: View): View => (v === 'training' ? 'jobs' : v);
+const JOB_TABS: { id: View; label: string; help: string }[] = [
+  {
+    id: 'jobs',
+    label: 'All jobs',
+    help: 'Every job of yours on ICF, however it was submitted: scheduler state, logs and cancel.',
+  },
+  {
+    id: 'training',
+    label: 'Training runs',
+    help: 'Training workflows from this app: stage, failure type, metrics, checkpoints and copied-back results.',
+  },
+];
 /** Screens that use the cluster snapshot; only they show the snapshot's Refresh in the toolbar. */
 const USES_SNAPSHOT: View[] = ['overview', 'partitions', 'nodes', 'request'];
 
@@ -148,7 +162,7 @@ export function App() {
                 <li key={n.id}>
                   <button
                     className="nav"
-                    aria-current={view === n.id ? 'page' : undefined}
+                    aria-current={navOf(view) === n.id ? 'page' : undefined}
                     onClick={() => navigate(n.id)}
                   >
                     <Icon name={n.icon} />
@@ -242,7 +256,28 @@ export function App() {
             className={view === 'notebooks' ? 'page wide' : 'page'}
             key={`${view}|${selectedNode ?? ''}|${selectedJob ?? ''}|${editingFile ?? ''}`}
           >
-            <h1 className="page-title">{NAV.find((n) => n.id === view)?.label}</h1>
+            <h1 className="page-title">{NAV.find((n) => n.id === navOf(view))?.label}</h1>
+            {navOf(view) === 'jobs' && (
+              <div className="page-tabs">
+                <div role="tablist" className="tabs" aria-label="Jobs">
+                  {JOB_TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      role="tab"
+                      className="tab"
+                      aria-selected={view === t.id}
+                      onClick={() => {
+                        navigate(t.id);
+                        if (t.id === 'training') setSelectedRun(null);
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="muted small">{JOB_TABS.find((t) => t.id === view)?.help}</span>
+              </div>
+            )}
             {view === 'projects' && editingFile ? (
               <Suspense
                 fallback={
@@ -324,7 +359,7 @@ export function App() {
               selectedJob ? (
                 <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
               ) : (
-                <MyJobsView status={status} onOpen={setSelectedJob} />
+                <MyJobsView status={status} onOpen={setSelectedJob} onOpenRun={openRun} />
               )
             ) : view === 'settings' ? (
               <SettingsView

@@ -48,6 +48,8 @@ const TREE: Record<string, ReturnType<typeof e>[]> = {
     e('requirements.txt', 'file', 120),
   ],
   [`${PROJECT}/data`]: [e('semeval.tar.gz', 'file', 734_003_200), e('dev.zip', 'file', 12_582_912)],
+  // What Unpack of semeval.tar.gz gives (the mocks return this path).
+  [`${PROJECT}/data/semeval`]: [e('train.jsonl', 'file', 512_000_000), e('dev.jsonl', 'file', 64_000_000)],
   [`${PROJECT}/runs`]: [e('train-4242', 'dir'), e('slurm-4242.out', 'file', 20480)],
   [`${PROJECT}/runs/train-4242/outputs`]: [e('model.pt', 'file', 438_000_000), e('eval.json', 'file', 812)],
   [`${PROJECT}/runs/train-4242/checkpoints`]: [e('checkpoint-1000', 'dir'), e('checkpoint-2000', 'dir')],

@@ -310,5 +310,45 @@ pub async fn files_delete(state: State<'_, AppState>, dir: String, name: String,
     remote::parse_ok(&session.run(&remote::delete_script(&dir, &name, kind), FILE_TIMEOUT, 16 * 1024).await?)
 }
 
+/// Rename one entry of a listed folder in place (explicit user action; never over an existing name).
+#[tauri::command]
+pub async fn files_rename(state: State<'_, AppState>, dir: String, name: String, kind: remote::EntryKind, new_name: String) -> AppResult<String> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    if !remote::valid_entry_name(&name) || !matches!(kind, remote::EntryKind::Dir | remote::EntryKind::File | remote::EntryKind::Symlink) {
+        return Err(AppError::invalid("Only files, folders and links with supported names can be renamed from the app."));
+    }
+    if !valid_name(&new_name) {
+        return Err(AppError::invalid("New name: up to 128 letters, digits, '.', '_', '-', '+', '@', '=' or ',' starting with a letter, digit or '_'."));
+    }
+    if new_name == name {
+        return Err(AppError::invalid("That is already its name."));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "renaming files")?;
+    remote::parse_ok(&session.run(&remote::rename_script(&dir, &name, kind, &new_name), COMMAND_TIMEOUT, 16 * 1024).await?)
+}
+
+/// Unpack one archive (.tar.gz, .tgz, .tar.bz2, .tar.xz, .tar, .zip) next to itself on ICF; the
+/// archive is kept and nothing existing is overwritten. Runs on the login node.
+#[tauri::command]
+pub async fn files_unpack(state: State<'_, AppState>, dir: String, name: String) -> AppResult<String> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    let (stem, zip) = remote::unpack_target(&name)
+        .filter(|_| remote::valid_entry_name(&name))
+        .ok_or_else(|| AppError::invalid("Only .tar.gz, .tgz, .tar.bz2, .tar.xz, .tar and .zip files can be unpacked."))?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "unpacking archives")?;
+    match session.run(&remote::unpack_script(&dir, &name, &stem, zip), UNPACK_TIMEOUT, 16 * 1024).await {
+        Err(e) if matches!(e.code, ErrorCode::SshTimeout) => Err(AppError::new(
+            ErrorCode::SshTimeout,
+            "Unpacking took longer than 20 minutes, so the app stopped waiting. It may still be running on ICF in a hidden .icfcc-unpack folder next to the archive; delete that folder once it stops growing, or unpack big datasets in a job instead.",
+        )),
+        r => remote::parse_unpack(&r?),
+    }
+}
+
+/// Unpacking a large dataset on NFS can take many minutes; stays under the 30-minute idle disconnect.
+const UNPACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20 * 60);
+
 /// Large notebooks over a slow link need longer than the usual 15 s command budget.
 const FILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);

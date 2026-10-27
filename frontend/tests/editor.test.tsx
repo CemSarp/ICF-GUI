@@ -155,6 +155,46 @@ describe('Deleting files and folders', () => {
   });
 });
 
+describe('Renaming and unpacking', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('renames in place after the new name is typed, and never sends an unchanged name', async () => {
+    await openProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Rename train.py' }));
+    const sheet = screen.getByRole('dialog', { name: 'Rename this file' });
+    const input = within(sheet).getByLabelText('New name');
+    expect(input).toHaveValue('train.py');
+    expect(within(sheet).getByRole('button', { name: 'Rename' })).toBeDisabled();
+    await userEvent.clear(input);
+    await userEvent.type(input, 'train_v2.py{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(backend.calls.find((c) => c.cmd === 'files_rename')!.args).toEqual({
+      dir: v3.PROJECT,
+      name: 'train.py',
+      kind: 'file',
+      newName: 'train_v2.py',
+    });
+    expect(await screen.findByRole('button', { name: 'Rename train_v2.py' })).toBeInTheDocument();
+  });
+
+  it('offers Unpack only on archives, confirms first, then opens the unpacked folder', async () => {
+    await openProject();
+    expect(screen.queryByRole('button', { name: 'Unpack train.py' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'data' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Unpack semeval.tar.gz' }));
+    const sheet = screen.getByRole('dialog', { name: 'Unpack this archive?' });
+    expect(within(sheet).getByText(/The archive is kept/)).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(backend.count('files_unpack')).toBe(0);
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Unpack' }));
+    expect(await screen.findByText('train.jsonl')).toBeInTheDocument();
+    expect(backend.calls.find((c) => c.cmd === 'files_unpack')!.args).toEqual({
+      dir: `${v3.PROJECT}/data`,
+      name: 'semeval.tar.gz',
+    });
+  });
+});
+
 describe('Sign VS Code in through this app', () => {
   beforeEach(() => backend.reset(connectedLive));
 

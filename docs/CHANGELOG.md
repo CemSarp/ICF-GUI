@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Rename** on every file, folder and link in Projects and Notebooks: renames in place, never over
+  an existing name (a link is renamed, not what it points to).
+- **Unpack** on archives (`.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.zip`): unpacks next to
+  the archive on ICF, after a confirmation. A folder packed by Transfers comes back under its own
+  name; anything else gets a folder named after the archive. The archive is kept, nothing existing is
+  overwritten, and a failed unpack leaves nothing behind (ADR-033).
+
+### Changed
+- **Runs is now a tab of My Jobs.** My Jobs has *All jobs* (every job of yours on ICF) and
+  *Training runs* (this app's workflows with stage, failure type, metrics, checkpoints and results).
+  A job that is a training run links to it from the job list. Runs left the sidebar.
+
+### Internal
+- `files_rename` and `files_unpack` (file-mutations capability), fixed scripts tested against a
+  sandbox home, including archive members named `../x` or `/x`.
+
 ## [0.5.0] — 2026-10-27 · Notebooks
 
 ### Added

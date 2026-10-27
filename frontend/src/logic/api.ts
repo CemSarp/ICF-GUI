@@ -110,6 +110,9 @@ export const api = {
   filesCreate: (dir: string, name: string, content: string) =>
     invoke<FileSaved>('files_create', { dir, name, content }),
   filesDelete: (dir: string, name: string, kind: EntryKind) => invoke<string>('files_delete', { dir, name, kind }),
+  filesRename: (dir: string, name: string, kind: EntryKind, newName: string) =>
+    invoke<string>('files_rename', { dir, name, kind, newName }),
+  filesUnpack: (dir: string, name: string) => invoke<string>('files_unpack', { dir, name }),
   filesWrite: (path: string, content: string, expectedSha256: string) =>
     invoke<FileSaved>('files_write', { path, content, expectedSha256 }),
   pythonCheckImports: (interpreter: string, modules: string[]) =>

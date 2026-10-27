@@ -68,7 +68,12 @@ not your code is using it. The app shows scheduler allocation, not GPU utilisati
 
 ## My Jobs
 
-Lists your queued/running jobs (`squeue`, every 45 s while visible) and the last 7 days of finished
+My Jobs has two tabs. **All jobs** shows every job of yours on ICF, however it was submitted (this
+app, `sbatch` in a terminal, a kernel). **Training runs** shows only the [training
+workflows](#training-runs) submitted from this app, with what SLURM does not know. A job that is a
+training run has a *Training run ›* link next to its name.
+
+All jobs lists your queued/running jobs (`squeue`, every 45 s while visible) and the last 7 days of finished
 jobs (`sacct`, when the site provides it). Open a job for scheduler details, failure hints
 (timeout, out of memory, exit code) and logs:
 - **Load log** fetches the last 64 KB; **Load new output** fetches only what was added since.
@@ -79,8 +84,13 @@ jobs (`sacct`, when the site provides it). Open a job for scheduler details, fai
 ## Projects and VS Code
 
 **Projects** (sidebar) lists folders you opened before and lets you browse your ICF home one folder
-at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder*). Very large folders show the first
-1000 entries. Folders reached through a symlink must still be inside your home. Choose **Open as
+at a time (Back/Forward/Up, a path box, *Show hidden*, *New folder*). Each file, folder and link has
+**Rename** (in place, never over an existing name) and **Delete** (after a confirmation; ICF has no
+trash). Archives also have **Unpack**: it unpacks next to the archive on ICF and opens the result. A
+folder packed by Transfers comes back under its own name; other archives get a folder named after the
+archive. The archive is kept and nothing existing is overwritten. Unpacking runs on the login node, so
+for big datasets of many small files prefer letting a training workflow unpack on scratch. Very large
+folders show the first 1000 entries. Folders reached through a symlink must still be inside your home. Choose **Open as
 project** on a folder to see its detail page.
 
 - **Open in VS Code** starts the VS Code installed on your Mac with
@@ -167,7 +177,8 @@ already have (no second login), one file at a time.
   your Mac's copy and only then given its name. **An existing file is never overwritten.**
 - **Choose a folder to pack…** turns a folder into one `.tar.gz` first (thousands of small files are
   slow on NFS). Folders with links pointing outside them or special files are refused. The packed
-  archive is deleted from your Mac after a verified upload.
+  archive is deleted from your Mac after a verified upload. Use **Unpack** on it in Projects to get
+  the folder back on ICF.
 - **Download from ICF**: choose a file, then where to save it; the download is verified the same way.
 - **Cancel** keeps the partial file; **Retry / resume** continues where it stopped (and starts over if
   the checksum does not match); **Discard partial file** deletes it. Transfers interrupted by quitting
@@ -220,9 +231,9 @@ Mac, or AFS if you have it).
 Example files for trying all of this cheaply are in [`docs/examples/workflow-smoke/`](examples/workflow-smoke/) (a tiny dataset
 builder, a tiny PyTorch training script and a notebook, with a test table).
 
-### Runs
+### Training runs
 
-**Runs** lists workflows submitted from this Mac, also after you restart the app (the jobs
+**My Jobs → Training runs** lists workflows submitted from this Mac, also after you restart the app (the jobs
 keep running while the app is closed; nothing is resubmitted). Each run shows two states: the
 **workflow state** (Queued, Node allocated, Staging data, Training, Saving checkpoints, Copying
 results, Completed, Failed, Cancelled, Timed out, Node failure, Needs your check) and the
@@ -237,7 +248,7 @@ type (e.g. GPU out of memory, CUDA mismatch, scratch full, unsafe archive, resul
 it from My Jobs. *Needs your check* means the submission outcome is unknown: use *Check my jobs for
 this submission* before submitting again.
 
-The Runs screen checks SLURM and the runs' status files at most once a minute, only while it is
+The Training runs tab checks SLURM and the runs' status files at most once a minute, only while it is
 visible and a run is still active.
 
 ### Batch notebooks

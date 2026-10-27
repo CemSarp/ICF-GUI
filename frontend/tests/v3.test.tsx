@@ -20,6 +20,11 @@ async function openProject() {
 }
 
 /** The VS Code and Python environment cards start collapsed. */
+async function openRuns() {
+  await nav('My Jobs');
+  await userEvent.click(await screen.findByRole('tab', { name: 'Training runs' }));
+}
+
 async function expand(name: string) {
   await userEvent.click(await screen.findByRole('button', { name, expanded: false }));
 }
@@ -189,8 +194,9 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
       acknowledged: true,
     });
     await userEvent.click(screen.getByRole('button', { name: 'Monitor this run' }));
-    expect(await screen.findByRole('heading', { name: 'Runs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Runs' })).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByRole('heading', { name: 'My Jobs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'My Jobs' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('tab', { name: 'Training runs' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('folds VS Code and Python environment to a summary until opened, and remembers that', async () => {
@@ -289,8 +295,21 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
 describe('Runs dashboard (V3-AC07, AC09)', () => {
   beforeEach(() => backend.reset(connectedLive));
 
+  it('is a tab of My Jobs, and a job that is a training run links to it without polling runs', async () => {
+    await nav('My Jobs');
+    expect(screen.queryByRole('button', { name: 'Runs' })).toBeNull();
+    expect(await screen.findByRole('tab', { name: 'All jobs' })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(await screen.findByRole('button', { name: 'Open training run train (job 4242)' }));
+    expect(await screen.findByRole('button', { name: 'All runs' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Training runs' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('button', { name: 'Open training run train (job 4242)' })).toBeNull();
+    expect(backend.count('workflow_runs')).toBe(1);
+    // The job list never asked ICF about runs; only opening the run did.
+    expect(backend.count('workflow_refresh')).toBe(1);
+  });
+
   it('separates workflow state from scheduler state and survives restarts via the local run list', async () => {
-    await nav('Runs');
+    await openRuns();
     expect(await screen.findByText('gpu-smoke')).toBeInTheDocument();
     const failed = screen.getByText('long-run').closest('li')!;
     expect(within(failed).getByText('Node failure', { selector: '.badge' })).toBeInTheDocument();
@@ -300,7 +319,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
   });
 
   it('labels what is recoverable after a node failure and offers resume from a checkpoint', async () => {
-    await nav('Runs');
+    await openRuns();
     await userEvent.click(await screen.findByText('long-run'));
     expect(await screen.findByText('What can be recovered')).toBeInTheDocument();
     expect(screen.getByText(/resume from it/)).toBeInTheDocument();
@@ -314,7 +333,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     const detail = backend.handlers.jobs_get_detail!;
     backend.handlers.jobs_get_detail = (a) => ({ ...(detail(a) as object), cancelToken: 'tok' });
     backend.handlers.jobs_cancel = () => ({ outcome: 'requested' });
-    await nav('Runs');
+    await openRuns();
     await userEvent.click(await screen.findByText('train'));
     await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
     expect(screen.queryByText('Cancel in My Jobs…')).toBeNull();
@@ -342,7 +361,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
       ],
     });
     backend.handlers.workflow_reconcile = () => v3.run();
-    await nav('Runs');
+    await openRuns();
     await userEvent.click(await screen.findByText('train'));
     await userEvent.click(await screen.findByRole('button', { name: 'Check my jobs for this submission' }));
     await waitFor(() => expect(backend.count('workflow_reconcile')).toBe(1));

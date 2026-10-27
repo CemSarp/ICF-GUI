@@ -832,6 +832,15 @@ pre.log {
   font-weight: 600;
 }
 
+/* My Jobs: All jobs / Training runs, under the page title. */
+.page-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
 /* ---------- Stepper (wizard steps and run timeline) ---------- */
 .steps {
   list-style: none;

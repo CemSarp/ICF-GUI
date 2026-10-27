@@ -4,6 +4,7 @@ import * as v3 from '../tests/v3Fixtures';
 
 let shareOn = false;
 const deleted = new Set<string>(); // files_delete, until the page reloads
+const renamed = new Map<string, string>(); // files_rename: old path → new name
 
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
@@ -296,12 +297,23 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   projects_recent: () => [v3.project()],
   projects_browse: (a) => {
     const l = v3.listing((a.path as string | null) ?? null);
-    return { ...l, entries: l.entries.filter((e) => !deleted.has(`${l.path}/${e.name}`)) };
+    return {
+      ...l,
+      entries: l.entries
+        .filter((e) => !deleted.has(`${l.path}/${e.name}`))
+        .map((e) => ({ ...e, name: renamed.get(`${l.path}/${e.name}`) ?? e.name })),
+    };
   },
   files_delete: (a) => {
     deleted.add(`${a.dir}/${a.name}`);
     return `${a.dir}/${a.name}`;
   },
+  files_rename: (a) => {
+    renamed.set(`${a.dir}/${a.name}`, a.newName as string);
+    return `${a.dir}/${a.newName}`;
+  },
+  files_unpack: (a) =>
+    `${a.dir}/${(a.name as string).replace(/\.(tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|zip)$/i, '')}`,
   files_create: (a) => {
     const path = `${a.dir}/${a.name}`;
     if (v3.FILES[path] !== undefined)

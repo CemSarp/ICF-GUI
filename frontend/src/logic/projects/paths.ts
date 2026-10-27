@@ -15,6 +15,10 @@ export const isDir = (e: Entry) => e.kind === 'dir' || e.targetKind === 'dir';
 export const editable = (e: Entry) =>
   e.kind === 'file' && !e.unsupported && fileKind(e.name) !== null && e.size <= sizeLimit(e.name);
 
+/** Archives Unpack handles (the backend checks the same suffixes). */
+export const isArchive = (e: Entry) =>
+  e.kind === 'file' && !e.unsupported && /.\.(tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|zip)$/i.test(e.name);
+
 /** Path segments from `/` down; only those at or below the home folder can be opened. */
 export function crumbTrail(path: string, home: string) {
   const parts = path.split('/').filter(Boolean);

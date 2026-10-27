@@ -300,6 +300,27 @@ host-key-changed errors (ADR-003), and a second login.
 - **No trash.** ICF has none, and a copy would fill the quota, so the confirmation says it cannot
   be undone and Cancel has the focus.
 
+## ADR-033 — Rename, Unpack, and Runs as a tab of My Jobs
+*Status: accepted (unreleased).* The user asked to unpack the archives Transfers makes and to rename
+files and folders, and to simplify My Jobs vs Runs.
+- **Rename.** `files_rename` takes the listed folder, the entry name and kind (as for delete,
+  ADR-032) and a new name with the same strict charset as New folder (jobs need simple paths). On
+  ICF the entry must still be that kind and the new name must be free (a folder of that name is
+  taken too, so nothing is ever moved into it); `mv -n` within the same folder.
+- **Unpack.** `files_unpack` accepts only archive names Rust recognises (`.tar.gz .tgz .tar.bz2
+  .tbz2 .tar.xz .txz .tar .zip`) of a regular file (not a link). It extracts into a hidden
+  `.icfcc-unpack.XXXXXX` folder next to the archive with `tar -xf` (compression auto-detected) or
+  `unzip`; both drop leading `/` and refuse `..` member names. Then: exactly one top folder whose
+  name is free → that folder (what Transfers' *pack a folder* makes); otherwise a folder named after
+  the archive if free; otherwise the extracted copy is removed and the user is told the name is
+  taken. A failed extraction removes everything it wrote. It runs on the login node with a
+  20-minute limit (under the 30-minute idle disconnect); on timeout the user is told a hidden folder
+  may remain. Unpacking on a compute node remains the workflow's job for big datasets.
+- **Runs → My Jobs tab.** The view id `training` is kept (saved navigation and *Monitor this run*
+  still work) but shown as the *Training runs* tab of My Jobs. All jobs links rows to their run
+  from the local run list (`workflow_runs`, no ICF request), so the polling budget is unchanged:
+  the run status read still happens only while the Training runs tab is open.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

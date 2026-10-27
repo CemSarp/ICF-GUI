@@ -78,6 +78,8 @@ const COMMANDS: &[&str] = &[
     "files_write",
     "files_create",
     "files_delete",
+    "files_rename",
+    "files_unpack",
     "vscode_share_apply",
     "vscode_share_disable",
 ];
