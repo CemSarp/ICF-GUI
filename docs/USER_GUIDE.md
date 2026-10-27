@@ -25,6 +25,28 @@ a jump host typed under *Advanced* always takes precedence.
 
 **Explore demo data** shows synthetic data (yellow *DEMO MODE* banner) without connecting.
 
+## Start
+
+**Start** (top of the sidebar, and the first screen) is for when you are not sure what to do next.
+It shows the **next step** with one button, a checklist of **GPU milestones** (choose a project,
+check that a GPU works, run your code, read the output, and three optional ones), your progress,
+and the GPU types with the most potentially free GPUs right now. The milestones come from what the
+app already keeps on your Mac (recent projects, job receipts, runs, transfers); reading a log and
+starting a kernel are remembered when you do them. Nothing extra is asked of ICF.
+
+### Running course code (example: a CUDA homework)
+
+1. **Projects** → open the homework folder. Each `.py`, `.sh`, `.sbatch`, `.cu` or C/C++ file has a
+   **Run** button; **Run on a GPU…** at the top uses the folder itself.
+2. **Run** on a course batch file such as `run_asr.sbatch` opens New job with its partition, GPU,
+   CPUs, memory, time and commands taken over, running in that folder. Its `#SBATCH --output` is not
+   used (the output is `slurm-<job id>.out`), and `cd "$SLURM_SUBMIT_DIR"` is dropped because the job
+   already starts in the folder.
+3. Or choose **Commands** and type what the instructions say (`make`, `make test1`,
+   `./run.sh --cuda task1`). **+ CUDA 12.8**, **+ Conda environment** and **+ Show the GPU** add the
+   usual setup lines (`export PATH=/opt/cuda-12.8.0/bin:$PATH`, `conda activate <name>`, `nvidia-smi -L`).
+4. **Review script**, submit, then **Open job** → **Load log** (tick *Follow*) to watch it run.
+
 ## Reading the dashboard
 
 **Cluster** (sidebar) has two tabs. **Overview** shows the fleet numbers, GPUs by type, and one row

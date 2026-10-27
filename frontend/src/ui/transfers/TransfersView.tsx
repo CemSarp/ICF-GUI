@@ -41,10 +41,10 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
       <section className="card" aria-labelledby="up-title">
         <h2 id="up-title">Upload to ICF</h2>
         <p className="muted small">
-          Files go over your existing SSH connection with SFTP, one at a time. Each upload is written to a hidden
-          partial file, verified with SHA-256 against your Mac's copy, and only then given its name — an existing file
-          is never overwritten. Datasets with many small files: upload a folder as one archive and let the training
-          workflow unpack it on the compute node's scratch disk.
+          Copy a file or a whole folder from your Mac to your ICF home. Each upload is checked against your Mac&apos;s
+          copy (SHA-256) and never replaces an existing file. A folder travels as one <code>.tar.gz</code>: press{' '}
+          <strong>Unpack</strong> next to it in Projects to get the folder back, or let a training run unpack it on the
+          GPU node&apos;s fast scratch disk.
         </p>
         <div className="actions start">
           <button className="btn" disabled={!!busy} onClick={chooseFile}>

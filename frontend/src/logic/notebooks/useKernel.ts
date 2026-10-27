@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { markMilestone } from '../app/journey';
 import { api, errorMessage } from '../api';
 import type { KernelEvent, NotebookOutput } from '../../types';
 
@@ -119,6 +120,7 @@ export function useKernel() {
     try {
       const r = await api.kernelStart(previewId, true, onEvent);
       if (phase.current !== 'ended') id.current = r.kernelId;
+      markMilestone('kernel');
     } catch (e) {
       set({ phase: 'off' });
       setError(errorMessage(e));

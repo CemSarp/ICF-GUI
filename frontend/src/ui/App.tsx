@@ -5,6 +5,7 @@ import { NodeDetail } from './cluster/NodeDetail';
 import { Overview } from './cluster/Overview';
 import { ChallengeDialog } from './connection/ChallengeDialog';
 import { LoginView } from './connection/LoginView';
+import { StartView } from './home/StartView';
 import { JobDetailView } from './jobs/JobDetailView';
 import { MyJobsView } from './jobs/MyJobsView';
 import { NewJobView } from './jobs/NewJobView';
@@ -23,7 +24,13 @@ const NotebooksView = lazy(() => import('./notebooks/NotebooksView').then((m) =>
 type NavItem = { id: View; label: string; icon: IconName };
 const NAV_GROUPS: { heading: string; items: NavItem[]; bottom?: boolean }[] = [
   // Partitions and GPU Nodes are tabs of Cluster ('overview' / 'nodes').
-  { heading: '', items: [{ id: 'overview', label: 'Cluster', icon: 'overview' }] },
+  {
+    heading: '',
+    items: [
+      { id: 'home', label: 'Start', icon: 'home' },
+      { id: 'overview', label: 'Cluster', icon: 'overview' },
+    ],
+  },
   {
     heading: 'Jobs',
     items: [
@@ -74,7 +81,7 @@ const PAGE_TABS: Partial<Record<View, { id: View; label: string; help: string }[
   ],
 };
 /** Screens that use the cluster snapshot; only they show the snapshot's Refresh in the toolbar. */
-const USES_SNAPSHOT: View[] = ['overview', 'nodes', 'request'];
+const USES_SNAPSHOT: View[] = ['home', 'overview', 'nodes', 'request'];
 
 export function App() {
   const {
@@ -103,6 +110,8 @@ export function App() {
     setProject,
     jobMode,
     switchJobMode,
+    runTarget,
+    runOnGpu,
     wizardInit,
     selectedRun,
     setSelectedRun,
@@ -287,7 +296,15 @@ export function App() {
                 <span className="muted small">{PAGE_TABS[navOf(view)]!.find((t) => t.id === view)?.help}</span>
               </div>
             )}
-            {view === 'projects' && editingFile ? (
+            {view === 'home' ? (
+              <StartView
+                status={status}
+                snapshot={snapshot}
+                onGo={navigate}
+                onGpuTest={() => startTraining({ kind: 'gpu_smoke_test', projectDir: project ?? undefined })}
+                onTraining={() => startTraining({ kind: 'train', projectDir: project ?? undefined })}
+              />
+            ) : view === 'projects' && editingFile ? (
               <Suspense
                 fallback={
                   <div className="skeleton" aria-busy="true">
@@ -312,6 +329,7 @@ export function App() {
                 selected={project}
                 onSelect={setProject}
                 nav={{
+                  onRun: runOnGpu,
                   onStartTraining: (init) => startTraining(init),
                   onUpload: uploadTo,
                   onEditFile: openFile,
@@ -352,6 +370,7 @@ export function App() {
               <NewJobView
                 mode={jobMode}
                 setMode={switchJobMode}
+                runTarget={runTarget}
                 status={status}
                 snapshot={snapshot}
                 snapshotLoading={snap.loading}

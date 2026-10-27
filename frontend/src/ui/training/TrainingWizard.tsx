@@ -425,7 +425,7 @@ export function TrainingWizard({
             </Field>
           </div>
 
-          <details className="more" open={openFor(DATA_FIELDS)}>
+          <details className="fold-section" open={openFor(DATA_FIELDS)}>
             <summary>Datasets{draft.datasets.length > 0 ? ` (${draft.datasets.length})` : ''}</summary>
             <p className="muted small">
               Archives are copied from /home (NFS) to a private folder on the compute node's local disk, checked (no
@@ -517,7 +517,7 @@ export function TrainingWizard({
             </div>
           </details>
 
-          <details className="more" open={!!draft.resumeFrom || openFor(RESULT_FIELDS)}>
+          <details className="fold-section" open={!!draft.resumeFrom || openFor(RESULT_FIELDS)}>
             <summary>Results and checkpoints</summary>
             <div className="grid-2">
               <Field
@@ -595,7 +595,7 @@ export function TrainingWizard({
             </Notice>
           </details>
 
-          <details className="more" open={openFor(MORE_FIELDS)}>
+          <details className="fold-section" open={openFor(MORE_FIELDS)}>
             <summary>More options</summary>
             <p className="muted small">The defaults suit most runs.</p>
             <div className="grid-2">

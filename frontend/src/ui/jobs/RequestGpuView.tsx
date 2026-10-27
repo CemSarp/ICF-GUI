@@ -1,11 +1,12 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge, Dialog, EmptyState, Notice, NumberInput } from '../components/ui';
 import { granularityLabel } from '../../logic/cluster/gpu';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
-import { resolveWorkingDir, useRequestGpu } from '../../logic/jobs/jobRequest';
+import { resolveWorkingDir, useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
 import type { ClusterSnapshot, ConnectionStatus, Issue } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
 import { RunChoice } from './RunChoice';
+import { SETUP_LINES, validCondaEnv, withSetupLine } from '../../logic/jobs/sbatchImport';
 import type { JobMode } from '../../logic/jobs/newJob';
 
 /** Fields under "More options": it opens by itself when one of them has a problem. */
@@ -103,6 +104,7 @@ export function RequestGpuView({
   initialPartition,
   onOpenJobs,
   onSwitch,
+  runTarget = null,
 }: {
   snapshot: ClusterSnapshot;
   status: ConnectionStatus;
@@ -110,6 +112,7 @@ export function RequestGpuView({
   onOpenJobs: (jobId?: string) => void;
   /** "What do you want to run?" picked something the training workflow form handles. */
   onSwitch: (m: JobMode) => void;
+  runTarget?: RunTarget | null;
 }) {
   const {
     home,
@@ -124,6 +127,7 @@ export function RequestGpuView({
     maxGpus,
     picking,
     setPicking,
+    imported,
     pickDir,
     pickFile,
     preview,
@@ -141,7 +145,9 @@ export function RequestGpuView({
     review,
     submit,
     reconcile,
-  } = useRequestGpu(snapshot, status, initialPartition);
+  } = useRequestGpu(snapshot, status, initialPartition, runTarget);
+  const [condaOpen, setCondaOpen] = useState(false);
+  const [condaEnv, setCondaEnv] = useState('');
 
   if (!partition) {
     return <EmptyState title="No partitions available">Refresh the cluster data first.</EmptyState>;
@@ -237,7 +243,7 @@ export function RequestGpuView({
           status={status}
           start={draft.workingDir.trim() ? resolveWorkingDir(draft.workingDir, home) : null}
           kind="file"
-          onPick={pickFile}
+          onPick={(p) => void pickFile(p)}
           onClose={() => setPicking(null)}
           title={picking === 'file' ? 'Choose the file to run' : 'Choose the script'}
         />
@@ -260,9 +266,9 @@ export function RequestGpuView({
               issues={issues}
               help={
                 <>
-                  They start in <code>{resolveWorkingDir(draft.workingDir, home)}</code> on the GPU node, exactly as
-                  typed; the job stops at the first failing command. <em>Choose a file</em> uses that file&apos;s folder
-                  and suggests a command.
+                  They run in <code>{resolveWorkingDir(draft.workingDir, home)}</code> on the GPU node, exactly as
+                  typed, and stop at the first failing command. <em>Choose a file</em> runs in that file&apos;s folder;
+                  a batch file (<code>.sbatch</code>) brings its settings and commands with it.
                 </>
               }
             >
@@ -270,10 +276,74 @@ export function RequestGpuView({
                 <button type="button" className="btn" onClick={() => setPicking('file')}>
                   Choose a file…
                 </button>
+                <span className="muted small">Add a line:</span>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.cuda))}
+                  title={SETUP_LINES.cuda}
+                >
+                  + CUDA 12.8
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setCondaOpen(!condaOpen)}
+                  aria-expanded={condaOpen}
+                >
+                  + Conda environment
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.gpu))}
+                  title={SETUP_LINES.gpu}
+                >
+                  + Show the GPU
+                </button>
               </div>
+              {condaOpen && (
+                <div className="input-row">
+                  <label className="sr-only" htmlFor="f-conda">
+                    Conda environment name
+                  </label>
+                  <input
+                    id="f-conda"
+                    className="mono"
+                    placeholder="Environment name, e.g. mls-asr"
+                    value={condaEnv}
+                    onChange={(e) => setCondaEnv(e.target.value)}
+                    autoCapitalize="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!validCondaEnv(condaEnv.trim())}
+                    onClick={() => {
+                      set('commands', withSetupLine(draft.commands, SETUP_LINES.conda(condaEnv.trim())));
+                      setCondaOpen(false);
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+              {imported && (
+                <Notice tone="ok" title={`Settings and commands taken from ${imported.name}`}>
+                  Check them below and under GPU before reviewing.
+                  {imported.notes.length > 0 && (
+                    <ul className="small">
+                      {imported.notes.map((n) => (
+                        <li key={n}>{n}</li>
+                      ))}
+                    </ul>
+                  )}
+                </Notice>
+              )}
               <textarea
                 id="f-commands"
-                rows={6}
+                rows={Math.min(16, Math.max(4, draft.commands.split('\n').length + 1))}
                 value={draft.commands}
                 placeholder={'nvidia-smi -L\nmake && ./run.sh 2>&1 | tee run.log'}
                 onChange={(e) => set('commands', e.target.value)}
@@ -403,7 +473,7 @@ export function RequestGpuView({
             </Notice>
           )}
 
-          <details className="more" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>
+          <details className="fold-section" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>
             <summary>More options</summary>
             <p className="muted small">The defaults suit most jobs.</p>
             <div className="grid-2">

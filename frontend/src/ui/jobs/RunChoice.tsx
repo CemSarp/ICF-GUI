@@ -2,7 +2,11 @@ import type { RunChoice as Choice } from '../../logic/jobs/newJob';
 
 const CHOICES: { id: Choice; label: string; help: string }[] = [
   { id: 'python', label: 'Python script', help: 'Runs a .py file with your Python environment.' },
-  { id: 'bash', label: 'Shell script', help: 'Runs a .sh file with bash.' },
+  {
+    id: 'bash',
+    label: 'Shell script',
+    help: 'Runs a .sh file with bash. A batch file with #SBATCH lines (such as a course’s .sbatch file) brings its GPU settings and commands with it.',
+  },
   {
     id: 'commands',
     label: 'Commands',

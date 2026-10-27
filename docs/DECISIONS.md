@@ -350,6 +350,21 @@ the GPU node without first writing a script file.
 - **Pickers.** Working directory, script and "file to run" use the existing home-confined remote
   browser (read-only). The picker dialog is rendered outside the form so its buttons cannot submit it.
 
+## ADR-035 — Start screen, Run buttons and batch-file import
+*Status: accepted (0.5.1).* The owner, running a CUDA homework, found it unclear how to get from a
+folder of course code to a GPU run.
+- **Start** shows one next step, a milestone checklist and free GPUs. It reads only local data
+  (recent projects, receipts, the local run list, transfers) plus two milestones remembered in
+  localStorage (a log was read, a kernel started), so the polling budget is unchanged.
+- **Run buttons** open New job as a script job on a file or folder. A press is applied once (keyed by
+  time), so reopening New job later never overwrites edits.
+- **`.sbatch` import** reads the file with the existing read-only `files_read` and parses `#SBATCH`
+  lines in the frontend (partition, gres, cpus, mem, time, job name); everything else is listed as
+  not taken over. The body becomes Commands, so the usual review shows exactly what will run.
+  `cd "$SLURM_SUBMIT_DIR"` is dropped because the generated script sets `--chdir`.
+- **Setup lines** are fixed snippets inserted into the user's own Commands text (ADR-034); nothing
+  new reaches a shell outside the reviewed batch script.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

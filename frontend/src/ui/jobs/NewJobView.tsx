@@ -1,5 +1,6 @@
 import { EmptyState } from '../components/ui';
 import type { JobMode } from '../../logic/jobs/newJob';
+import type { RunTarget } from '../../logic/jobs/jobRequest';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import type { WizardInit } from '../../logic/training/wizardDraft';
 import { TrainingWizard } from '../training/TrainingWizard';
@@ -22,6 +23,7 @@ export function NewJobView({
   onOpenJobs,
   onOpenRun,
   onRefreshCluster,
+  runTarget,
 }: {
   mode: JobMode;
   setMode: (m: JobMode) => void;
@@ -34,6 +36,8 @@ export function NewJobView({
   onOpenJobs: (jobId?: string) => void;
   onOpenRun: (tag: string) => void;
   onRefreshCluster: () => void;
+  /** Projects' Run buttons: the folder or file New job opens on. */
+  runTarget: RunTarget | null;
 }) {
   return (
     <>
@@ -63,6 +67,7 @@ export function NewJobView({
           initialPartition={requestPartition}
           onOpenJobs={onOpenJobs}
           onSwitch={setMode}
+          runTarget={runTarget}
         />
       )}
     </>

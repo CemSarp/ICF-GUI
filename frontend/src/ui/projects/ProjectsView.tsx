@@ -8,6 +8,8 @@ import type { ConnectionStatus, Interpreter, ProjectRecord } from '../../types';
 import { RemoteBrowser } from './RemoteBrowser';
 
 export interface ProjectNav {
+  /** Opens New job on this folder (`isDir`) or file. */
+  onRun: (path: string, isDir: boolean) => void;
   onStartTraining: (init: {
     projectDir: string;
     kind?: 'gpu_smoke_test';
@@ -120,7 +122,11 @@ function ProjectDetail({
           {project.path}
         </h2>
         <div className="actions start">
-          <button className="btn primary" onClick={() => void openInVsCode()} disabled={launching}>
+          <button className="btn primary" onClick={() => nav.onRun(project.path, true)}>
+            <Icon name="play" />
+            Run on a GPU…
+          </button>
+          <button className="btn" onClick={() => void openInVsCode()} disabled={launching}>
             {launching ? 'Opening…' : 'Open in VS Code'}
           </button>
           <button
@@ -137,10 +143,9 @@ function ProjectDetail({
           </button>
         </div>
       </div>
-      <Notice tone="warn" title="Editing is not GPU compute">
-        VS Code's Run and Debug buttons execute on the login node (hastings), which has no GPU for you and must not run
-        training. Selecting an interpreter does not allocate a GPU. Use <strong>New training workflow</strong> to run on
-        a GPU through SLURM.
+      <Notice tone="warn" title="VS Code runs on the login node">
+        Its Run and Debug buttons have no GPU there and must not train. To use a GPU, press <strong>Run</strong> next to
+        a file below, or <strong>Run on a GPU…</strong>.
       </Notice>
       {launch && (
         <Notice tone="info" title="Launch requested">
@@ -171,6 +176,7 @@ function ProjectDetail({
         selectDirLabel="Upload here…"
         fileAction={{ label: 'Download', run: (p) => void download(p) }}
         onOpenFile={nav.onEditFile}
+        onRunFile={(p) => nav.onRun(p, false)}
       />
     </section>
   );

@@ -7,6 +7,7 @@ import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
 import { commandsFor, placePickedFile } from '../src/logic/jobs/jobRequest';
+import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
 import * as v3 from './v3Fixtures';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
@@ -507,5 +508,93 @@ describe('My Jobs history order', () => {
       { jobId: '3682083', endedAt: '2026-10-20T02:40:00' },
     ];
     expect(newestFirst(jobs).map((j) => j.jobId)).toEqual(['3683913', '3682083', '3682082', '3678745']);
+  });
+});
+
+describe('Batch files and setup lines (course .sbatch files)', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('takes over the resources and commands of a picked .sbatch file', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Shell script'));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[0]!);
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the script' });
+    for (const f of ['projects', 'semeval'])
+      await userEvent.click(await within(dialog).findByRole('button', { name: f }));
+    const row = (await within(dialog).findByText('run_asr.sbatch')).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
+    expect(await screen.findByText('Settings and commands taken from run_asr.sbatch')).toBeInTheDocument();
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(
+      'export PATH=/opt/cuda-12.8.0/bin:$PATH\nsource "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\n\nhostname\nnvidia-smi -L\nmake test\n./run.sh --profile',
+    );
+    expect(screen.getByText(/--output is not used/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Partition')).toHaveValue('Teaching');
+    expect(screen.getByLabelText('Minutes')).toHaveValue(30);
+    expect(screen.getByLabelText('CPUs')).toHaveValue(2);
+    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(backend.count('jobs_preview')).toBe(0);
+  });
+
+  it('adds setup lines once, before the commands', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    const box = screen.getByLabelText('Commands to run');
+    await userEvent.clear(box);
+    await userEvent.type(box, 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: '+ CUDA 12.8' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ CUDA 12.8' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ Conda environment' }));
+    await userEvent.type(screen.getByLabelText('Conda environment name'), 'mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(box).toHaveValue(
+      'source "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\nexport PATH=/opt/cuda-12.8.0/bin:$PATH\nmake test1',
+    );
+  });
+
+  it('reads SLURM times, memory and GPU requests', () => {
+    expect(parseTime('30')).toEqual({ hours: 0, minutes: 30 });
+    expect(parseTime('01:00:00')).toEqual({ hours: 1, minutes: 0 });
+    expect(parseTime('1-02:30')).toEqual({ hours: 26, minutes: 30 });
+    expect(parseTime('0:90')).toEqual({ hours: 0, minutes: 2 });
+    expect(parseTime('soon')).toBeNull();
+    const s = parseSbatch(
+      '#!/bin/bash\n#SBATCH --gres=gpu:1\n#SBATCH --mem=16000M\n#SBATCH --account=x\necho hi\n#SBATCH -p Late\n',
+    );
+    expect(s?.settings).toEqual({ gpuCount: 1, memoryGb: 16 });
+    expect(s?.commands).toBe('echo hi\n#SBATCH -p Late'); // after the first command SLURM ignores #SBATCH
+    expect(s?.notes.join(' ')).toMatch(/--account=x is not taken over/);
+    expect(parseSbatch('echo no header')).toBeNull();
+  });
+});
+
+describe('Run buttons in Projects', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  async function openProjectFiles() {
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'Projects' }));
+    await userEvent.click(await screen.findByText(v3.PROJECT, { selector: 'span' }));
+    await screen.findByRole('button', { name: 'Run kernel.cu on a GPU' });
+  }
+
+  it('opens New job with a .cu file ready as commands in its folder, and only for runnable files', async () => {
+    await openProjectFiles();
+    expect(screen.queryByRole('button', { name: 'Run requirements.txt on a GPU' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Run kernel.cu on a GPU' }));
+    expect(await screen.findByRole('heading', { name: 'New job' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+  });
+
+  it('takes a project .sbatch file with its settings, and a folder as the working directory', async () => {
+    await openProjectFiles();
+    await userEvent.click(screen.getByRole('button', { name: 'Run run_asr.sbatch on a GPU' }));
+    expect(await screen.findByText('Settings and commands taken from run_asr.sbatch')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Run on a GPU/ }));
+    expect(await screen.findByLabelText('Working directory')).toHaveValue(v3.PROJECT);
+    expect(backend.count('jobs_submit')).toBe(0);
   });
 });

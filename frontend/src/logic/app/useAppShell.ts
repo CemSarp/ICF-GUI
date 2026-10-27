@@ -5,6 +5,7 @@ import { useSnapshot } from '../cluster/useSnapshot';
 import { isLive, useConnection } from '../connection/useConnection';
 import { fileKind } from '../editor/languages';
 import type { JobMode } from '../jobs/newJob';
+import type { RunTarget } from '../jobs/jobRequest';
 import { usePersistentState } from '../persist';
 import type { PageGuard } from './guard';
 import { useApplyTheme, type Theme } from '../settings/theme';
@@ -12,7 +13,7 @@ import type { WizardInit } from '../training/wizardDraft';
 import type { Settings } from '../../types';
 
 export type View =
-  'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'training' | 'transfers' | 'settings';
+  'home' | 'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'training' | 'transfers' | 'settings';
 
 /**
  * App-wide state: connection, settings, the cluster snapshot, which screen and item is open, and
@@ -22,7 +23,7 @@ export type View =
 export function useAppShell() {
   const { status, challenges, setChallenges } = useConnection();
   const [settings, setSettings] = useState<Settings>({ pollIntervalSecs: 60 });
-  const [savedView, setView] = usePersistentState<View | 'partitions'>('view', 'overview');
+  const [savedView, setView] = usePersistentState<View | 'partitions'>('view', 'home');
   // Partitions became part of Cluster → Overview; a screen remembered from before opens there.
   const view: View = savedView === 'partitions' ? 'overview' : savedView;
   const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
@@ -74,6 +75,13 @@ export function useAppShell() {
     setRequestPartition(null);
     if (v !== 'training') setSelectedRun(null);
     setView(v);
+  };
+  /** Projects' Run buttons: New job opens on this folder or file (as a script job). */
+  const [runTarget, setRunTarget] = useState<RunTarget | null>(null);
+  const runOnGpu = (path: string, isDir: boolean) => {
+    setRunTarget((t) => ({ path, isDir, key: Math.max(Date.now(), (t?.key ?? 0) + 1) }));
+    setJobMode('script');
+    go('request');
   };
   /** New job's "What do you want to run?" moved to the other form: it opens from its saved draft. */
   const switchJobMode = (m: JobMode) => {
@@ -161,6 +169,8 @@ export function useAppShell() {
     setProject,
     jobMode,
     switchJobMode,
+    runTarget,
+    runOnGpu,
     setJobMode,
     wizardInit,
     selectedRun,

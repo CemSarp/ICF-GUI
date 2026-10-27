@@ -77,8 +77,8 @@ describe('Projects and VS Code (V3-AC01, AC02, AC03)', () => {
 
   it('warns that editing is not GPU compute and launches VS Code only on click', async () => {
     await openProject();
-    expect(screen.getByText(/Run and Debug buttons execute on the login node/)).toBeInTheDocument();
-    expect(screen.getByText(/does not allocate a GPU/)).toBeInTheDocument();
+    expect(screen.getByText('VS Code runs on the login node')).toBeInTheDocument();
+    expect(screen.getByText(/have no GPU there and must not train/)).toBeInTheDocument();
     expect(backend.count('vscode_open')).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }));
     expect(await screen.findByText('Launch requested')).toBeInTheDocument();

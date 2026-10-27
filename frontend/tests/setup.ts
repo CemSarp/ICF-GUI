@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 
 // Route every Tauri call to the in-memory mock backend (tests/mockBackend.ts).
 vi.mock('@tauri-apps/api/core', async () => {
@@ -44,6 +44,9 @@ vi.mock('@tauri-apps/api/window', async () => {
 Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
 Range.prototype.getBoundingClientRect ??= () => new DOMRect();
 document.execCommand ??= () => false;
+
+// Most suites start on the Cluster screen, as the app did before Start existed; start.test.tsx covers Start.
+beforeEach(() => localStorage.setItem('icfcc.view', JSON.stringify('overview')));
 
 afterEach(() => {
   cleanup();

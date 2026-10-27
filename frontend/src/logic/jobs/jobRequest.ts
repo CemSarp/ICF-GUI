@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { maxGpusFor } from '../cluster/gpu';
 import { usePersistentState } from '../persist';
@@ -13,10 +13,21 @@ import type {
   PreviewResponse,
   SubmitResponse,
 } from '../../types';
+import { parseSbatch } from './sbatchImport';
 import { carryTo, modeFor, resolveWorkingDir, type JobMode, type RunChoice } from './newJob';
 import { jobsKey } from './useJobs';
 
 export { resolveWorkingDir };
+
+/** The last Run press applied to the form, so reopening New job does not apply it twice. */
+let lastApplied = 0;
+
+/** A Run button's target, keyed so that pressing Run again applies it again. */
+export interface RunTarget {
+  path: string;
+  isDir: boolean;
+  key: number;
+}
 
 export interface Draft {
   partition: string;
@@ -106,7 +117,13 @@ export function toRequest(d: Draft, home: string): JobRequest {
  * The script-job form: saved draft, partition/GPU choice against the snapshot, preview (review) and the
  * single submit of exactly the reviewed script.
  */
-export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatus, initialPartition: string | null) {
+export function useRequestGpu(
+  snapshot: ClusterSnapshot,
+  status: ConnectionStatus,
+  initialPartition: string | null,
+  /** From Projects' Run buttons: a folder to run in, or a file to run. Applied once. */
+  initialTarget: RunTarget | null = null,
+) {
   const user = status.demo ? 'demo' : (status.capabilities?.remoteUser ?? '<UUN>');
   const home = `/home/${user}`;
   const receipts = useQuery({ queryKey: ['receipts', status.connectedAt], queryFn: api.jobsReceipts, retry: false });
@@ -169,11 +186,55 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
     setPicking(null);
     set('workingDir', path);
   };
+  /** Settings taken over from a picked batch file, shown until the next edit. */
+  const [imported, setImported] = useState<{ name: string; notes: string[] } | null>(null);
   const pickFile = (path: string) => {
     const kind = picking;
     setPicking(null);
-    if (kind === 'file') {
-      const { dir, name } = placePickedFile(path, '', home);
+    return applyFile(path, kind === 'file' ? 'file' : 'program');
+  };
+
+  /**
+   * A file to run: from the script picker, the commands picker, or a file's Run button in Projects
+   * (`auto`: everything comes from the file, which also sets the working directory).
+   */
+  const applyFile = async (path: string, kind: 'file' | 'program' | 'auto') => {
+    setImported(null);
+    if (/\.(sbatch|slurm|sh)$/i.test(path)) {
+      // A batch file (e.g. a course's run_asr.sbatch): take over its resources and commands.
+      const parsed = await api
+        .filesRead(path)
+        .then((f) => parseSbatch(f.content))
+        .catch(() => null);
+      if (parsed) {
+        const { dir, name } = placePickedFile(path, '', home);
+        const { partition: p, gres: g, ...rest } = parsed.settings;
+        const part = snapshot.partitions.find((x) => x.name === p);
+        const typed = part?.gpuTotals.some((t) => t.gresName === g);
+        patch({
+          ...rest,
+          ...(part ? { partition: p } : {}),
+          ...(typed ? { gres: g } : {}),
+          runner: 'commands',
+          commands: parsed.commands,
+          workingDir: dir,
+          program: '',
+        });
+        const notes = [
+          ...(p && !part ? [`Partition ${p} is not visible to you; choose one below.`] : []),
+          ...(g && !typed ? [`${g.replace(/^gpu:/, '')} is not offered there; choose the GPU below.`] : []),
+          ...parsed.notes,
+        ];
+        setImported({ name, notes });
+        return;
+      }
+    }
+    const { dir, name } = placePickedFile(path, '', home);
+    if (kind === 'auto' && !/\.(py|sh)$/i.test(path)) {
+      patch({ runner: 'commands', workingDir: dir, program: '', commands: commandsFor(name) });
+    } else if (kind === 'auto') {
+      patch({ runner: /\.py$/i.test(path) ? 'python' : 'bash', workingDir: dir, program: name });
+    } else if (kind === 'file') {
       patch({ workingDir: dir, ...(draft.commands.trim() ? {} : { commands: commandsFor(name) }) });
     } else {
       const { workingDir, program } = placePickedFile(path, draft.workingDir, home);
@@ -188,6 +249,15 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
       });
     }
   };
+
+  useEffect(() => {
+    if (!initialTarget || lastApplied === initialTarget.key) return;
+    lastApplied = initialTarget.key;
+    if (initialTarget.isDir) patch({ workingDir: initialTarget.path });
+    else void applyFile(initialTarget.path, 'auto');
+    // Once per Run press (its key), also when the form opens again later; it builds on the draft then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTarget?.key]);
 
   const review = async () => {
     setBusy(true);
@@ -253,6 +323,7 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
     maxGpus,
     picking,
     setPicking,
+    imported,
     pickDir,
     pickFile,
     preview,

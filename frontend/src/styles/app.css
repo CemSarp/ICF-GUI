@@ -1675,6 +1675,40 @@ details.more p {
   margin: 0;
 }
 
+/* New job: optional settings folded under one clear row each. */
+details.fold-section {
+  border-top: 1px solid var(--border);
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+}
+details.fold-section + details.fold-section {
+  margin-top: 0;
+}
+details.fold-section > summary {
+  font-size: 14px;
+  padding: 2px 0 var(--s1);
+}
+details.fold-section[open] > summary {
+  margin-bottom: var(--s3);
+}
+button.chip {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+}
+button.chip:hover {
+  background: var(--seg);
+}
+button.chip[aria-expanded='true'] {
+  border-color: var(--primary-fill);
+}
+
 /* Selected interpreter: the one fact the Projects screen must make obvious. */
 .env-hero {
   display: flex;
@@ -1813,4 +1847,173 @@ input.switch:focus-visible {
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+}
+
+/* ---------- Start ---------- */
+.start-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  flex-wrap: wrap;
+}
+.start-hero-text {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.start-hero-text h2 {
+  margin: 0 0 var(--s2);
+  font-size: 20px;
+}
+.start-hero-text p {
+  margin: 0 0 var(--s4);
+  max-width: 60ch;
+}
+.score {
+  flex: 0 1 240px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s4);
+  border-radius: var(--radius);
+  background: var(--fill);
+}
+.score-level {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+}
+.score-count {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.meter {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  margin: var(--s1) 0;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ok);
+  transition: width var(--dur-fast) var(--ease);
+}
+.next-step {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  border-left: 3px solid var(--primary);
+}
+.next-step-text {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+.next-step-text h3 {
+  margin: 0 0 2px;
+}
+.next-step-text p {
+  margin: 0;
+}
+.start-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0 var(--s4);
+}
+.journey {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.journey li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.journey li:last-child {
+  border-bottom: 0;
+}
+.journey-mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--fill);
+  color: var(--muted);
+}
+.journey li.done .journey-mark {
+  background: var(--ok);
+  color: #fff;
+}
+.journey li.done .journey-text strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+.journey-text {
+  flex: 1;
+  min-width: 0;
+}
+.free-list {
+  list-style: none;
+  margin: 0 0 var(--s3);
+  padding: 0;
+}
+.free-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.free-count {
+  font-weight: 600;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.free-count.none {
+  color: var(--muted);
+}
+.flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s3);
+  counter-reset: flow;
+}
+.flow li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s3);
+  border-radius: var(--radius);
+  background: var(--fill);
+  position: relative;
+}
+.flow li + li::before {
+  content: '→';
+  position: absolute;
+  left: calc(-1 * var(--s3));
+  top: 50%;
+  transform: translate(-25%, -50%);
+  color: var(--muted);
+}
+/* Projects: Run is the main action on a runnable file. */
+.btn.run-btn {
+  color: var(--primary);
+  font-weight: 600;
+  gap: 4px;
 }

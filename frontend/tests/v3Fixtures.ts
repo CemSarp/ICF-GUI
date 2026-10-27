@@ -46,6 +46,7 @@ const TREE: Record<string, ReturnType<typeof e>[]> = {
     e('analysis.ipynb', 'file', 2900),
     e('explore.ipynb', 'file', 8748),
     e('requirements.txt', 'file', 120),
+    e('run_asr.sbatch', 'file', 520),
   ],
   [`${PROJECT}/data`]: [e('semeval.tar.gz', 'file', 734_003_200), e('dev.zip', 'file', 12_582_912)],
   // What Unpack of semeval.tar.gz gives (the mocks return this path).
@@ -356,6 +357,8 @@ export const transfer = (o: Partial<Transfer> = {}): Transfer => ({
 
 /** Text files the editor can open in the preview and tests (synthetic content). */
 export const FILES: Record<string, string> = {
+  [`${PROJECT}/run_asr.sbatch`]:
+    '#!/bin/bash\n# Batch version of "make test && ./run.sh --profile". From hw1-asr, on the head node:\n#     sbatch run_asr.sbatch\n#SBATCH -p Teaching\n#SBATCH --gres=gpu:nvidia_rtx_a6000:1\n#SBATCH --cpus-per-task=2\n#SBATCH --mem=16G\n#SBATCH --time=00:30:00\n#SBATCH --output=asr-%j.out\n\nexport PATH=/opt/cuda-12.8.0/bin:$PATH\nsource "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\ncd "$SLURM_SUBMIT_DIR"\n\nhostname\nnvidia-smi -L\nmake test\n./run.sh --profile\n',
   [`${PROJECT}/train.py`]: `import argparse
 import torch
 from torch import nn

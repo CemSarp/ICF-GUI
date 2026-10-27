@@ -15,6 +15,10 @@ export const isDir = (e: Entry) => e.kind === 'dir' || e.targetKind === 'dir';
 export const editable = (e: Entry) =>
   e.kind === 'file' && !e.unsupported && fileKind(e.name) !== null && e.size <= sizeLimit(e.name);
 
+/** Files a Run button turns into a GPU job: scripts, batch files and CUDA/C/C++ sources. */
+export const runnable = (e: Entry) =>
+  e.kind === 'file' && !e.unsupported && /\.(py|sh|sbatch|slurm|cu|cpp|cc|cxx|c)$/i.test(e.name);
+
 /** Archives Unpack handles (the backend checks the same suffixes). */
 export const isArchive = (e: Entry) =>
   e.kind === 'file' && !e.unsupported && /.\.(tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|zip)$/i.test(e.name);

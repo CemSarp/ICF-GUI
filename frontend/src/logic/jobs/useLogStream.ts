@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { markMilestone } from '../app/journey';
 import { api, errorMessage } from '../api';
 
 const CLIENT_CAP = 512 * 1024; // keep at most ~512 KB of text in the view
@@ -45,6 +46,7 @@ export function useLogStream(jobId: string, active: boolean, onLoaded: () => voi
     setTimeout(() => setCooling((c) => ({ ...c, [which]: false })), 5000);
     try {
       const c = await api.jobLog(jobId, stream, cur.next);
+      markMilestone('log');
       setState((s) => {
         const prev = s[stream];
         const append = !c.rotated && prev.next !== null && c.from === prev.next;

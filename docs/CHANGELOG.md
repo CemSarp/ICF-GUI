@@ -3,6 +3,14 @@
 ## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Start screen** (the first screen): the next step with one button, a checklist of GPU milestones
+  with your progress, the GPUs most free right now, and where your code runs. Worked out from data
+  already on your Mac; no extra ICF requests.
+- **Run buttons in Projects**: *Run* on a `.py`, `.sh`, `.sbatch`, `.cu` or C/C++ file and *Run on a
+  GPU…* for the folder open New job ready to go.
+- **Course batch files**: picking or running a `.sbatch` file takes over its `#SBATCH` partition, GPU,
+  CPUs, memory, time and job name, and its commands; what is not taken over is listed.
+- **Setup lines for Commands**: + CUDA 12.8, + Conda environment, + Show the GPU.
 - **Terminal commands in Script job.** *Run with → Terminal commands* runs the lines you type in the
   working directory on the GPU node, without writing a script file. **Choose a file…** picks e.g. a
   `.cu` or `.py` file on ICF, sets the working directory to its folder and suggests a command. The
@@ -17,6 +25,8 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- Plainer wording on Transfers (how to get a packed folder back) and on the project page's VS Code
+  note; the commands box grows with its content.
 - **New job is one form.** It asks *What do you want to run?* (Python script, Shell script, Commands,
   Notebook, GPU test; Python can be *Managed training*) and shows only the file, the GPU and the
   wall time. Job name, CPUs, RAM, working directory, arguments, environment and e-mail are under

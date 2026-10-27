@@ -7,6 +7,7 @@ import {
   editable,
   isArchive,
   isDir,
+  runnable,
   joinPath,
   NEW_FILE_TYPES,
   type NewFileType,
@@ -55,6 +56,7 @@ export function RemoteBrowser({
   selectDirLabel = 'Use this folder',
   fileAction,
   onOpenFile,
+  onRunFile,
   fileFilter,
   newFileType = 'python',
   title,
@@ -71,6 +73,8 @@ export function RemoteBrowser({
   fileFilter?: (e: Entry) => boolean;
   /** Opens a text file in the in-app editor; only regular files the editor supports. */
   onOpenFile?: (path: string) => void;
+  /** "Run" on files that can run as a GPU job (scripts, batch files, CUDA/C/C++ sources). */
+  onRunFile?: (path: string) => void;
   /** Type preselected in New file… */
   newFileType?: NewFileType;
   title?: ReactNode;
@@ -109,7 +113,7 @@ export function RemoteBrowser({
   } = useRemoteBrowser({ status, start, fileFilter, onOpenFile });
   const canChange = (e: Entry) =>
     allowDelete && !!listing?.writable && !e.unsupported && ['dir', 'file', 'symlink'].includes(e.kind);
-  const hasActions = !!(fileAction || onOpenFile || allowDelete);
+  const hasActions = !!(fileAction || onOpenFile || allowDelete || onRunFile);
 
   return (
     <section className="card browser" aria-label="Remote folder browser">
@@ -280,6 +284,16 @@ export function RemoteBrowser({
                   </td>
                   {hasActions && (
                     <td className="row-actions">
+                      {onRunFile && runnable(e) && (
+                        <button
+                          className="btn small-btn run-btn"
+                          aria-label={`Run ${e.name} on a GPU`}
+                          onClick={() => onRunFile(joinPath(listing.path, e.name))}
+                        >
+                          <Icon name="play" size={12} />
+                          Run
+                        </button>
+                      )}
                       {onOpenFile && editable(e) && (
                         <button className="btn small-btn" onClick={() => onOpenFile(joinPath(listing.path, e.name))}>
                           Edit
