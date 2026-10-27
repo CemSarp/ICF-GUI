@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0] — 2026-10-24 · Notebooks
+## [0.5.0] — 2026-10-27 · Notebooks
 
 ### Added
 - **Notebooks tab** (Workspace). Opens `.ipynb` files from Projects or its own browser, with recent

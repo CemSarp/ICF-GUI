@@ -81,7 +81,7 @@
 - [ ] Confirm students may `srun` on Interactive from the login node; note typical queue times
 - [ ] Confirm the ICF CUDA toolchains support `nvcc -arch=native` (CUDA 11.6+)
 - [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
-- [ ] Merge the PR (merge commit), set the CHANGELOG date to the tag date, tag `v0.5.0` on `main`, push the tag
+- [x] Merge the PR (merge commit), set the CHANGELOG date to the tag date, tag `v0.5.0` on `main`, push the tag
 - [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
       zip + SHA-256 attached to the draft release
 - [ ] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.5.0**; demo data works
