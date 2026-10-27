@@ -66,23 +66,36 @@
 ## v0.5.0 (Notebooks tab, interactive kernels, CUDA/C++/C cells, Run on GPU in the editor; ADR-031)
 
 - [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 89 UI tests, production build
+      (93 after the late fixes: number fields, delete, folding cards)
 - [x] Rust: fmt, clippy `-D warnings` and tests run locally on Linux (macOS-only modules stubbed);
       the real driver + ipykernel relay test passes, including compiled cells with g++/gcc
 - [x] Rust gates on macos-14 CI (run 27, before compiled cells): fmt, clippy, 136 unit tests incl. the real driver + ipykernel relay, auth and job flows
 - [x] Rust gates on macos-14 CI for the 0.5.0 head (run 30): fmt, clippy, 136 unit tests incl. compiled cells with Apple clang as g++/gcc, 15 auth + 5 job flows
-- [ ] Opt-in: `cargo test --test real_openssh -- --ignored` and `cargo test --lib keychain_roundtrip -- --ignored`
-- [ ] Built `.app` (demo data): Notebooks tab, a CUDA cell, editor run bar, full screen (button and
-      ⌃⌘F) in WebKit, notebook CSS loads under the CSP, light and dark
+- [x] Opt-in: `cargo test --test real_openssh -- --ignored` (2/2) and `cargo test --lib keychain_roundtrip -- --ignored` (pass), 2026-10-25
+- [x] Late fixes before tagging, with tests: kernels that start slowly (missed 1 s heartbeat gave
+      `kernel_start_failed: RuntimeError` on ICF), empty number fields, delete files/folders (ADR-032),
+      folding VS Code / Python environment cards; macOS CI green on PR #3 and on `main`
+- [x] Built `.app` (demo data): Version 0.5.0, Notebooks tab, Overview/New job/My Jobs, light and dark.
+      CUDA cell, cell type menu, editor run bar (Running → Done, ⌘⇧Enter), full screen and the
+      "Stop the kernel?" prompt checked in the dev preview (Chromium) with synthetic kernels
+- [ ] In WebKit with a live connection: notebook CSS under the CSP, full screen with ⌃⌘F
+      (the owner used notebooks in the built app; not checked item by item)
 - [ ] **Approved live kernel test** (needs explicit consent): open a notebook, start a kernel on
       Interactive (1 GPU, 15 min) with the project's CUDA toolchain; run
       `import torch; torch.cuda.is_available()`, a `%%cuda` saxpy, a `%%cpp` hello, Interrupt, Restart;
       Stop; `squeue -u $USER` shows no job left. Repeat with Disconnect instead of Stop, and once with
       **Run on GPU** for a `.cu` file in the editor
+      *Owner's live use, 2026-10-25/27:* a notebook kernel started and ran on Interactive; editor runs of
+      `.cu`/`.py` first failed with `kernel_start_failed: RuntimeError` (fixed in `9b28abd`), then the
+      owner marked the version ready. Delete on ICF works. The full sequence above was not reported.
 - [ ] Confirm students may `srun` on Interactive from the login node; note typical queue times
+      (`srun` on Interactive worked for the owner's account; queue times not recorded)
 - [ ] Confirm the ICF CUDA toolchains support `nvcc -arch=native` (CUDA 11.6+)
 - [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
 - [x] Merge the PR (merge commit), set the CHANGELOG date to the tag date, tag `v0.5.0` on `main`, push the tag
-- [ ] Release workflow green: `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes,
-      zip + SHA-256 attached to the draft release
-- [ ] Downloaded zip opens on an Apple Silicon Mac; sidebar shows **Version 0.5.0**; demo data works
-- [ ] Publish the draft release
+- [x] Release workflow green (run 40503806096, tag re-cut on `f3d0bff` to include the folding cards):
+      `.app` built on macos-14, ad-hoc signed, `codesign --verify` passes, zip + `.sha256` file attached
+- [x] Downloaded zip: `shasum -a 256 -c` OK, `codesign --verify --deep --strict` passes, opens on an
+      Apple Silicon Mac; sidebar shows **Version 0.5.0**; demo data works
+- [x] Published 2026-10-27; `releases/latest` → v0.5.0.
+      SHA-256 `af8e7d93c78560f161e943d32292cc1e6f5b8cb3d6e924abbe947c0196d3a6dd`
