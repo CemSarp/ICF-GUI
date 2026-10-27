@@ -17,6 +17,12 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **New job is one form.** It asks *What do you want to run?* (Python script, Shell script, Commands,
+  Notebook, GPU test; Python can be *Managed training*) and shows only the file, the GPU and the
+  wall time. Job name, CPUs, RAM, working directory, arguments, environment and e-mail are under
+  *More options*; a training run's datasets and checkpoints are in their own folded sections. Each
+  section opens by itself when one of its fields has a problem, and switching answers keeps what
+  was entered. Nothing was removed.
 - **One Cluster screen instead of Overview, Partitions and GPU Nodes.** Its *Overview* tab keeps the
   fleet numbers and GPUs by type and adds one table row per partition (time limit, nodes, GPUs, and
   *Nodes* / *New job*), replacing both the old partition list and the partition cards. Its *Nodes*

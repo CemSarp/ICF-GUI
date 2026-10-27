@@ -102,7 +102,7 @@ export function App() {
     project,
     setProject,
     jobMode,
-    setJobMode,
+    switchJobMode,
     wizardInit,
     selectedRun,
     setSelectedRun,
@@ -351,7 +351,7 @@ export function App() {
             ) : view === 'request' ? (
               <NewJobView
                 mode={jobMode}
-                setMode={setJobMode}
+                setMode={switchJobMode}
                 status={status}
                 snapshot={snapshot}
                 snapshotLoading={snap.loading}

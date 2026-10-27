@@ -2,9 +2,23 @@ import { type ReactNode } from 'react';
 import { Badge, Dialog, EmptyState, Notice, NumberInput } from '../components/ui';
 import { granularityLabel } from '../../logic/cluster/gpu';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
-import { resolveWorkingDir, useRequestGpu, type Draft } from '../../logic/jobs/jobRequest';
+import { resolveWorkingDir, useRequestGpu } from '../../logic/jobs/jobRequest';
 import type { ClusterSnapshot, ConnectionStatus, Issue } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
+import { RunChoice } from './RunChoice';
+import type { JobMode } from '../../logic/jobs/newJob';
+
+/** Fields under "More options": it opens by itself when one of them has a problem. */
+const MORE_FIELDS = [
+  'jobName',
+  'workingDir',
+  'cpus',
+  'memoryMib',
+  'programArgs',
+  'pythonEnv',
+  'setupSource',
+  'mailUser',
+];
 
 function FieldError({ issues, field }: { issues: Issue[]; field: string }) {
   const mine = issues.filter((i) => i.field === field);
@@ -88,15 +102,19 @@ export function RequestGpuView({
   status,
   initialPartition,
   onOpenJobs,
+  onSwitch,
 }: {
   snapshot: ClusterSnapshot;
   status: ConnectionStatus;
   initialPartition: string | null;
   onOpenJobs: (jobId?: string) => void;
+  /** "What do you want to run?" picked something the training workflow form handles. */
+  onSwitch: (m: JobMode) => void;
 }) {
   const {
     home,
     learned,
+    choose,
     draft,
     set,
     partition,
@@ -234,44 +252,90 @@ export function RequestGpuView({
           }}
           noValidate
         >
-          <h2>Resources</h2>
-          <div className="grid-2">
+          <RunChoice value={draft.runner} managed={false} onChange={(c, m) => choose(c, m, onSwitch)} />
+          {draft.runner === 'commands' ? (
             <Field
-              label="Partition"
-              field="partition"
+              label="Commands to run"
+              field="commands"
               issues={issues}
               help={
                 <>
-                  Max time {formatDuration(partition.maxTimeSeconds, partition.maxTimeRaw)}
-                  {learned.get(partition.name) === 'accepted' && ' · ✓ accepted your last job'}
-                  {learned.get(partition.name) === 'denied' && (
-                    <strong className="warn-text"> · ✕ rejected your last job (account not permitted)</strong>
-                  )}
+                  They start in <code>{resolveWorkingDir(draft.workingDir, home)}</code> on the GPU node, exactly as
+                  typed; the job stops at the first failing command. <em>Choose a file</em> uses that file&apos;s folder
+                  and suggests a command.
                 </>
               }
             >
-              <select id="f-partition" value={partition.name} onChange={(e) => set('partition', e.target.value)}>
-                {snapshot.partitions.map((p) => (
-                  <option key={p.name} value={p.name} disabled={p.eligibility === 'not_permitted'}>
-                    {p.name}
-                    {p.isDefault ? ' (default)' : ''}
-                    {p.eligibility === 'not_permitted' ? ' — not permitted' : ''}
-                    {learned.get(p.name) === 'denied' ? ' — rejected you before' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Job name" field="jobName" issues={issues} help="Letters, digits, . _ -">
-              <input
-                id="f-jobName"
-                value={draft.jobName}
-                onChange={(e) => set('jobName', e.target.value)}
-                autoCapitalize="off"
+              <div className="actions start">
+                <button type="button" className="btn" onClick={() => setPicking('file')}>
+                  Choose a file…
+                </button>
+              </div>
+              <textarea
+                id="f-commands"
+                rows={6}
+                value={draft.commands}
+                placeholder={'nvidia-smi -L\nmake && ./run.sh 2>&1 | tee run.log'}
+                onChange={(e) => set('commands', e.target.value)}
                 spellCheck={false}
+                autoCapitalize="off"
+                className="mono"
               />
             </Field>
-          </div>
+          ) : (
+            <Field
+              label="Script"
+              field="program"
+              issues={issues}
+              help={
+                <>
+                  Runs in <code>{resolveWorkingDir(draft.workingDir, home)}</code>. Choose a file on ICF, or type a path
+                  relative to that folder.
+                </>
+              }
+            >
+              <div className="input-row">
+                <input
+                  id="f-program"
+                  value={draft.program}
+                  onChange={(e) => set('program', e.target.value)}
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="mono"
+                />
+                <button type="button" className="btn" onClick={() => setPicking('program')}>
+                  Browse…
+                </button>
+              </div>
+            </Field>
+          )}
 
+          <h3>GPU</h3>
+          <Field
+            label="Partition"
+            field="partition"
+            issues={issues}
+            help={
+              <>
+                Max time {formatDuration(partition.maxTimeSeconds, partition.maxTimeRaw)}
+                {learned.get(partition.name) === 'accepted' && ' · ✓ accepted your last job'}
+                {learned.get(partition.name) === 'denied' && (
+                  <strong className="warn-text"> · ✕ rejected your last job (account not permitted)</strong>
+                )}
+              </>
+            }
+          >
+            <select id="f-partition" value={partition.name} onChange={(e) => set('partition', e.target.value)}>
+              {snapshot.partitions.map((p) => (
+                <option key={p.name} value={p.name} disabled={p.eligibility === 'not_permitted'}>
+                  {p.name}
+                  {p.isDefault ? ' (default)' : ''}
+                  {p.eligibility === 'not_permitted' ? ' — not permitted' : ''}
+                  {learned.get(p.name) === 'denied' ? ' — rejected you before' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
           <fieldset className="gpu-choices">
             <legend>GPU type in {partition.name}</legend>
             <p className="muted small">
@@ -308,8 +372,7 @@ export function RequestGpuView({
             )}
             <FieldError issues={issues} field="gresType" />
           </fieldset>
-
-          <div className="grid-4">
+          <div className="grid-2">
             <Field label="GPUs" field="gpuCount" issues={issues} help={`Max ${maxGpus} on one node`}>
               <NumberInput
                 id="f-gpuCount"
@@ -319,13 +382,7 @@ export function RequestGpuView({
                 onChange={(n) => set('gpuCount', n)}
               />
             </Field>
-            <Field label="CPUs" field="cpus" issues={issues}>
-              <NumberInput id="f-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
-            </Field>
-            <Field label="RAM (GB)" field="memoryMib" issues={issues}>
-              <NumberInput id="f-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
-            </Field>
-            <Field label="Wall time" field="timeLimitSeconds" issues={issues}>
+            <Field label="Wall time" field="timeLimitSeconds" issues={issues} help="The job is stopped after this">
               <div className="input-row" id="f-timeLimitSeconds">
                 <NumberInput aria-label="Hours" min={0} value={draft.hours} onChange={(n) => set('hours', n)} />
                 <span className="muted">h</span>
@@ -346,129 +403,81 @@ export function RequestGpuView({
             </Notice>
           )}
 
-          <h2>Program (on ICF)</h2>
-          <p className="muted small">
-            Paths are on ICF, inside your home directory. They are checked on ICF (existence, symlinks) right before
-            submission.
-          </p>
-          <Field
-            label="Working directory"
-            field="workingDir"
-            issues={issues}
-            help={
-              <>
-                Relative paths start in your home: <code>{resolveWorkingDir(draft.workingDir, home)}</code>. Logs are
-                written here as slurm-&lt;jobid&gt;.out / .err
-              </>
-            }
-          >
-            <div className="input-row">
-              <input
-                id="f-workingDir"
-                placeholder={`e.g. projects/semeval (inside ${home})`}
-                value={draft.workingDir}
-                onChange={(e) => set('workingDir', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-                className="mono"
-              />
-              <button type="button" className="btn" onClick={() => setPicking('dir')}>
-                Browse…
-              </button>
-            </div>
-          </Field>
-          <Field label="Run with" field="runner" issues={issues}>
-            <select
-              id="f-runner"
-              value={draft.runner}
-              onChange={(e) => set('runner', e.target.value as Draft['runner'])}
-            >
-              <option value="python">Python script</option>
-              <option value="bash">Bash script</option>
-              <option value="commands">Terminal commands</option>
-            </select>
-          </Field>
-          {draft.runner === 'commands' ? (
-            <Field
-              label="Commands"
-              field="commands"
-              issues={issues}
-              help={
-                <>
-                  Typed into the batch script exactly as written, like a terminal on the GPU node. They start in the
-                  working directory; the job stops at the first failing command. <em>Choose a file</em> sets the working
-                  directory to its folder and suggests a command.
-                </>
-              }
-            >
-              <div className="actions start">
-                <button type="button" className="btn" onClick={() => setPicking('file')}>
-                  Choose a file…
-                </button>
-              </div>
-              <textarea
-                id="f-commands"
-                rows={8}
-                value={draft.commands}
-                placeholder={'nvidia-smi -L\nmake && ./run.sh 2>&1 | tee run.log'}
-                onChange={(e) => set('commands', e.target.value)}
-                spellCheck={false}
-                autoCapitalize="off"
-                className="mono"
-              />
-            </Field>
-          ) : (
-            <Field label="Script" field="program" issues={issues} help="Relative to the working directory, or absolute">
-              <div className="input-row">
+          <details className="more" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>
+            <summary>More options</summary>
+            <p className="muted small">The defaults suit most jobs.</p>
+            <div className="grid-2">
+              <Field label="Job name" field="jobName" issues={issues} help="Shown in My Jobs. Letters, digits, . _ -">
                 <input
-                  id="f-program"
-                  value={draft.program}
-                  onChange={(e) => set('program', e.target.value)}
+                  id="f-jobName"
+                  value={draft.jobName}
+                  onChange={(e) => set('jobName', e.target.value)}
                   autoCapitalize="off"
+                  spellCheck={false}
+                />
+              </Field>
+              <Field
+                label="Working directory"
+                field="workingDir"
+                issues={issues}
+                help="Where it runs and where slurm-<jobid>.out / .err are written. Relative paths start in your home."
+              >
+                <div className="input-row">
+                  <input
+                    id="f-workingDir"
+                    placeholder={`e.g. projects/semeval (inside ${home})`}
+                    value={draft.workingDir}
+                    onChange={(e) => set('workingDir', e.target.value)}
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    className="mono"
+                  />
+                  <button type="button" className="btn" onClick={() => setPicking('dir')}>
+                    Browse…
+                  </button>
+                </div>
+              </Field>
+            </div>
+            <div className="grid-2">
+              <Field label="CPUs" field="cpus" issues={issues}>
+                <NumberInput id="f-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
+              </Field>
+              <Field label="RAM (GB)" field="memoryMib" issues={issues}>
+                <NumberInput id="f-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
+              </Field>
+            </div>
+            {draft.runner !== 'commands' && (
+              <Field
+                label="Arguments (optional, one per line)"
+                field="programArgs"
+                issues={issues}
+                help="Passed literally; nothing is interpreted by a shell."
+              >
+                <textarea
+                  id="f-programArgs"
+                  rows={3}
+                  value={draft.args}
+                  onChange={(e) => set('args', e.target.value)}
                   spellCheck={false}
                   className="mono"
                 />
-                <button type="button" className="btn" onClick={() => setPicking('program')}>
-                  Browse…
-                </button>
-              </div>
-            </Field>
-          )}
-          <Field
-            label="Python environment (optional)"
-            field="pythonEnv"
-            issues={issues}
-            help={`A virtualenv directory, e.g. ${home}/projects/icf-env`}
-          >
-            <input
-              id="f-pythonEnv"
-              value={draft.pythonEnv}
-              onChange={(e) => set('pythonEnv', e.target.value)}
-              autoCapitalize="off"
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
-          {draft.runner !== 'commands' && (
+              </Field>
+            )}
             <Field
-              label="Arguments (optional, one per line)"
-              field="programArgs"
+              label="Python environment (optional)"
+              field="pythonEnv"
               issues={issues}
-              help="Passed literally; nothing is interpreted by a shell."
+              help={`A virtualenv folder, activated first, e.g. ${home}/projects/icf-env`}
             >
-              <textarea
-                id="f-programArgs"
-                rows={3}
-                value={draft.args}
-                onChange={(e) => set('args', e.target.value)}
+              <input
+                id="f-pythonEnv"
+                value={draft.pythonEnv}
+                onChange={(e) => set('pythonEnv', e.target.value)}
+                autoCapitalize="off"
                 spellCheck={false}
                 className="mono"
               />
             </Field>
-          )}
-          <MailOption draft={draft} issues={issues} set={set} id="f-mailUser" />
-          <details>
-            <summary>Advanced</summary>
             <Field
               label="Setup file to source first (optional)"
               field="setupSource"
@@ -484,6 +493,7 @@ export function RequestGpuView({
                 className="mono"
               />
             </Field>
+            <MailOption draft={draft} issues={issues} set={set} id="f-mailUser" />
           </details>
           <div className="actions">
             <button type="submit" className="btn primary" disabled={busy || !gres}>

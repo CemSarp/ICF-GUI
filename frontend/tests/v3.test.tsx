@@ -157,7 +157,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
   async function wizardFromProject() {
     await openProject();
     await userEvent.click(screen.getByRole('button', { name: 'New training workflow…' }));
-    await screen.findByRole('heading', { name: 'Workflow' });
+    await screen.findByLabelText('Project folder on ICF');
   }
 
   it('is prefilled from the project and previews the exact config', async () => {
@@ -218,9 +218,9 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
     await openProject();
     await expand('Python environment');
     await userEvent.click(screen.getByRole('button', { name: /Run the GPU smoke test/ }));
-    await screen.findByRole('heading', { name: 'Workflow' });
-    expect(screen.getByLabelText('GPU smoke test')).toBeChecked();
-    expect(screen.getByText(/Runs a fixed check on the allocated GPU node/)).toBeInTheDocument();
+    await screen.findByLabelText('Project folder on ICF');
+    expect(screen.getByLabelText('GPU test')).toBeChecked();
+    expect(screen.getByText(/Checks that a GPU node works with your Python/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review workflow' }));
     await screen.findByRole('heading', { name: 'Review the exact batch script' });
     const cfg = backend.calls.find((c) => c.cmd === 'workflow_preview')?.args.config as WorkflowConfig;
@@ -249,7 +249,7 @@ describe('Training workflow wizard (V3-AC05, AC06, duplicate submission)', () =>
           : { module, status: 'ok', detail: '1.0' },
       );
     await wizardFromProject();
-    await userEvent.click(screen.getByLabelText('Notebook, batch execution'));
+    await userEvent.click(screen.getByLabelText('Notebook'));
     expect(screen.getByLabelText('Modules to check')).toHaveValue('torch transformers peft nbconvert ipykernel');
     expect(backend.count('python_check_imports')).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Check environment' }));
@@ -325,7 +325,7 @@ describe('Runs dashboard (V3-AC07, AC09)', () => {
     expect(screen.getByText(/resume from it/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Checkpoints' }));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Resume from this…' }))[0]!);
-    await screen.findByRole('heading', { name: 'Workflow' });
+    await screen.findByLabelText('Project folder on ICF');
     expect(screen.getByLabelText('Resume from checkpoint (optional)')).not.toHaveValue('');
   });
 

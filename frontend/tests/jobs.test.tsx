@@ -231,27 +231,37 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
 describe('New job: one screen for script jobs and training workflows', () => {
   beforeEach(() => backend.reset(connectedLive, { jobs_preview: () => okPreview() }));
 
-  it('switches between the two forms without losing either draft or submitting anything', async () => {
+  it('asks one question first and carries what was entered when the answer needs the other form', async () => {
     await openWizard();
+    // Only the essentials are open; the rest is folded under More options.
+    expect(screen.getByText('More options').closest('details')).not.toHaveAttribute('open');
     const name = screen.getByLabelText('Job name');
     await userEvent.clear(name);
     await userEvent.type(name, 'mine');
-    await userEvent.click(screen.getByLabelText('Training workflow'));
-    await screen.findByRole('heading', { name: 'Workflow' });
+    await userEvent.click(
+      screen.getByLabelText(/Managed training: stage datasets to fast scratch, keep checkpoints and copy results back/),
+    );
+    expect(await screen.findByLabelText('Project folder on ICF')).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine');
+    expect(screen.getByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review script' })).toBeNull();
-    await userEvent.click(screen.getByLabelText('Script job'));
-    expect(await screen.findByLabelText('Job name')).toHaveValue('mine');
-    expect(screen.queryByRole('heading', { name: 'Workflow' })).toBeNull();
+    await userEvent.click(screen.getByLabelText('Shell script'));
+    expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Shell script')).toBeChecked();
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine');
+    await userEvent.click(screen.getByLabelText('GPU test'));
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Script')).toBeNull(); // the GPU test runs a fixed check
     expect(backend.count('jobs_submit')).toBe(0);
   });
 
   it('opens the script form with the partition chosen from a partition card', async () => {
     await openWizard();
-    await userEvent.click(screen.getByLabelText('Training workflow'));
+    await userEvent.click(screen.getByLabelText('Notebook'));
     await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     await userEvent.click(await screen.findByRole('button', { name: 'New job on Interactive' }));
     await screen.findByRole('heading', { name: 'New job' });
-    expect(screen.getByLabelText('Script job')).toBeChecked();
+    expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
     expect(screen.getByLabelText('Partition')).toHaveValue('Interactive'); // not the default (Teaching)
   });
 });
@@ -442,7 +452,7 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
   it('fills the working directory and script from a picked file instead of a typed path', async () => {
     await openWizard();
     await userEvent.clear(screen.getByLabelText('Working directory'));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[1]!);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Browse…' })[0]!);
     await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
     expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
     expect(screen.getByLabelText('Script')).toHaveValue('train.py');
@@ -451,13 +461,13 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
 
   it('runs terminal commands in the folder of a chosen file, with no script or arguments', async () => {
     await openWizard();
-    await userEvent.selectOptions(screen.getByLabelText('Run with'), 'Terminal commands');
+    await userEvent.click(screen.getByLabelText('Commands'));
     expect(screen.queryByLabelText('Script')).toBeNull();
     expect(screen.queryByLabelText('Arguments (optional, one per line)')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Choose a file…' }));
     await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
     expect(screen.getByLabelText('Working directory')).toHaveValue(v3.PROJECT);
-    const box = screen.getByLabelText('Commands');
+    const box = screen.getByLabelText('Commands to run');
     expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
     await userEvent.type(box, '{Enter}nvidia-smi -L');
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));

@@ -47,22 +47,32 @@ memory, with search and filters; click a node for its details.
 
 ## Requesting a GPU (batch jobs)
 
-1. **New job** (sidebar, or *New job* on a partition in Cluster), kind **Script job**.
-2. Choose a partition and GPU type. The numbers show *potential* availability at the last snapshot;
-   they are not a reservation. Set GPUs (default 1), CPUs, RAM and wall time (within the partition limit).
-3. Set the **working directory** and what to run, by typing a path (relative paths start in your
-   home, e.g. `projects/semeval`) or with **Browse…**, which lets you pick a folder or file on ICF.
-   *Run with* is one of:
-   - **Python script** or **Bash script**: a file on ICF inside your home, plus optional arguments
-     (one per line, passed literally). Picking a script with no working directory set uses its folder.
-   - **Terminal commands**: type the commands you would type in a terminal on the GPU node, for
-     example `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go
-     into the batch script exactly as written and start in the working directory; the job stops at the
-     first failing command. **Choose a file…** sets the working directory to that file's folder and
-     suggests a command for it (`python x.py`, `nvcc … x.cu` and run it, `bash x.sh`). Don't use
-     `cd "$(dirname "$0")"`: in a batch job `$0` is SLURM's copy of the script, not your folder.
+**New job** (sidebar, or *New job* on a partition in Cluster) starts with one question, **What do
+you want to run?**, and shows only what that needs. Everything else has a sensible default under
+**More options** (job name, working directory, CPUs, RAM, arguments, Python environment, setup file,
+e-mail), which opens by itself if one of its fields has a problem. Switching answers keeps what you
+entered.
 
-   An optional virtualenv (`source <env>/bin/activate` is added) works with all three.
+| Answer | What runs |
+|---|---|
+| **Python script** | A `.py` file. Tick **Managed training** for a [training workflow](#training-workflows) (datasets staged to scratch, checkpoints, results copied back). |
+| **Shell script** | A `.sh` file with bash. |
+| **Commands** | The lines you type, like a terminal on the GPU node. |
+| **Notebook** | A notebook run top to bottom (a training workflow). |
+| **GPU test** | A short check that a GPU node works with your Python (a training workflow). |
+
+1. Choose the file with **Browse…** (it opens your ICF home; click **Choose** next to the file), or
+   type a path. With no working directory set yet, the job runs in the file's folder.
+   - **Commands**: type the commands you would type in a terminal on the GPU node, for example
+     `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go into the
+     batch script exactly as written and start in the working directory; the job stops at the first
+     failing command. **Choose a file…** sets the working directory to that file's folder and suggests
+     a command for it (`python x.py`, `nvcc … x.cu` and run it, `bash x.sh`). Don't use
+     `cd "$(dirname "$0")"`: in a batch job `$0` is SLURM's copy of the script, not your folder.
+2. Under **GPU**, choose a partition, a GPU type, how many GPUs and the wall time. The numbers show
+   *potential* availability at the last snapshot; they are not a reservation.
+3. Open **More options** only if you need to change a default (CPUs 4, RAM 16 GB, job name, a
+   virtualenv to activate, arguments, e-mail).
 4. **Review script** shows the exact batch script and checksum. Acknowledge any notices, click
    **Submit job…**, then confirm. The job is submitted once.
 5. Outcomes: **Accepted** (you get a job ID; it may wait in the queue), **Not submitted** (the reason
@@ -204,7 +214,8 @@ already have (no second login), one file at a time.
 
 ## Training workflows
 
-**New job → Training workflow** (or *New training workflow…* on a project) builds one batch job that:
+**New job → Python script with *Managed training***, **Notebook** or **GPU test** (or *New training
+workflow…* on a project) builds one batch job that:
 
 1. starts only on the GPU node SLURM allocates (never on the login node),
 2. sets up your environment (toolchain, virtualenv) and checks Python,

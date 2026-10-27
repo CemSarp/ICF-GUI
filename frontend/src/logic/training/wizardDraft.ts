@@ -175,6 +175,19 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
 }
 
 /** The draft a new wizard starts from: a resumed config, a project/smoke-test request, or the saved draft. */
+/** A GPU test is small and short. */
+export const SMOKE_DEFAULTS = {
+  datasets: [],
+  hours: 0,
+  minutes: 10,
+  cpus: 2,
+  memoryGb: 8,
+  gpuCount: 1,
+  signalGraceSeconds: 120,
+  checkpointMode: 'none' as const,
+  expectedOutputGib: 0,
+};
+
 export function initialDraft(stored: Draft, init: WizardInit | null, toolchains: ToolchainProfile[]): Draft {
   const base = { ...DEFAULT_DRAFT, ...stored };
   if (init?.config) return fromConfig(init.config, toolchains);
@@ -187,19 +200,7 @@ export function initialDraft(stored: Draft, init: WizardInit | null, toolchains:
     interpreter: init.interpreter ?? base.interpreter,
     toolchainId: init.toolchainId ?? base.toolchainId,
     resultsRoot: init.projectDir && init.projectDir !== base.projectDir ? '' : base.resultsRoot,
-    ...(init.kind === 'gpu_smoke_test'
-      ? {
-          datasets: [],
-          hours: 0,
-          minutes: 10,
-          cpus: 2,
-          memoryGb: 8,
-          gpuCount: 1,
-          signalGraceSeconds: 120,
-          checkpointMode: 'none' as const,
-          expectedOutputGib: 0,
-        }
-      : {}),
+    ...(init.kind === 'gpu_smoke_test' ? SMOKE_DEFAULTS : {}),
   };
 }
 

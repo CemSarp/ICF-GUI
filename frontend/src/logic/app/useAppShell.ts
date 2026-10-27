@@ -75,6 +75,11 @@ export function useAppShell() {
     if (v !== 'training') setSelectedRun(null);
     setView(v);
   };
+  /** New job's "What do you want to run?" moved to the other form: it opens from its saved draft. */
+  const switchJobMode = (m: JobMode) => {
+    setWizardInit((w) => ({ init: null, key: w.key + 1 }));
+    setJobMode(m);
+  };
   const startTraining = (init: WizardInit) => {
     setWizardInit((w) => ({ init, key: w.key + 1 }));
     setJobMode('workflow');
@@ -155,6 +160,7 @@ export function useAppShell() {
     project,
     setProject,
     jobMode,
+    switchJobMode,
     setJobMode,
     wizardInit,
     selectedRun,

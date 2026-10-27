@@ -13,7 +13,10 @@ import type {
   PreviewResponse,
   SubmitResponse,
 } from '../../types';
+import { carryTo, modeFor, resolveWorkingDir, type JobMode, type RunChoice } from './newJob';
 import { jobsKey } from './useJobs';
+
+export { resolveWorkingDir };
 
 export interface Draft {
   partition: string;
@@ -36,15 +39,6 @@ export interface Draft {
   mailUser: string;
 }
 
-/** Relative working directories start in the user's home on ICF. */
-export function resolveWorkingDir(dir: string, home: string): string {
-  const t = dir.trim().replace(/\/+$/, '');
-  if (t === '' || t === '~') return home;
-  if (t.startsWith('/')) return t;
-  return `${home}/${t.replace(/^~\//, '')}`;
-}
-
-/** Newest decisive outcome per partition from this Mac's submissions (receipts arrive newest first). */
 const shellWord = (s: string) => (/^[\w.+@=,/-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
 /** A starting command for a chosen file, by its type (the user edits it before reviewing). */
@@ -237,9 +231,19 @@ export function useRequestGpu(snapshot: ClusterSnapshot, status: ConnectionStatu
       .then((r) => setReconcileMsg(r.message ?? r.status))
       .catch((e) => setReconcileMsg(errorMessage(e)));
 
+  /** "What do you want to run?": a script-job runner here, or the training workflow form. */
+  const choose = (c: RunChoice, managed: boolean, onSwitch: (m: JobMode) => void) => {
+    const mode = modeFor(c, managed);
+    if (mode === 'script') return set('runner', c as Draft['runner']);
+    const d = effective;
+    carryTo(mode, c, { ...d, folder: d.workingDir, file: d.program, python: d.pythonEnv }, home);
+    onSwitch(mode);
+  };
+
   return {
     home,
     learned,
+    choose,
     draft,
     set,
     partition,

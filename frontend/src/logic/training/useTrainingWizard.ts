@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { maxGpusFor } from '../cluster/gpu';
 import { usePersistentState } from '../persist';
 import { safeName } from '../transfers/transfers';
+import { carryTo, modeFor, type JobMode, type RunChoice } from '../jobs/newJob';
 import type {
   ClusterSnapshot,
   ConnectionStatus,
@@ -21,6 +22,7 @@ import {
   fromConfig,
   initialDraft,
   pickedDatasetName,
+  SMOKE_DEFAULTS,
   toConfig,
   uploadedDatasetName,
   type Draft,
@@ -81,8 +83,9 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     },
   });
 
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
-    setDraft({ ...draft, [k]: v });
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => patch({ [k]: v } as Partial<Draft>);
+  const patch = (p: Partial<Draft>) => {
+    setDraft({ ...draft, ...p });
     setPreview(null);
     setResult(null);
     if (phase === 'READY') setPhase('DRAFT');
@@ -209,9 +212,40 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
       })
       .catch((e) => setError(errorMessage(e)));
 
+  /** A script or notebook picked on ICF: relative to the project, whose folder it becomes if none is set. */
+  const pickEntry = (path: string) => {
+    const i = path.lastIndexOf('/');
+    if (!project) patch({ projectDir: path.slice(0, i) || '/', entry: path.slice(i + 1) });
+    else set('entry', path.startsWith(`${project}/`) ? path.slice(project.length + 1) : path);
+  };
+
+  /** "What do you want to run?": a workflow type here, or the script job form. */
+  const choice: RunChoice =
+    draft.kind === 'notebook' ? 'notebook' : draft.kind === 'gpu_smoke_test' ? 'smoke' : 'python';
+  const choose = (c: RunChoice, managed: boolean, onSwitch: (m: JobMode) => void) => {
+    const mode = modeFor(c, managed);
+    if (mode === 'workflow') {
+      const kind = c === 'notebook' ? 'notebook' : c === 'smoke' ? 'gpu_smoke_test' : 'train';
+      setDraft({
+        ...draft,
+        kind,
+        ...(kind === 'gpu_smoke_test' ? { ...SMOKE_DEFAULTS, jobName: 'gpu-smoke' } : {}),
+        ...(kind === 'notebook' && !/\.ipynb$/i.test(draft.entry) ? { entry: '' } : {}),
+      });
+      setPreview(null);
+      return;
+    }
+    const d = effective;
+    carryTo(mode, c, { ...d, folder: d.projectDir, file: d.entry, python: d.interpreter }, home);
+    onSwitch(mode);
+  };
+
   return {
     draft,
     set,
+    choice,
+    choose,
+    pickEntry,
     presets: presets.data,
     tcList,
     home,

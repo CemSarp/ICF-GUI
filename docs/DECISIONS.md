@@ -340,6 +340,13 @@ the GPU node without first writing a script file.
   arguments alongside. Warnings, not errors, for `$0` (SLURM's spool copy, so `dirname "$0"` is not the
   project) and for `#SBATCH` lines in the body (ignored). The submit pre-check still requires the
   working directory to exist inside home and be writable; there is no script file to check.
+- **One New job form.** Script job and training workflow keep their engines (`jobs_preview` /
+  `workflow_preview`), drafts and review flows; the user sees one question, *What do you want to
+  run?*, whose answer picks the form (Notebook, GPU test and *Managed training* Python → workflow;
+  Python, Shell script, Commands → script job). Shared values (partition, GPU, counts, time, job
+  name, folder, file, Python, e-mail) are written into the other form's saved draft before it opens.
+  Only the essentials are visible; the rest sits in folded sections that open when they hold an
+  error. Merging the engines themselves was not needed for a simpler screen.
 - **Pickers.** Working directory, script and "file to run" use the existing home-confined remote
   browser (read-only). The picker dialog is rendered outside the form so its buttons cannot submit it.
 
