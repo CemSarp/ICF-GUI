@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
 - **Rename** on every file, folder and link in Projects and Notebooks: renames in place, never over
