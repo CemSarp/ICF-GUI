@@ -259,9 +259,10 @@ describe('New job: one screen for script jobs and training workflows', () => {
     expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
     expect(screen.getByLabelText('Shell script')).toBeChecked();
     expect(screen.getByLabelText('Job name')).toHaveValue('mine');
-    await userEvent.click(screen.getByLabelText('GPU test'));
+    // The GPU test is started from Projects (a check of an environment), not offered as a job type.
+    expect(screen.queryByLabelText('GPU test')).toBeNull();
+    await userEvent.click(screen.getByLabelText('Notebook'));
     expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Script' })).toBeNull(); // the GPU test runs a fixed check
     expect(screen.getByLabelText('Job name')).toHaveValue('mine'); // a name the user chose is kept
     expect(backend.count('jobs_submit')).toBe(0);
   });
@@ -532,6 +533,54 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     ]);
     expect(timePresets(3600).map((t) => t.label)).toEqual(['10 min', '30 min', '1 h']);
     expect(timePresets(null)).toHaveLength(8);
+  });
+});
+
+describe('Edit and run again', () => {
+  it('refills New job with the request a finished job was submitted with', async () => {
+    const request: JobRequest = {
+      partition: 'Teaching',
+      gresType: 'nvidia_geforce_rtx_2080_ti',
+      gpuCount: 1,
+      cpus: 2,
+      memoryMib: 16384,
+      timeLimitSeconds: 5400,
+      jobName: 'hw1-test',
+      workingDir: '/home/s1/hw1-asr',
+      runner: 'commands',
+      program: '',
+      programArgs: [],
+      pythonEnv: null,
+      setupSource: null,
+      mailUser: null,
+      commands: 'make test1 && ./run.sh --cuda task1',
+    };
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({}),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+      jobs_preview: () => okPreview(),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit and run again' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(request.commands);
+    expect(screen.getByLabelText('Job name')).toHaveValue('hw1-test');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')?.args.request).toEqual(request);
+    expect(backend.count('jobs_submit')).toBe(0);
   });
 });
 

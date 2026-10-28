@@ -99,7 +99,9 @@ export function parseSbatch(text: string): SbatchImport | null {
         case '--output':
         case '-e':
         case '--error':
-          notes.push(`Its ${flag} is not used: the output goes to icfcc-run/slurm-<job id>.out in the working directory.`);
+          notes.push(
+            `Its ${flag} is not used: the output goes to icfcc-run/slurm-<job id>.out in the working directory.`,
+          );
           break;
         default:
           notes.push(`#SBATCH ${opt[1]!.trim()} is not taken over.`);

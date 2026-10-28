@@ -655,6 +655,7 @@ fn receipt_store_learns_partitions_and_dismisses() {
         message: message.map(str::to_string),
         access_denied: false,
         dismissed: false,
+        request: None,
     };
     // A receipt written by v0.2.0 before these fields existed (real ICF-Free rejection text).
     let legacy = serde_json::json!([{
@@ -666,6 +667,7 @@ fn receipt_store_learns_partitions_and_dismisses() {
     std::fs::write(dir.path.join("jobs.json"), legacy.to_string()).unwrap();
     let mut st = ReceiptStore::load(&dir.path);
     assert!(st.items[0].access_denied, "old receipts are migrated");
+    assert_eq!(st.items[0].request, None, "receipts before 0.5.1 carry no request");
     assert_eq!(st.partition_record("default", "s1", "ICF-Free"), PartitionRecord::Denied);
     assert_eq!(st.partition_record("default", "s1", "Teaching"), PartitionRecord::None);
     assert_eq!(st.partition_record("default", "other", "ICF-Free"), PartitionRecord::None, "per user");
@@ -740,4 +742,33 @@ fn terminal_commands_submit_without_a_program_check_and_run_in_the_working_direc
     let out = sb2.run(&submit_script(&r2, &render_script(&r2, "t"), "t"));
     assert!(!matches!(classify_submit(cap(&out, false)), SubmitOutcome::Accepted { .. }), "{out}");
     assert!(!sb2.calls().contains("sbatch"));
+}
+
+#[test]
+fn receipt_keeps_the_reviewed_request_for_run_again() {
+    let dir = crate::ssh::SessionDir::create().unwrap();
+    let mut st = ReceiptStore::load(&dir.path);
+    let r = req();
+    let rec = JobReceipt {
+        tag: "t".into(),
+        profile_id: "default".into(),
+        user: "s1".into(),
+        job_id: Some("1".into()),
+        cluster: None,
+        status: ReceiptStatus::Accepted,
+        name: r.job_name.clone(),
+        partition: r.partition.clone(),
+        gres: r.gres_name(),
+        gpu_count: r.gpu_count,
+        submitted_at: "2026-10-28T10:00:00Z".into(),
+        checksum: "c".into(),
+        stdout_pattern: "o".into(),
+        stderr_pattern: "e".into(),
+        message: None,
+        access_denied: false,
+        dismissed: false,
+        request: Some(r.clone()),
+    };
+    st.upsert(rec).unwrap();
+    assert_eq!(ReceiptStore::load(&dir.path).items[0].request.as_ref(), Some(&r));
 }

@@ -70,7 +70,7 @@ memory, with search and filters; click a node for its details.
 ## Requesting a GPU (batch jobs)
 
 **New job** (sidebar, or *New job here* on a partition in Cluster) starts with one question, **What
-do you want to run?**, as five tiles. You choose things rather than type them: the file, the GPU and
+do you want to run?**, as four tiles. You choose things rather than type them: the file, the GPU and
 the time are buttons and tiles. Arguments and a setup file are under **More options**, which opens
 by itself if one of its fields has a problem. Switching answers keeps what you entered.
 
@@ -80,7 +80,6 @@ by itself if one of its fields has a problem. Switching answers keeps what you e
 | **Shell script** | A `.sh` file with bash. |
 | **Commands** | The lines you type, like a terminal on the GPU node. |
 | **Notebook** | A notebook run top to bottom (a training workflow). |
-| **GPU test** | A short check that a GPU node works with your Python (a training workflow). |
 
 1. **Choose script** (or *Choose notebook*) opens your ICF home; click **Choose** next to the file.
    The job runs in that file's folder, shown as *Runs in ~ › projects › hw1*; click a folder in that
@@ -133,6 +132,9 @@ jobs (`sacct`, when the site provides it). Open a job for scheduler details, fai
   *Follow* reloads every 10 s for running jobs while the window is visible.
 - **Cancel job** appears only for your own pending/running jobs and asks for confirmation. The state
   changes to *Cancelled* once SLURM reports it.
+- **Edit and run again** (jobs submitted from this app since 0.5.1, and finished training runs) opens
+  New job filled in exactly as that job was reviewed. Change what you need (often just the last
+  command), then review and submit as usual.
 
 ## Projects and VS Code
 
@@ -241,8 +243,8 @@ already have (no second login), one file at a time.
 
 ## Training workflows
 
-**New job → Python script with *Managed training***, **Notebook** or **GPU test** (or *New training
-workflow…* on a project) builds one batch job that:
+**New job → Python script with *Managed training*** or **Notebook**, **Run the GPU smoke test** in
+Projects → Python environment (or *New training workflow…* on a project) builds one batch job that:
 
 1. starts only on the GPU node SLURM allocates (never on the login node),
 2. sets up your environment (toolchain, virtualenv) and checks Python,

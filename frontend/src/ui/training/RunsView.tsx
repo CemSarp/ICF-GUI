@@ -198,6 +198,11 @@ function RunDetail({
             </button>
           )}
           {isTerminal(s) && (
+            <button className="btn" onClick={() => onResume({ ...run.config, resumeFrom: null })}>
+              Edit and run again
+            </button>
+          )}
+          {isTerminal(s) && (
             <button className="btn ghost" onClick={dismiss}>
               Hide from list
             </button>

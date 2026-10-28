@@ -10,7 +10,7 @@ import { usePersistentState } from '../persist';
 import type { PageGuard } from './guard';
 import { useApplyTheme, type Theme } from '../settings/theme';
 import type { WizardInit } from '../training/wizardDraft';
-import type { Settings } from '../../types';
+import type { JobRequest, Settings } from '../../types';
 
 export type View =
   'home' | 'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'training' | 'transfers' | 'settings';
@@ -78,11 +78,18 @@ export function useAppShell() {
   };
   /** Projects' Run buttons: New job opens on this folder or file (as a script job). */
   const [runTarget, setRunTarget] = useState<RunTarget | null>(null);
-  const runOnGpu = (path: string, isDir: boolean) => {
-    setRunTarget((t) => ({ path, isDir, key: Math.max(Date.now(), (t?.key ?? 0) + 1) }));
+  const runOnGpu = (path: string, isDir: boolean, request?: JobRequest) => {
+    setRunTarget((t) => ({
+      path,
+      isDir,
+      key: Math.max(Date.now(), (t?.key ?? 0) + 1),
+      ...(request ? { request } : {}),
+    }));
     setJobMode('script');
     go('request');
   };
+  /** A finished job's "Edit and run again": New job refilled with what was reviewed and submitted. */
+  const runAgain = (request: JobRequest) => runOnGpu(request.workingDir, true, request);
   /** New job's "What do you want to run?" moved to the other form: it opens from its saved draft. */
   const switchJobMode = (m: JobMode) => {
     setWizardInit((w) => ({ init: null, key: w.key + 1 }));
@@ -171,6 +178,7 @@ export function useAppShell() {
     switchJobMode,
     runTarget,
     runOnGpu,
+    runAgain,
     setJobMode,
     wizardInit,
     selectedRun,

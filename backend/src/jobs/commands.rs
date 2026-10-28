@@ -222,6 +222,7 @@ pub async fn jobs_submit(
         message: None,
         access_denied: false,
         dismissed: false,
+        request: p.workflow.is_none().then(|| p.request.clone()),
     };
     if !super::remote::heredoc_safe(&p.script, &format!("ICFCC_JOB_{}", p.tag)) {
         receipt.status = ReceiptStatus::Rejected;

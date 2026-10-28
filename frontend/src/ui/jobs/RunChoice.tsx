@@ -35,7 +35,7 @@ const CHOICES: { id: Choice; label: string; icon: IconName; short: string; help:
     label: 'GPU test',
     icon: 'chip',
     short: '10-minute check',
-    help: 'Checks that a GPU node works with your Python: versions, torch.cuda.is_available(), the GPU model and a tiny matrix multiply.',
+    help: 'Checks that a GPU node works with your Python: versions, torch.cuda.is_available(), the GPU model and a tiny matrix multiply. Start it from Projects → Python environment → Run the GPU smoke test.',
   },
 ];
 
@@ -53,13 +53,15 @@ export function RunChoice({
   onChange: (c: Choice, managed: boolean) => void;
 }) {
   const current = CHOICES.find((c) => c.id === value) ?? CHOICES[0]!;
+  // The GPU test is a check of an environment, started from Projects; its tile shows only then.
+  const shown = CHOICES.filter((c) => c.id !== 'smoke' || value === 'smoke');
   return (
     <div className="field">
       <span id="run-choice-label" className="section-label">
         What do you want to run?
       </span>
       <div className="run-tiles" role="radiogroup" aria-labelledby="run-choice-label">
-        {CHOICES.map((c) => (
+        {shown.map((c) => (
           <label key={c.id} className={`run-tile${value === c.id ? ' selected' : ''}`}>
             <input
               type="radio"

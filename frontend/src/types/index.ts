@@ -334,6 +334,8 @@ export interface JobReceipt {
   accessDenied: boolean;
   /** Hidden from the list; still counts for what was learned about the partition. */
   dismissed: boolean;
+  /** The reviewed script-job request (absent for workflows and receipts before 0.5.1). */
+  request?: JobRequest | null;
 }
 
 export type SubmitOutcome =

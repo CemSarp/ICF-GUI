@@ -3,6 +3,8 @@
 ## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Edit and run again** on a job's details (script jobs) and on finished training runs: New job
+  opens filled in exactly as that job was reviewed. Script-job receipts now keep the reviewed request.
 - **Start screen** (the first screen): the next step with one button, a checklist of GPU milestones
   with your progress, the GPUs most free right now, and where your code runs. Worked out from data
   already on your Mac; no extra ICF requests.
@@ -25,6 +27,8 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **Four job types on New job**: the GPU test is no longer a tile; it is a check of an environment,
+  started from Projects → Python environment → *Run the GPU smoke test*.
 - **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,
   training, the GPU test) writes `slurm-<job id>.out` and `.err` into an `icfcc-run` folder inside
   the folder it runs in. The folder is created before `sbatch` (inside your home only). Runs submitted

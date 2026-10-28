@@ -38,6 +38,8 @@ export interface RunTarget {
   path: string;
   isDir: boolean;
   key: number;
+  /** "Edit and run again": the form is refilled with this earlier, reviewed request instead. */
+  request?: JobRequest;
 }
 
 export interface Draft {
@@ -83,6 +85,29 @@ export function learnedPartitions(receipts: JobReceipt[]): Map<string, 'accepted
     else if (r.accessDenied) out.set(r.partition, 'denied');
   }
   return out;
+}
+
+/** The form for an earlier request (the inverse of `toRequest`), for "Edit and run again". */
+export function fromRequest(r: JobRequest): Draft {
+  return {
+    partition: r.partition,
+    gres: r.gresType ? `gpu:${r.gresType}` : 'gpu',
+    gpuCount: r.gpuCount,
+    cpus: r.cpus,
+    memoryGb: r.memoryMib / 1024,
+    hours: Math.floor(r.timeLimitSeconds / 3600),
+    minutes: Math.floor((r.timeLimitSeconds % 3600) / 60),
+    jobName: r.jobName,
+    workingDir: r.workingDir,
+    runner: r.runner,
+    program: r.program,
+    commands: r.commands ?? '',
+    args: r.programArgs.join('\n'),
+    pythonEnv: r.pythonEnv ?? '',
+    setupSource: r.setupSource ?? '',
+    mail: !!r.mailUser,
+    mailUser: r.mailUser ?? '',
+  };
 }
 
 export function toRequest(d: Draft, home: string): JobRequest {
@@ -277,7 +302,8 @@ export function useRequestGpu(
   useEffect(() => {
     if (!initialTarget || lastApplied === initialTarget.key) return;
     lastApplied = initialTarget.key;
-    if (initialTarget.isDir) patch({ workingDir: initialTarget.path });
+    if (initialTarget.request) setDraft(fromRequest(initialTarget.request));
+    else if (initialTarget.isDir) patch({ workingDir: initialTarget.path });
     else void applyFile(initialTarget.path, 'auto');
     // Once per Run press (its key), also when the form opens again later; it builds on the draft then.
     // eslint-disable-next-line react-hooks/exhaustive-deps

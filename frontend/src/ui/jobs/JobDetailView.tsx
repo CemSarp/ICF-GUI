@@ -3,7 +3,7 @@ import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
 import { isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
-import type { CancelOutcome, ConnectionStatus } from '../../types';
+import type { CancelOutcome, ConnectionStatus, JobRequest } from '../../types';
 import { LogViewer } from './LogViewer';
 
 /** The one confirmation before `jobs_cancel`; the token comes from the job's detail and is used once. */
@@ -56,10 +56,12 @@ export function JobDetailView({
   jobId,
   status,
   onBack,
+  onRunAgain,
 }: {
   jobId: string;
   status: ConnectionStatus;
   onBack: () => void;
+  onRunAgain: (r: JobRequest) => void;
 }) {
   const { q, d, j, hint, cancelResult, onCancelResult } = useJobDetail(jobId, status);
   const [confirm, setConfirm] = useState(false);
@@ -77,6 +79,12 @@ export function JobDetailView({
             <Icon name="refresh" />
             {q.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
+          {d?.receipt?.request && (
+            <button className="btn" onClick={() => onRunAgain(d.receipt!.request!)}>
+              <Icon name="refresh" />
+              Edit and run again
+            </button>
+          )}
           {d?.cancelToken && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirm(true)}>
               Cancel job

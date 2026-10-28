@@ -112,6 +112,7 @@ export function App() {
     switchJobMode,
     runTarget,
     runOnGpu,
+    runAgain,
     wizardInit,
     selectedRun,
     setSelectedRun,
@@ -385,7 +386,12 @@ export function App() {
               <TransfersView status={status} uploadDir={uploadDir ?? project} />
             ) : view === 'jobs' ? (
               selectedJob ? (
-                <JobDetailView jobId={selectedJob} status={status} onBack={() => setSelectedJob(null)} />
+                <JobDetailView
+                  jobId={selectedJob}
+                  status={status}
+                  onBack={() => setSelectedJob(null)}
+                  onRunAgain={runAgain}
+                />
               ) : (
                 <MyJobsView status={status} onOpen={setSelectedJob} onOpenRun={openRun} />
               )
