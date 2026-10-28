@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.1] — 2026-10-28 · Fewer screens, Rename and Unpack
+## [0.5.1] — 2026-10-28 · New job, GPU sessions, Rename and Unpack
 
 ### Added
 - **Avoid nodes** under GPU and resources (SLURM `--exclude`), for every job type: a node that fails
