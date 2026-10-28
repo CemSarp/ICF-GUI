@@ -740,3 +740,15 @@ fn log_cleanup_accepts_only_icfcc_run_folders_and_sane_ages() {
         assert!(check_logs_args(d, n).is_err(), "{d} {n}");
     }
 }
+
+#[test]
+fn preset_job_types_and_commands_are_checked() {
+    use super::commands::check_preset_job;
+    let job: PresetJob = serde_json::from_str(r#"{"choice":"session","commands":"conda activate mls-asr","sessionIdleMinutes":30}"#).unwrap();
+    assert_eq!(job.choice, PresetChoice::Session);
+    assert!(check_preset_job(Some(&job)).is_ok());
+    assert!(check_preset_job(None).is_ok());
+    assert!(check_preset_job(Some(&PresetJob { session_idle_minutes: Some(1), ..job.clone() })).is_err());
+    assert!(check_preset_job(Some(&PresetJob { commands: Some("a\u{7}b".into()), ..job.clone() })).is_err());
+    assert!(serde_json::from_str::<PresetJob>(r#"{"choice":"rm -rf"}"#).is_err(), "only known job types");
+}

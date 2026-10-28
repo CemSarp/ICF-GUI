@@ -9,11 +9,12 @@ import {
   carryTo,
   modeFor,
   replaceableName,
+  runChoiceOf,
   splitPath,
   type JobMode,
   type RunChoice,
 } from '../jobs/newJob';
-import { usePresets } from '../jobs/presets';
+import { handOver, usePresets } from '../jobs/presets';
 import { useProjectEnv } from '../jobs/projectEnv';
 import type {
   ClusterSnapshot,
@@ -45,7 +46,12 @@ import {
  * submit, the login-node environment check, uploading a dataset archive, presets.
  * Phases: DRAFT → (UPLOADING) → VALIDATING → READY → SUBMITTING → DRAFT with a result.
  */
-export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSnapshot | null, init: WizardInit | null) {
+export function useTrainingWizard(
+  status: ConnectionStatus,
+  snapshot: ClusterSnapshot | null,
+  init: WizardInit | null,
+  onSwitch: (m: JobMode) => void,
+) {
   const qc = useQueryClient();
   const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
   const [stored, setStored] = usePersistentState<Draft>('workflow.draft', DEFAULT_DRAFT);
@@ -210,9 +216,17 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
 
   const presets = usePresets(
     status,
-    () => toConfig(effective, tcList, home),
-    (c) => {
-      setDraft(fromConfig(c, tcList));
+    () => ({
+      config: toConfig(effective, tcList, home),
+      job: { choice: draft.kind === 'notebook' ? 'notebook' : draft.kind === 'gpu_smoke_test' ? 'smoke' : 'managed' },
+    }),
+    (p) => {
+      // A preset of a job type the script form runs (Python, Shell, Commands, GPU session): that form loads it.
+      if (p.job && modeFor(...runChoiceOf(p.job.choice)) === 'script') {
+        handOver(p.id);
+        return onSwitch('script');
+      }
+      setDraft(fromConfig(p.config, tcList));
       setPreview(null);
     },
   );

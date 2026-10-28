@@ -176,7 +176,7 @@ fn rendered_script_quotes_every_user_value() {
         "#SBATCH --gres=gpu:nvidia_rtx_a6000:1",
         "#SBATCH --signal=B:USR1@300",
         "#SBATCH --comment=icfcc-t1",
-        "#SBATCH --output=/home/demo/proj/icfcc-run/slurm-%j.out",
+        "#SBATCH --output=/home/demo/proj/slurm-%j.out",
         "#SBATCH --chdir=/home/demo/proj",
     ] {
         assert!(s.lines().any(|x| x == l), "{l}");

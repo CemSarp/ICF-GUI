@@ -12,8 +12,15 @@ export function failureHint(j: JobRow): string | null {
       return 'The job ran out of host RAM. Request more memory.';
     case 'node_fail':
       return 'The compute node failed. This is usually not caused by your code; you may resubmit.';
-    case 'failed':
-      return `The program exited with an error${j.exitCode ? ` (exit code ${j.exitCode})` : ''}. Check the standard error log.`;
+    case 'failed': {
+      // SLURM's exit code is `<exit>:<signal>`; a signal means the program was stopped, not that it erred.
+      const [code, signal] = (j.exitCode ?? '').split(':');
+      if (signal && signal !== '0')
+        return code === '0' && j.elapsed?.replace(/[0:-]/g, '') === ''
+          ? `SLURM stopped the job before it could run (signal ${signal}), so no log was written. This often means it could not create the log files; try again, and tell Informatics support if it keeps happening.`
+          : `The program was stopped by signal ${signal}. Check the end of the logs.`;
+      return `The program exited with an error${code ? ` (exit code ${code})` : ''}. Check the standard error log.`;
+    }
     default:
       return null;
   }

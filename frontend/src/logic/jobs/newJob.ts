@@ -1,3 +1,4 @@
+import type { PresetChoice } from '../../types';
 import { expandHome } from '../training/wizardDraft';
 
 /** Relative working directories start in the user's home on ICF. */
@@ -13,6 +14,11 @@ export type JobMode = 'script' | 'workflow';
 
 /** "What do you want to run?" on New job; each choice is handled by one of the two forms. */
 export type RunChoice = 'python' | 'bash' | 'commands' | 'session' | 'notebook' | 'smoke';
+
+/** A preset's job type for a choice, and back (`managed` is Python with Managed training). */
+export const presetChoiceOf = (c: RunChoice, managed: boolean): PresetChoice =>
+  c === 'python' && managed ? 'managed' : c;
+export const runChoiceOf = (p: PresetChoice): [RunChoice, boolean] => (p === 'managed' ? ['python', true] : [p, false]);
 
 /** Notebooks, the GPU test and managed Python training use the workflow; the rest are plain script jobs. */
 export const modeFor = (c: RunChoice, managed: boolean): JobMode =>

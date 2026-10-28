@@ -20,11 +20,12 @@ import {
   modeFor,
   replaceableName,
   resolveWorkingDir,
+  runChoiceOf,
   splitPath,
   type JobMode,
   type RunChoice,
 } from './newJob';
-import { usePresets } from './presets';
+import { handOver, usePresets } from './presets';
 import { useProjectEnv } from './projectEnv';
 import { jobsKey } from './useJobs';
 import { DEFAULT_DRAFT, fromConfig, toConfig } from '../training/wizardDraft';
@@ -392,8 +393,8 @@ export function useRequestGpu(
   /** Presets hold a workflow config; here they carry the GPU, resources, name, e-mail, folder and file. */
   const presets = usePresets(
     status,
-    () =>
-      toConfig(
+    () => ({
+      config: toConfig(
         {
           ...DEFAULT_DRAFT,
           ...effective,
@@ -406,8 +407,21 @@ export function useRequestGpu(
         [],
         home,
       ),
-    (c) => {
+      job: {
+        choice: draft.runner,
+        ...(typedRunner(draft.runner) ? { commands: draft.commands } : {}),
+        ...(draft.runner === 'session' ? { sessionIdleMinutes: draft.sessionIdle } : {}),
+      },
+    }),
+    (p) => {
+      // A preset of a job type the training workflow runs: that form loads it.
+      if (p.job && modeFor(...runChoiceOf(p.job.choice)) === 'workflow') {
+        handOver(p.id);
+        return onSwitch('workflow');
+      }
+      const c = p.config;
       const w = fromConfig(c, []);
+      const runner = p.job ? (runChoiceOf(p.job.choice)[0] as Runner) : draft.runner;
       const env = w.interpreter.replace(/\/bin\/python[\d.]*$/, '');
       patch({
         partition: w.partition,
@@ -421,8 +435,11 @@ export function useRequestGpu(
         mail: w.mail,
         mailUser: w.mailUser,
         workingDir: w.projectDir,
-        ...(c.entry && !typedRunner(draft.runner) ? { program: c.entry, args: w.args } : {}),
+        runner,
+        ...(c.entry && !typedRunner(runner) ? { program: c.entry, args: w.args } : {}),
         ...(env !== w.interpreter ? { pythonEnv: env } : {}),
+        ...(p.job && typedRunner(runner) ? { commands: p.job.commands ?? '' } : {}),
+        ...(p.job?.sessionIdleMinutes ? { sessionIdle: p.job.sessionIdleMinutes } : {}),
       });
     },
   );

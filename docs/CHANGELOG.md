@@ -50,9 +50,17 @@
 - **Four job types on New job**: the GPU test is no longer a tile; it is a check of an environment,
   started from Projects → Python environment → *Run the GPU smoke test*.
 - **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,
-  training, the GPU test) writes `slurm-<job id>.out` and `.err` into an `icfcc-run` folder inside
-  the folder it runs in. The folder is created before `sbatch` (inside your home only). Runs submitted
-  earlier still read their logs from where they were written.
+  training, GPU sessions) keeps `slurm-<job id>.out` and `.err` in an `icfcc-run` folder inside the
+  folder it runs in. SLURM opens them in the folder itself and the job's first step moves them into
+  `icfcc-run` (SLURM keeps writing to them); if that fails they stay in the folder. Pointing SLURM
+  straight at a folder made moments before failed on ICF (job 3691386, `0:53`, no log), because the
+  GPU node did not see it yet. Logs are read under either name. Runs submitted earlier still read
+  their logs from where they were written.
+- **Presets keep the job type and the commands**: a preset remembers what was chosen under *What do
+  you want to run?*, the Commands lines or a GPU session's setup lines and idle minutes. Choosing it
+  switches to that job type (and to the other form if needed). Older presets keep the open job type.
+- **Clearer failure text**: a job stopped by a signal (SLURM's `exit:signal`, e.g. `0:53`) no longer
+  says "the program exited with an error".
 - **Python environment only for Python script**: a saved environment no longer adds a hidden
   `source …/bin/activate` line to Commands or Shell script jobs; the backend refuses one sent with
   them. Training workflows likewise send hidden settings (resume, checkpoints, the GPU test's

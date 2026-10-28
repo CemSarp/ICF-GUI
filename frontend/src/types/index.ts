@@ -702,6 +702,18 @@ export interface Preset {
   user: string;
   config: WorkflowConfig;
   savedAt: string;
+  /** The job type and typed commands; absent in presets saved before 0.5.1. */
+  job?: PresetJob | null;
+}
+
+/** "What do you want to run?" as a preset keeps it; `managed` is Python with managed training. */
+export type PresetChoice = 'python' | 'managed' | 'bash' | 'commands' | 'session' | 'notebook' | 'smoke';
+
+export interface PresetJob {
+  choice: PresetChoice;
+  /** Commands, or a GPU session's setup lines. */
+  commands?: string | null;
+  sessionIdleMinutes?: number | null;
 }
 
 export type WorkflowState =

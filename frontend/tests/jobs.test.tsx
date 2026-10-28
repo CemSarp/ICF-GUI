@@ -2,11 +2,12 @@ import { focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConnectionStatus, JobRequest, PreviewResponse } from '../src/types';
+import type { ConnectionStatus, JobRequest, Preset, PreviewResponse, WorkflowConfig } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
 import { commandsFor, rememberCommands, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
+import { failureHint } from '../src/logic/jobs/jobDetail';
 import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
 import { describeProjectEnv, envDirOf, projectFor } from '../src/logic/jobs/projectEnv';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
@@ -1002,5 +1003,87 @@ describe('What to read first', () => {
     expect(script).toHaveTextContent('export PATH=/x/bin:"$PATH" make test1'); // still the exact text
     expect(within(script).getByText('make test1')).toHaveClass('line-yours');
     expect(within(script).getByText('export PATH=/x/bin:"$PATH"')).toHaveClass('line-app');
+  });
+});
+
+describe('Presets keep the job type and commands', () => {
+  let saved: Preset[] = [];
+  beforeEach(() => {
+    saved = [];
+    backend.reset(connectedLive, {
+      presets_list: () => saved,
+      presets_save: (a) => {
+        const id = (a.id as string | null) ?? `p${saved.length + 1}`;
+        saved = [
+          ...saved.filter((x) => x.id !== id),
+          {
+            id,
+            label: a.label as string,
+            profileId: 'default',
+            user: 's1',
+            config: a.config as WorkflowConfig,
+            savedAt: new Date().toISOString(),
+            job: a.job as Preset['job'],
+          },
+        ];
+        return saved;
+      },
+    });
+  });
+
+  it('saves Commands with its lines, and choosing it brings both back', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'conda activate mls-asr{Enter}make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'hw1 task1{Enter}');
+    await waitFor(() =>
+      expect(saved[0]?.job).toEqual({ choice: 'commands', commands: 'conda activate mls-asr\nmake test1' }),
+    );
+    // New job opens empty; the preset brings the job type and the lines back.
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Python script')).toBeChecked();
+    await userEvent.selectOptions(await screen.findByLabelText('Preset'), 'hw1 task1');
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('conda activate mls-asr\nmake test1');
+  });
+
+  it('a GPU session preset keeps its setup lines and idle minutes', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('GPU session'));
+    await userEvent.type(screen.getByLabelText('Setup lines (run once, optional)'), 'conda activate mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'hw1 session{Enter}');
+    await waitFor(() =>
+      expect(saved[0]?.job).toEqual({ choice: 'session', commands: 'conda activate mls-asr', sessionIdleMinutes: 30 }),
+    );
+  });
+
+  it('a preset of the other form switches to it and loads there', async () => {
+    await openWizard();
+    // Saved from the Notebook (workflow) form…
+    await userEvent.click(screen.getByLabelText('Notebook'));
+    await screen.findByRole('button', { name: 'Review workflow' });
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'nb{Enter}');
+    await waitFor(() => expect(saved[0]?.job).toEqual({ choice: 'notebook' }));
+    // …chosen in the script form, it opens the Notebook form with the preset loaded.
+    await userEvent.click(screen.getByRole('radio', { name: 'Shell script' }));
+    await screen.findByRole('button', { name: 'Review script' });
+    await userEvent.selectOptions(screen.getByLabelText('Preset'), 'nb');
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    await waitFor(() => expect(screen.getByLabelText('Preset')).toHaveDisplayValue('nb'));
+  });
+});
+
+describe('Failure hints read SLURM exit codes', () => {
+  it('tells a signal apart from an exit code', () => {
+    const f = (exitCode: string, elapsed = '00:01:00') => failureHint(jobRow({ state: 'failed', exitCode, elapsed }));
+    expect(f('0:53', '00:00:00')).toMatch(/stopped the job before it could run \(signal 53\), so no log was written/);
+    expect(f('0:9')).toMatch(/stopped by signal 9/);
+    expect(f('1:0')).toBe('The program exited with an error (exit code 1). Check the standard error log.');
   });
 });

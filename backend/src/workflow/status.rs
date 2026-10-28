@@ -321,8 +321,9 @@ pub struct StatusTarget {
 
 pub fn status_script(user: &str, targets: &[StatusTarget]) -> String {
     let mut s = format!("# icfcc:wf-status\nme={}\n", q(user));
+    s += crate::jobs::remote::LOG_WHERE;
     s += r#"H=$(cd "$HOME" && pwd -P) || { printf '@@err home\n'; exit 0; }
-own() { r=$(readlink -f -- "$1" 2>/dev/null) && [ -f "$r" ] && case "$r" in "$H"/*) [ "$(stat -c %U -- "$r" 2>/dev/null)" = "$me" ];; *) false;; esac; }
+own() { r=$(readlink -f -- "$(log_where "$1")" 2>/dev/null) && [ -f "$r" ] && case "$r" in "$H"/*) [ "$(stat -c %U -- "$r" 2>/dev/null)" = "$me" ];; *) false;; esac; }
 rd() {
   printf '@@run %s\n' "$1"
   if own "$2"; then printf '@@status\n'; tail -c 16384 -- "$r"; printf '\n@@/status\n'

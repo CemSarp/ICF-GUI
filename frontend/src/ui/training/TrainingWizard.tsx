@@ -134,7 +134,7 @@ export function TrainingWizard({
     setDataset,
     removeDataset,
     addDataset,
-  } = useTrainingWizard(status, snapshot, init);
+  } = useTrainingWizard(status, snapshot, init, onSwitch);
   const [picker, setPicker] = useState<null | {
     kind: 'dir' | 'file';
     title: string;

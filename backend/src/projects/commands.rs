@@ -2,7 +2,7 @@
 //! the existing SSH master; `projects_mkdir` is the only remote write here (separate capability).
 
 use super::remote::{self, check_browse_path, EnvReport, Listing};
-use super::{valid_id, valid_label, InterpreterSummary, Prefs, Preset, ProjectPrefs, ProjectRecord, ToolchainProfile};
+use super::{valid_id, valid_label, InterpreterSummary, Prefs, Preset, PresetJob, ProjectPrefs, ProjectRecord, ToolchainProfile};
 use crate::commands::AppState;
 use crate::errors::{AppError, AppResult, ErrorCode};
 use crate::jobs::commands::{ctx, live};
@@ -214,15 +214,36 @@ pub async fn presets_list(state: State<'_, AppState>) -> AppResult<Vec<Preset>> 
 
 /// Save a named configuration. It is stored as-is and fully re-validated at every preview.
 #[tauri::command]
-pub async fn presets_save(state: State<'_, AppState>, id: Option<String>, label: String, config: WorkflowConfig) -> AppResult<Vec<Preset>> {
+pub async fn presets_save(
+    state: State<'_, AppState>,
+    id: Option<String>,
+    label: String,
+    config: WorkflowConfig,
+    job: Option<PresetJob>,
+) -> AppResult<Vec<Preset>> {
     if !valid_label(&label) {
         return Err(AppError::invalid("Preset name: 1–80 printable characters."));
     }
+    check_preset_job(job.as_ref())?;
     let c = ctx(&state).await?;
     let id = id.filter(|i| valid_id(i)).unwrap_or_else(|| random_hex(6));
     let mut store = state.projects.lock().unwrap();
-    store.save_preset(Preset { id, label: label.trim().into(), profile_id: c.profile_id.clone(), user: c.user.clone(), config, saved_at: now_iso() })?;
+    store.save_preset(Preset { id, label: label.trim().into(), profile_id: c.profile_id.clone(), user: c.user.clone(), config, saved_at: now_iso(), job })?;
     Ok(store.presets(&c.profile_id, &c.user))
+}
+
+/// A preset's commands are bounded plain text; the idle limit, if any, is in range. Both are checked
+/// again at review like anything typed.
+pub(crate) fn check_preset_job(job: Option<&PresetJob>) -> AppResult<()> {
+    let Some(j) = job else { return Ok(()) };
+    if !j.commands.as_deref().is_none_or(crate::jobs::request::plain_commands) {
+        return Err(AppError::invalid("A preset's commands must be plain text, at most 16 KB."));
+    }
+    let idle = crate::jobs::request::SESSION_IDLE_MIN..=crate::jobs::request::SESSION_IDLE_MAX;
+    if !j.session_idle_minutes.is_none_or(|m| idle.contains(&m)) {
+        return Err(AppError::invalid("A preset's idle minutes must be 5–240."));
+    }
+    Ok(())
 }
 
 #[tauri::command]

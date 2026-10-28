@@ -8,6 +8,7 @@ import type {
   EnvReport,
   FolderPick,
   LogsSummary,
+  PresetJob,
   ImportResult,
   KernelEvent,
   KernelPreview,
@@ -125,8 +126,8 @@ export const api = {
   saveToolchain: (profile: ToolchainProfile) => invoke<ToolchainProfile[]>('toolchains_save', { profile }),
   deleteToolchain: (id: string) => invoke<ToolchainProfile[]>('toolchains_delete', { id }),
   presets: () => invoke<Preset[]>('presets_list'),
-  savePreset: (id: string | null, label: string, config: WorkflowConfig) =>
-    invoke<Preset[]>('presets_save', { id, label, config }),
+  savePreset: (id: string | null, label: string, config: WorkflowConfig, job: PresetJob | null) =>
+    invoke<Preset[]>('presets_save', { id, label, config, job }),
   deletePreset: (id: string) => invoke<Preset[]>('presets_delete', { id }),
   prefs: () => invoke<Prefs>('prefs_get'),
   setPrefs: (prefs: Prefs) => invoke<Prefs>('prefs_set', { prefs }),

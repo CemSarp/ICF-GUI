@@ -368,8 +368,15 @@ pub fn parse_detail(out: &str) -> AppResult<Detail> {
 
 /// Bounded read of a log file. `offset = None` → last 64 KiB; otherwise continue from `offset`
 /// (if the file shrank, it was rotated/truncated: restart at the tail and say so).
+/// A job's logs start in its folder and move into icfcc-run once it runs (`request::log_lines`):
+/// `log_where <path>` prints the path where the file is now, under either name.
+pub const LOG_WHERE: &str = r#"log_where() { f=$1; if [ ! -e "$f" ]; then d=${f%/*}; b=${f##*/}; case "$d" in */icfcc-run) a="${d%/icfcc-run}/$b";; *) a="$d/icfcc-run/$b";; esac; [ -e "$a" ] && f=$a; fi; printf '%s' "$f"; }
+"#;
+
 pub fn log_script(path: &str, user: &str, offset: Option<u64>, max_bytes: u64) -> String {
     let mut s = format!("# icfcc:log\nf={}\n", q(path));
+    s += LOG_WHERE;
+    s += "f=$(log_where \"$f\")\n";
     s += r#"H=$(cd "$HOME" && pwd -P) || { printf '@@err home\n'; exit 0; }
 [ -e "$f" ] || { printf '@@err missing\n'; exit 0; }
 r=$(readlink -f -- "$f" 2>/dev/null) || { printf '@@err missing\n'; exit 0; }

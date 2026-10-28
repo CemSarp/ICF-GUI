@@ -27,7 +27,7 @@ export function useAppShell() {
   // Partitions became part of Cluster → Overview; a screen remembered from before opens there.
   const view: View = savedView === 'partitions' ? 'overview' : savedView;
   // Also after a restart: New job never shows a draft from an earlier session.
-  useState(() => forget('job.draft', 'workflow.draft'));
+  useState(() => forget('job.draft', 'workflow.draft', 'preset.pending'));
   const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
   const [partitionFilter, setPartitionFilter] = usePersistentState('nodes.partition', '');
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export function useAppShell() {
     if (v !== 'training') setSelectedRun(null);
     // New job opens empty (or from a preset the user loads); switching answers inside it still
     // carries what was entered, because that only happens while it is open.
-    if (v === 'request' && view !== 'request') forget('job.draft', 'workflow.draft');
+    if (v === 'request' && view !== 'request') forget('job.draft', 'workflow.draft', 'preset.pending');
     setView(v);
   };
   /** Projects' Run buttons: New job opens on this folder or file (as a script job). */
