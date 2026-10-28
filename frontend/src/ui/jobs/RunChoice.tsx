@@ -24,6 +24,13 @@ const CHOICES: { id: Choice; label: string; icon: IconName; short: string; help:
     help: 'Type the commands you would type in a terminal on the GPU node, no script file needed. CUDA (.cu) and C/C++ files run here too: choose one and the compile-and-run lines are filled in.',
   },
   {
+    id: 'session',
+    label: 'GPU session',
+    icon: 'play',
+    short: 'Keep a GPU, send commands',
+    help: 'Holds one GPU and runs the command blocks you send from the job’s page, one after another in the same folder, without queueing again. Like srun --pty, without a terminal: it ends by itself when idle.',
+  },
+  {
     id: 'notebook',
     label: 'Notebook',
     icon: 'notebook',

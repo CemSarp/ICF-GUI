@@ -27,6 +27,7 @@ fn req() -> JobRequest {
         setup_source: None,
         mail_user: None,
         commands: None,
+        session_idle_minutes: None,
     }
 }
 
@@ -771,4 +772,85 @@ fn receipt_keeps_the_reviewed_request_for_run_again() {
     };
     st.upsert(rec).unwrap();
     assert_eq!(ReceiptStore::load(&dir.path).items[0].request.as_ref(), Some(&r));
+}
+
+fn session_req(wd: String) -> JobRequest {
+    JobRequest {
+        runner: Runner::Session,
+        working_dir: wd,
+        program: String::new(),
+        program_args: vec![],
+        python_env: None,
+        commands: Some("export GREETING=hello".into()),
+        session_idle_minutes: Some(30),
+        ..req()
+    }
+}
+
+#[test]
+fn session_requests_need_an_idle_limit_and_no_program() {
+    let mut r = session_req(format!("{HOME}/projects/semeval"));
+    assert!(!fields(&check(&r)).contains(&"sessionIdleMinutes".to_string()));
+    for bad in [None, Some(4), Some(241)] {
+        r.session_idle_minutes = bad;
+        assert!(fields(&check(&r)).contains(&"sessionIdleMinutes".to_string()), "{bad:?}");
+    }
+    r.session_idle_minutes = Some(30);
+    r.program = "train.py".into();
+    assert!(fields(&check(&r)).contains(&"commands".to_string()));
+    r.program = String::new();
+    r.commands = None; // setup lines are optional
+    assert!(!fields(&check(&r)).contains(&"commands".to_string()));
+}
+
+#[test]
+fn gpu_session_runs_sent_blocks_in_order_in_the_folder_and_reports_each_exit_code() {
+    let sb = Sandbox::new();
+    let wd = sb.home().join("projects/semeval").display().to_string();
+    let r = session_req(wd.clone());
+    let job = render_script(&r, "t");
+    assert!(job.contains("export GREETING=hello\n"), "setup lines go in verbatim");
+    assert!(job.contains("IDLE=1800\n"));
+    std::fs::write(sb.root.join("job.sh"), &job).unwrap();
+    let log = sb.root.join("job.log");
+    let mut child = Command::new("/bin/bash")
+        .arg(sb.root.join("job.sh"))
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", sb.home())
+        .env("SLURM_JOB_ID", "77")
+        .current_dir(&sb.root)
+        .stdout(std::fs::File::create(&log).unwrap())
+        .spawn()
+        .unwrap();
+    let dir = crate::jobs::request::session_dir(&wd, "77");
+    let wait_for = |needle: &str| {
+        for _ in 0..100 {
+            if std::fs::read_to_string(&log).unwrap_or_default().contains(needle) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        panic!("{needle} never appeared in:\n{}", std::fs::read_to_string(&log).unwrap_or_default());
+    };
+    wait_for("@@icfcc-session ready");
+
+    // Not running yet for SLURM: nothing is sent.
+    std::fs::write(sb.root.join("squeue.out"), "PENDING\n").unwrap();
+    let out = sb.run(&session_send_script(&dir, "77", "s1", "0000000000001", "echo no", "D1"));
+    assert!(parse_session_send(&out).unwrap_err().message.contains("not running"));
+
+    std::fs::write(sb.root.join("squeue.out"), "RUNNING\n").unwrap();
+    let send = |name: &str, block: &str| parse_session_send(&sb.run(&session_send_script(&dir, "77", "s1", name, block, "ICFCC_BLOCK_x"))).unwrap();
+    assert_eq!(send("0000000000002", "echo \"$GREETING from $(pwd)\"\nfalse\necho never"), "0000000000002");
+    send("0000000000003", "echo second '$(touch PWNED)'");
+    wait_for("@@icfcc-block 0000000000003 end rc=0");
+    let _ = child.kill();
+    let _ = child.wait();
+    let text = std::fs::read_to_string(&log).unwrap();
+    assert!(text.contains(&format!("hello from {wd}")), "setup stays in effect; blocks start in the folder:\n{text}");
+    assert!(text.contains("@@icfcc-block 0000000000002 end rc=1") && !text.contains("never"), "a block stops at its first failing command");
+    assert!(text.find("0000000000002 start").unwrap() < text.find("0000000000003 start").unwrap(), "in order");
+    assert!(text.contains("second $(touch PWNED)") && !sb.root.join("PWNED").exists() && !std::path::Path::new(&wd).join("PWNED").exists());
+    assert!(std::path::Path::new(&dir).join("done/0000000000003.sh").exists());
 }

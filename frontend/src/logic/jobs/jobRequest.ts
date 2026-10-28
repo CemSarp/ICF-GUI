@@ -55,8 +55,10 @@ export interface Draft {
   workingDir: string;
   runner: Runner;
   program: string;
-  /** Shell lines for runner `commands`. */
+  /** Shell lines for runner `commands`; setup lines for `session`. */
   commands: string;
+  /** Runner `session`: idle minutes before it ends by itself. */
+  sessionIdle: number;
   args: string;
   pythonEnv: string;
   setupSource: string;
@@ -97,6 +99,12 @@ export function learnedPartitions(receipts: JobReceipt[]): Map<string, 'accepted
 }
 
 /** The form for an earlier request (the inverse of `toRequest`), for "Edit and run again". */
+/** Runners whose body is lines the user types (Commands; a GPU session's setup lines). */
+export const typedRunner = (r: Runner) => r === 'commands' || r === 'session';
+
+/** A GPU session that nobody uses ends by itself after this long. */
+export const SESSION_IDLE_DEFAULT = 30;
+
 export function fromRequest(r: JobRequest): Draft {
   return {
     partition: r.partition,
@@ -111,6 +119,7 @@ export function fromRequest(r: JobRequest): Draft {
     runner: r.runner,
     program: r.program,
     commands: r.commands ?? '',
+    sessionIdle: r.sessionIdleMinutes ?? SESSION_IDLE_DEFAULT,
     args: r.programArgs.join('\n'),
     pythonEnv: r.pythonEnv ?? '',
     setupSource: r.setupSource ?? '',
@@ -130,18 +139,18 @@ export function toRequest(d: Draft, home: string): JobRequest {
     jobName: d.jobName.trim(),
     workingDir: resolveWorkingDir(d.workingDir, home),
     runner: d.runner,
-    program: d.runner === 'commands' ? '' : d.program.trim(),
-    programArgs:
-      d.runner === 'commands'
-        ? []
-        : d.args
-            .split('\n')
-            .map((a) => a.trim())
-            .filter(Boolean),
+    program: typedRunner(d.runner) ? '' : d.program.trim(),
+    programArgs: typedRunner(d.runner)
+      ? []
+      : d.args
+          .split('\n')
+          .map((a) => a.trim())
+          .filter(Boolean),
     pythonEnv: (d.runner === 'python' && d.pythonEnv.trim()) || null, // the field shows only for Python
     setupSource: d.setupSource.trim() || null,
     mailUser: d.mail ? d.mailUser.trim() : null,
-    commands: d.runner === 'commands' ? d.commands.replace(/\r\n?/g, '\n') : null,
+    commands: typedRunner(d.runner) ? d.commands.replace(/\r\n?/g, '\n') : null,
+    ...(d.runner === 'session' ? { sessionIdleMinutes: d.sessionIdle } : {}),
   };
 }
 
@@ -176,6 +185,7 @@ export function useRequestGpu(
     runner: 'python',
     program: '',
     commands: '',
+    sessionIdle: SESSION_IDLE_DEFAULT,
     args: '',
     pythonEnv: '',
     setupSource: '',
@@ -183,7 +193,10 @@ export function useRequestGpu(
     mailUser: '',
   });
   // Drafts saved before the e-mail option or terminal commands lack those fields.
-  const draft: Draft = Object.assign({ mail: false, mailUser: '', commands: '' }, stored);
+  const draft: Draft = Object.assign(
+    { mail: false, mailUser: '', commands: '', sessionIdle: SESSION_IDLE_DEFAULT },
+    stored,
+  );
   const [override, setOverride] = useState(initialPartition); // e.g. from a partition card; applies until the first edit
   const partitionName = override ?? draft.partition;
   const partition =
@@ -236,7 +249,7 @@ export function useRequestGpu(
   /** Run from a folder above the script's own (e.g. the project root): the script path becomes relative. */
   const runFrom = (dir: string) =>
     patch(
-      draft.runner !== 'commands' && fileAbs.startsWith(`${dir}/`)
+      !typedRunner(draft.runner) && fileAbs.startsWith(`${dir}/`)
         ? { workingDir: dir, program: fileAbs.slice(dir.length + 1) }
         : { workingDir: dir },
     );
@@ -386,9 +399,9 @@ export function useRequestGpu(
           ...effective,
           kind: 'train',
           projectDir: wd,
-          entry: draft.runner === 'commands' ? '' : draft.program,
+          entry: typedRunner(draft.runner) ? '' : draft.program,
           interpreter: draft.pythonEnv.trim() ? `${draft.pythonEnv.trim().replace(/\/+$/, '')}/bin/python` : '',
-          args: draft.runner === 'commands' ? '' : draft.args,
+          args: typedRunner(draft.runner) ? '' : draft.args,
         },
         [],
         home,
@@ -408,7 +421,7 @@ export function useRequestGpu(
         mail: w.mail,
         mailUser: w.mailUser,
         workingDir: w.projectDir,
-        ...(c.entry && draft.runner !== 'commands' ? { program: c.entry, args: w.args } : {}),
+        ...(c.entry && !typedRunner(draft.runner) ? { program: c.entry, args: w.args } : {}),
         ...(env !== w.interpreter ? { pythonEnv: env } : {}),
       });
     },

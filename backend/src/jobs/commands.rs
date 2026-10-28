@@ -511,6 +511,40 @@ pub async fn jobs_cancel(state: State<'_, AppState>, job_id: String, cancel_toke
     Ok(outcome)
 }
 
+/// Sends one command block to your running GPU session (ADR-038). The session is found from this
+/// Mac's receipt (its folder), and the block is accepted on ICF only while SLURM reports the job
+/// RUNNING for you. Never retried automatically; returns the block's id, which marks it in the log.
+#[tauri::command]
+pub async fn session_send(state: State<'_, AppState>, job_id: String, commands: String) -> AppResult<String> {
+    if !valid_job_id(&job_id) {
+        return Err(AppError::invalid("Invalid job id."));
+    }
+    let block = commands.replace("\r\n", "\n");
+    if block.trim().is_empty() || !super::request::plain_commands(&block) {
+        return Err(AppError::invalid("Send at least one command, as plain text of at most 16 KB."));
+    }
+    let c = ctx(&state).await?;
+    let wd = state
+        .receipts
+        .lock()
+        .unwrap()
+        .by_job(&c.user, &job_id)
+        .and_then(|r| r.request.clone())
+        .filter(|r| r.runner == super::request::Runner::Session)
+        .map(|r| r.working_dir)
+        .ok_or_else(|| AppError::invalid("This job is not a GPU session started from this Mac."))?;
+    let delim = format!("ICFCC_BLOCK_{}", random_hex(8));
+    if !remote::heredoc_safe(&block, &delim) {
+        return Err(AppError::invalid("A line of these commands would end the block early; change it and send again."));
+    }
+    let session = live(&c, "sending commands")?;
+    let _guard = state.submit_lock.lock().await; // never overlap two mutations
+    let name = format!("{:013}", now_ms());
+    let dir = super::request::session_dir(&wd, &job_id);
+    let out = session.run(&remote::session_send_script(&dir, &job_id, &c.user, &name, &block, &delim), COMMAND_TIMEOUT, 16 * 1024).await?;
+    remote::parse_session_send(&out)
+}
+
 #[tauri::command]
 pub async fn jobs_receipts(state: State<'_, AppState>) -> AppResult<Vec<JobReceipt>> {
     let c = ctx(&state).await?;

@@ -3,6 +3,7 @@ import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
 import { isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
+import { useSessionSend } from '../../logic/jobs/session';
 import type { CancelOutcome, ConnectionStatus, JobRequest } from '../../types';
 import { LogViewer } from './LogViewer';
 
@@ -49,6 +50,58 @@ export function CancelNotice({ result }: { result: CancelOutcome | null }) {
     </Notice>
   ) : (
     <Notice tone={result.outcome === 'refused' ? 'bad' : 'warn'}>{result.message}</Notice>
+  );
+}
+
+/** A GPU session's command box; the output shows in the log below. */
+function SessionPanel({ jobId, running }: { jobId: string; running: boolean }) {
+  const { text, setText, sent, busy, error, send } = useSessionSend(jobId);
+  return (
+    <section className="card" aria-labelledby="session-title">
+      <h3 id="session-title">GPU session</h3>
+      {running ? (
+        <>
+          <div className="field">
+            <label htmlFor="session-commands">Commands to send</label>
+            <textarea
+              id="session-commands"
+              className="mono"
+              rows={Math.min(12, Math.max(3, text.split('\n').length + 1))}
+              value={text}
+              placeholder={'make test1 && ./run.sh --cuda task1'}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send();
+              }}
+              spellCheck={false}
+              autoCapitalize="off"
+            />
+            <small className="muted">
+              Runs in the session&apos;s folder on its GPU, after any block still running, and stops at its first
+              failing command. ⌘↩ sends. Turn on <strong>Follow</strong> in the log below to watch the output.
+            </small>
+          </div>
+          <div className="actions start">
+            <button className="btn primary" onClick={() => void send()} disabled={busy || !text.trim()}>
+              <Icon name="play" />
+              {busy ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          {sent.length > 0 && (
+            <p className="muted small">
+              Sent: {sent.map((id) => `block ${id}`).join(', ')}. Each appears in the log between{' '}
+              <code>@@icfcc-block</code> lines with its exit code.
+            </p>
+          )}
+          {error && <Notice tone="bad">{error}</Notice>}
+        </>
+      ) : (
+        <p className="muted">
+          Commands can be sent while the session is Running. It holds the GPU until it has been idle for the minutes you
+          chose, reaches its time limit or is cancelled.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -147,6 +200,7 @@ export function JobDetailView({
             )}
             {d?.logPathNote && <p className="muted small">{d.logPathNote}</p>}
           </div>
+          {d?.receipt?.request?.runner === 'session' && <SessionPanel jobId={jobId} running={j.state === 'running'} />}
           <LogViewer jobId={jobId} active={isActiveJob(j)} stderrMerged={!!d?.stderrMerged} />
           {d && d.fields.length > 0 && (
             <details className="card">

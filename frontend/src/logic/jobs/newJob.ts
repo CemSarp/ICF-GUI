@@ -12,7 +12,7 @@ export function resolveWorkingDir(dir: string, home: string): string {
 export type JobMode = 'script' | 'workflow';
 
 /** "What do you want to run?" on New job; each choice is handled by one of the two forms. */
-export type RunChoice = 'python' | 'bash' | 'commands' | 'notebook' | 'smoke';
+export type RunChoice = 'python' | 'bash' | 'commands' | 'session' | 'notebook' | 'smoke';
 
 /** Notebooks, the GPU test and managed Python training use the workflow; the rest are plain script jobs. */
 export const modeFor = (c: RunChoice, managed: boolean): JobMode =>
@@ -79,7 +79,7 @@ export function carryTo(mode: JobMode, choice: RunChoice, s: Shared, home: strin
     const env = abs.replace(/\/bin\/python[\d.]*$/, '');
     patchStored('job.draft', {
       ...common,
-      runner: choice === 'bash' || choice === 'commands' ? choice : 'python',
+      runner: choice === 'bash' || choice === 'commands' || choice === 'session' ? choice : 'python',
       workingDir: expandHome(s.folder, home),
       program: s.file,
       ...(env && env !== abs ? { pythonEnv: env } : {}),

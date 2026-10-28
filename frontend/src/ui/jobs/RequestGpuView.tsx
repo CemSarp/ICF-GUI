@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Badge, Dialog, EmptyState, Icon, Notice } from '../components/ui';
+import { Badge, Dialog, EmptyState, Icon, Notice, NumberInput } from '../components/ui';
 import { formatDuration } from '../../logic/format';
-import { useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
+import { typedRunner, useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
 import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
 import { SETUP_LINES, validCondaEnv, withSetupLine } from '../../logic/jobs/sbatchImport';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
@@ -66,6 +66,7 @@ export function RequestGpuView({
     submit,
     reconcile,
   } = useRequestGpu(snapshot, status, initialPartition, runTarget, onSwitch);
+  const session = draft.runner === 'session';
   const [condaOpen, setCondaOpen] = useState(false);
   const [condaEnv, setCondaEnv] = useState('');
   const gpuName = partition?.gpuTotals.find((t) => t.gresName === gres)?.modelLabel ?? 'GPU';
@@ -185,8 +186,8 @@ export function RequestGpuView({
           </section>
 
           <section className="card form-card">
-            <h3>{draft.runner === 'commands' ? 'Commands' : 'Script'}</h3>
-            {draft.runner === 'commands' ? (
+            <h3>{session ? 'GPU session' : draft.runner === 'commands' ? 'Commands' : 'Script'}</h3>
+            {typedRunner(draft.runner) ? (
               <>
                 <PathCard
                   icon="folder"
@@ -197,16 +198,18 @@ export function RequestGpuView({
                   home={home}
                   onRunFrom={runFrom}
                 >
-                  <button type="button" className="btn" onClick={() => setPicking('file')}>
-                    Choose a file
-                  </button>
-                  <button type="button" className="btn ghost" onClick={() => setPicking('dir')}>
+                  {!session && (
+                    <button type="button" className="btn" onClick={() => setPicking('file')}>
+                      Choose a file
+                    </button>
+                  )}
+                  <button type="button" className={session ? 'btn' : 'btn ghost'} onClick={() => setPicking('dir')}>
                     Choose folder
                   </button>
                 </PathCard>
                 <FieldError issues={issues} field="workingDir" />
                 <div className={`field${issues.some((i) => i.field === 'commands') ? ' invalid' : ''}`}>
-                  <label htmlFor="f-commands">Commands to run</label>
+                  <label htmlFor="f-commands">{session ? 'Setup lines (run once, optional)' : 'Commands to run'}</label>
                   <div className="chips">
                     <span className="muted small">Add a line:</span>
                     <button
@@ -287,7 +290,7 @@ export function RequestGpuView({
                       )}
                     </Notice>
                   )}
-                  {recentCommands.length > 0 && (
+                  {!session && recentCommands.length > 0 && (
                     <details className="recent-commands">
                       <summary>Recent commands ({recentCommands.length})</summary>
                       <ul>
@@ -320,12 +323,37 @@ export function RequestGpuView({
                     autoCapitalize="off"
                     className="mono"
                   />
-                  <small className="muted">
-                    They run on the GPU node exactly as typed and stop at the first failing command. A batch file
-                    (.sbatch) brings its settings and commands with it.
-                  </small>
+                  {session ? (
+                    <small className="muted">
+                      For example <code>conda activate mls-asr</code>: they run once when the session starts and stay in
+                      effect. Then send command blocks from the job&apos;s page in My Jobs; each runs in this folder on
+                      the same GPU, without waiting in the queue again.
+                    </small>
+                  ) : (
+                    <small className="muted">
+                      They run on the GPU node exactly as typed and stop at the first failing command. A batch file
+                      (.sbatch) brings its settings and commands with it.
+                    </small>
+                  )}
                   <FieldError issues={issues} field="commands" />
                 </div>
+                {session && (
+                  <div className={`field${issues.some((i) => i.field === 'sessionIdleMinutes') ? ' invalid' : ''}`}>
+                    <label htmlFor="f-idle">End after this many idle minutes</label>
+                    <NumberInput
+                      id="f-idle"
+                      min={5}
+                      max={240}
+                      value={draft.sessionIdle}
+                      onChange={(n) => set('sessionIdle', n)}
+                    />
+                    <small className="muted">
+                      With no block for this long, the session ends and the GPU goes back to the pool. It also ends at
+                      the time limit, or when you cancel the job.
+                    </small>
+                    <FieldError issues={issues} field="sessionIdleMinutes" />
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -415,7 +443,7 @@ export function RequestGpuView({
 
           <details className="card fold-section" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>
             <summary>More options</summary>
-            {draft.runner !== 'commands' && (
+            {!typedRunner(draft.runner) && (
               <Field
                 label="Arguments (optional, one per line)"
                 field="programArgs"

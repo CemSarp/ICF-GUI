@@ -405,6 +405,23 @@ in one place applied unseen in another.
   none (the script activates what it needs). The backend refuses an environment with non-Python jobs.
 - New job opens empty each time (or from a loaded preset); switching answers inside it keeps entries.
 
+## ADR-038 — A held GPU session is a batch job with an inbox
+*Status: accepted (0.5.1), not yet tried on ICF.* Course work is edit → build → test many times, and
+each batch job waits in the queue again; `srun --pty bash` avoids that but needs a terminal.
+- **New job → GPU session** submits one ordinary, reviewed batch job (`Runner::Session`): optional
+  setup lines run once (e.g. `conda activate mls-asr`), then a fixed loop runs, oldest first, each
+  block found in `<folder>/icfcc-run/session-<job id>/inbox/`, in a subshell in the folder, stopping
+  at the block's first failing command. Output goes to the normal job log between
+  `@@icfcc-block <id> start` / `end rc=<n>` lines; run blocks move to `done/`.
+- **It releases the GPU by itself**: after 5–240 idle minutes (required, default 30) without a block,
+  at the time limit, or on Cancel job. No heartbeat, no extra polling: the log is the existing
+  follow (10 s, visible only).
+- **Sending** (`session_send`, job-mutations capability) is one press = one block: plain text up to
+  16 KB, from this Mac's receipt only, accepted on ICF only while `squeue` says the job is RUNNING
+  for the user; written beside the inbox and moved in, through a quoted heredoc with a random
+  delimiter (the content is never expanded on the login node). Never retried automatically.
+- Not done: a pseudo-terminal (interactive programs, prompts), several sessions sharing one GPU.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

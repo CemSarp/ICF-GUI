@@ -23,7 +23,13 @@ pub enum Runner {
     Bash,
     /// The user's own shell lines (`commands`), run in the working directory like a terminal there.
     Commands,
+    /// A held GPU session (ADR-038): `commands` are setup lines run once, then the job runs the
+    /// command blocks sent with `session_send`, until it has been idle for `session_idle_minutes`.
+    Session,
 }
+
+pub const SESSION_IDLE_MIN: u32 = 5;
+pub const SESSION_IDLE_MAX: u32 = 240;
 
 pub const MAX_COMMANDS_BYTES: usize = 16 * 1024;
 
@@ -56,9 +62,12 @@ pub struct JobRequest {
     /// SLURM e-mails this address when the job ends or fails (`--mail-type=END,FAIL`).
     #[serde(default)]
     pub mail_user: Option<String>,
-    /// Shell lines for `Runner::Commands` (newline-separated).
+    /// Shell lines for `Runner::Commands` (newline-separated); setup lines for `Runner::Session`.
     #[serde(default)]
     pub commands: Option<String>,
+    /// `Runner::Session` only: the session ends after this many minutes without a command block.
+    #[serde(default)]
+    pub session_idle_minutes: Option<u32>,
 }
 
 impl JobRequest {
@@ -299,6 +308,8 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
     }
     if r.runner == Runner::Commands {
         validate_commands(r, v);
+    } else if r.runner == Runner::Session {
+        validate_session(r, v);
     } else {
         let (e, w) = (&mut v.errors, &mut v.warnings);
         let prog_ok = if r.program.starts_with('/') { check_abs_path(&r.program) } else { check_rel_path(&r.program) };
@@ -344,6 +355,29 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
             Ok(()) => {}
         }
     }
+}
+
+/// A GPU session: setup lines optional (bounded, plain text), an idle limit, no program.
+fn validate_session(r: &JobRequest, v: &mut Validation) {
+    let c = r.commands.as_deref().unwrap_or("");
+    if !plain_commands(c) {
+        v.errors.push(issue("commands", "Setup lines must be plain text, at most 16 KB."));
+    }
+    if !r.program.is_empty() || !r.program_args.is_empty() {
+        v.errors.push(issue("commands", "A GPU session runs the blocks you send: leave the script and its arguments empty."));
+    }
+    match r.session_idle_minutes {
+        Some(m) if (SESSION_IDLE_MIN..=SESSION_IDLE_MAX).contains(&m) => {}
+        _ => v.errors.push(issue(
+            "sessionIdleMinutes",
+            format!("End the session after {SESSION_IDLE_MIN}–{SESSION_IDLE_MAX} idle minutes, so a forgotten one releases the GPU."),
+        )),
+    }
+}
+
+/// Bounded plain text for shell lines (also each block sent to a session).
+pub fn plain_commands(c: &str) -> bool {
+    c.len() <= MAX_COMMANDS_BYTES && !c.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
 }
 
 /// Terminal commands: present, bounded, plain text, no program or arguments alongside.
@@ -407,6 +441,10 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
     if let Some(e) = env {
         s += &format!("export PATH={}:\"$PATH\"\n", shell_quote(&format!("{e}/bin")));
     }
+    if r.runner == Runner::Session {
+        s += &session_body(r);
+        return s;
+    }
     if r.runner == Runner::Commands {
         s += &format!("# Your commands, exactly as typed. They start in {wd}; the job stops at the first failing command.\n");
         s += r.commands.as_deref().unwrap_or("").trim_end();
@@ -416,7 +454,7 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
     let exe = match (r.runner, env) {
         (Runner::Python, Some(e)) => shell_quote(&format!("{e}/bin/python")),
         (Runner::Python, None) => "python3".into(),
-        (Runner::Bash, _) | (Runner::Commands, _) => "bash".into(),
+        (Runner::Bash, _) | (Runner::Commands, _) | (Runner::Session, _) => "bash".into(),
     };
     s += &format!("exec {exe} {}", shell_quote(&r.program_path()));
     for a in &r.program_args {
@@ -424,6 +462,46 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
         s += &shell_quote(a);
     }
     s.push('\n');
+    s
+}
+
+/// Where a session's blocks are dropped (`inbox/<13-digit ms>.sh`) and kept once run (`done/`).
+pub fn session_dir(wd: &str, job_id: &str) -> String {
+    format!("{}/session-{job_id}", log_dir(wd))
+}
+
+/// Setup lines once, then a fixed loop: the oldest block in the inbox runs in a subshell in the
+/// working directory (stopping at its first failing command), framed by `@@icfcc-block` markers in
+/// the job log; after `idle` minutes without a block the job ends and the GPU is released.
+fn session_body(r: &JobRequest) -> String {
+    let idle = r.session_idle_minutes.unwrap_or(SESSION_IDLE_MIN);
+    let mut s = String::new();
+    let setup = r.commands.as_deref().unwrap_or("").trim_end();
+    if !setup.is_empty() {
+        s += "# Your setup lines, exactly as typed; they run once and stay in effect for every block.\n";
+        s += setup;
+        s.push('\n');
+    }
+    s += &format!("# GPU session: runs the command blocks you send from the app; ends after {idle} idle minutes.\n");
+    s += &format!("WD={}\nS={}/session-\"$SLURM_JOB_ID\"\n", shell_quote(&r.working_dir), shell_quote(&log_dir(&r.working_dir)));
+    s += &format!("IDLE={}\n", u64::from(idle) * 60);
+    s += r#"mkdir -p -- "$S/inbox" "$S/done"
+set +e
+idle=0
+echo "@@icfcc-session ready on $(hostname)"
+while [ "$idle" -lt "$IDLE" ]; do
+  f=$(ls -1 -- "$S/inbox" 2>/dev/null | grep -E '^[0-9]{13}\.sh$' | sort | head -n 1)
+  if [ -z "$f" ]; then sleep 5; idle=$((idle + 5)); continue; fi
+  idle=0
+  n=${f%.sh}
+  echo "@@icfcc-block $n start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  ( cd -- "$WD" && set -e && . "$S/inbox/$f" )
+  rc=$?
+  mv -f -- "$S/inbox/$f" "$S/done/$f"
+  echo "@@icfcc-block $n end rc=$rc"
+done
+echo "@@icfcc-session ended: no commands for $((IDLE / 60)) minutes, the GPU is released"
+"#;
     s
 }
 

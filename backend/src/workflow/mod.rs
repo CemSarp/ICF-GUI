@@ -242,6 +242,7 @@ impl WorkflowConfig {
             setup_source: None,
             mail_user: self.mail_user.clone(),
             commands: None,
+            session_idle_minutes: None,
         }
     }
 

@@ -27,6 +27,7 @@ const COMMANDS: &[&str] = &[
     // V2 mutations — granted only via capabilities/job-mutations.json
     "jobs_submit",
     "jobs_cancel",
+    "session_send",
     // V3 reads / local (workflow submissions go through jobs_submit)
     "projects_recent",
     "projects_browse",

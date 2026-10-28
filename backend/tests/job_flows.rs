@@ -87,6 +87,7 @@ fn req() -> JobRequest {
         setup_source: None,
         mail_user: None,
         commands: None,
+        session_idle_minutes: None,
     }
 }
 

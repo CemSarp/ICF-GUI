@@ -70,7 +70,7 @@ memory, with search and filters; click a node for its details.
 ## Requesting a GPU (batch jobs)
 
 **New job** (sidebar, or *New job here* on a partition in Cluster) starts with one question, **What
-do you want to run?**, as four tiles. You choose things rather than type them: the file, the GPU and
+do you want to run?**, as five tiles. You choose things rather than type them: the file, the GPU and
 the time are buttons and tiles. Arguments and a setup file are under **More options**, which opens
 by itself if one of its fields has a problem. Switching answers keeps what you entered.
 
@@ -79,6 +79,7 @@ by itself if one of its fields has a problem. Switching answers keeps what you e
 | **Python script** | A `.py` file. Tick **Managed training** for a [training workflow](#training-workflows) (datasets staged to scratch, checkpoints, results copied back). |
 | **Shell script** | A `.sh` file with bash. |
 | **Commands** | The lines you type, like a terminal on the GPU node. |
+| **GPU session** | Keeps one GPU: setup lines run once, then you send command blocks from the job's page in My Jobs. Ends by itself when idle. |
 | **Notebook** | A notebook run top to bottom (a training workflow). |
 
 1. **Choose script** (or *Choose notebook*) opens your ICF home; click **Choose** next to the file.
@@ -121,6 +122,18 @@ Use **Teaching** for normal training. **Interactive** is for short debugging: ba
 ### Allocated vs utilised
 A job that is *Pending* holds no GPU. When *Running*, SLURM has allocated the GPU to you, whether or
 not your code is using it. The app shows scheduler allocation, not GPU utilisation or free memory.
+
+### GPU sessions
+
+For edit → build → test loops (a course's `make test1 && ./run.sh`), choose **GPU session**: put
+lines that should apply to everything under *Setup lines* (`conda activate mls-asr`,
+`export PATH=/opt/cuda-12.8.0/bin:$PATH`) and choose after how many idle minutes it ends. Once it is
+**Running**, open it in My Jobs, type a block under **Commands to send** and press **Send**; turn on
+**Follow** in the log to watch it. Each block runs in the folder, after the one before, and stops at
+its first failing command; the log shows `@@icfcc-block <id> end rc=<exit code>`. Edit your files
+(Projects, VS Code) between blocks. The GPU is released when the session has been idle that long,
+reaches its time limit, or you press **Cancel job**. It is not a terminal: programs that wait for
+input will not get any.
 
 ## My Jobs
 

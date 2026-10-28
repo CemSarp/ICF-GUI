@@ -114,6 +114,7 @@ export const api = {
   filesRename: (dir: string, name: string, kind: EntryKind, newName: string) =>
     invoke<string>('files_rename', { dir, name, kind, newName }),
   filesUnpack: (dir: string, name: string) => invoke<string>('files_unpack', { dir, name }),
+  sessionSend: (jobId: string, commands: string) => invoke<string>('session_send', { jobId, commands }),
   logsSummary: (dir: string, days: number) => invoke<LogsSummary>('logs_summary', { dir, days }),
   logsClean: (dir: string, days: number) => invoke<LogsSummary>('logs_clean', { dir, days }),
   filesWrite: (path: string, content: string, expectedSha256: string) =>

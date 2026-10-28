@@ -3,6 +3,11 @@
 ## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
+- **GPU session** (ADR-038), a new job type: holds one GPU, runs optional setup lines once, then
+  runs each command block you send from the job's page (**Send**, ⌘↩) in the same folder, without
+  queueing again. Output and each block's exit code are in the job log. It ends by itself after the
+  idle minutes you choose (default 30), at its time limit, or when cancelled. New command
+  `session_send` (job-mutations capability).
 - **Job logs in Projects**: *Check* counts the `slurm-<id>.out/.err` files in the project's
   `icfcc-run` folder and how many are older than a chosen number of days; *Delete old logs* removes
   only those, after confirmation (never links, other files or newer logs). New commands

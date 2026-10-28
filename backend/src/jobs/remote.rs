@@ -50,7 +50,7 @@ pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     s += &format!("need_dir {} workingDir\n", q(&r.working_dir));
     s += &format!("[ -w {} ] || {{ printf '@@err unwritable workingDir\\n'; exit 0; }}\n", q(&r.working_dir));
     s += &format!("make_dir {} logDir\n", q(&super::request::log_dir(&r.working_dir)));
-    if r.runner != super::request::Runner::Commands {
+    if !matches!(r.runner, super::request::Runner::Commands | super::request::Runner::Session) {
         s += &format!("need_file {} program home\n", q(&r.program_path()));
     }
     if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
@@ -92,6 +92,36 @@ pub(crate) fn precheck_lines(checks: &[Precheck]) -> String {
         };
     }
     s
+}
+
+/// Drops one command block into a running session's inbox: written beside it first, then moved in,
+/// so the session never reads half a block. Only while SLURM says the job is RUNNING for `user`.
+pub fn session_send_script(session_dir: &str, job_id: &str, user: &str, name: &str, block: &str, delim: &str) -> String {
+    let mut s = String::from("# icfcc:session-send\numask 077\n");
+    s += PATH_HELPERS;
+    s += &format!("st=$(squeue -h -j {} -u {} -o %T 2>/dev/null)\n", q(job_id), q(user));
+    s += "[ \"$st\" = RUNNING ] || { printf '@@err not_running %s\\n' \"$st\"; exit 0; }\n";
+    s += &format!("S={}\nn={}\n", q(session_dir), q(name));
+    s += r#"[ -d "$S/inbox" ] || { printf '@@err not_ready\n'; exit 0; }
+r=$(cd -P -- "$S" 2>/dev/null && pwd -P) || { printf '@@err not_ready\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+"#;
+    s += &format!("cat > \"$r/.tmp-$n\" <<'{delim}' || {{ printf '@@err failed\\n'; exit 0; }}\n{block}\n{delim}\n");
+    s += "mv -f -- \"$r/.tmp-$n\" \"$r/inbox/$n.sh\" || { printf '@@err failed\\n'; exit 0; }\nprintf '@@ok %s\\n' \"$n\"\n";
+    s
+}
+
+pub fn parse_session_send(out: &str) -> AppResult<String> {
+    let line = |p: &str| out.lines().find_map(|l| l.strip_prefix(p)).map(str::trim);
+    if let Some(id) = line("@@ok ") {
+        return Ok(id.to_string());
+    }
+    Err(match line("@@err ").map(|e| e.split_once(' ').map_or(e, |(k, _)| k)) {
+        Some("not_running") => AppError::invalid("The session is not running (still queued, or it has ended). Nothing was sent."),
+        Some("not_ready") => AppError::invalid("The session has not started its loop yet. Wait a moment and send again."),
+        Some("outside") => AppError::new(ErrorCode::InvalidPath, "The session folder resolves outside your home. Nothing was sent."),
+        _ => AppError::new(ErrorCode::SlurmError, "The commands could not be handed to the session."),
+    })
 }
 
 fn finish_submit(mut s: String, job_script: &str, tag: &str) -> String {

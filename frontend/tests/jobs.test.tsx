@@ -644,6 +644,96 @@ describe('Recent commands', () => {
   });
 });
 
+describe('GPU session (ADR-038)', () => {
+  const sessionRequest = (): JobRequest => ({
+    partition: 'Teaching',
+    gresType: null,
+    gpuCount: 1,
+    cpus: 4,
+    memoryMib: 16384,
+    timeLimitSeconds: 4 * 3600,
+    jobName: 'session',
+    workingDir: '/home/s1/hw1-asr',
+    runner: 'session',
+    program: '',
+    programArgs: [],
+    pythonEnv: null,
+    setupSource: null,
+    mailUser: null,
+    commands: 'conda activate mls-asr',
+    sessionIdleMinutes: 30,
+  });
+
+  it('is requested with setup lines and an idle limit, and no script', async () => {
+    backend.reset(connectedLive, { jobs_preview: () => okPreview() });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('GPU session'));
+    expect(screen.queryByRole('button', { name: 'Choose a file' })).toBeNull();
+    await userEvent.type(screen.getByLabelText('Setup lines (run once, optional)'), 'conda activate mls-asr');
+    expect(screen.getByLabelText('End after this many idle minutes')).toHaveValue(30);
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request).toMatchObject({
+      runner: 'session',
+      program: '',
+      programArgs: [],
+      commands: 'conda activate mls-asr',
+      sessionIdleMinutes: 30,
+      pythonEnv: null,
+    });
+  });
+
+  it("sends command blocks from the running job's page, one per press", async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({}),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request: sessionRequest() },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+      session_send: () => '1793212345678',
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    const box = await screen.findByLabelText('Commands to send');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await userEvent.type(box, 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText(/Sent: block 1793212345678/)).toBeInTheDocument();
+    expect(backend.calls.filter((c) => c.cmd === 'session_send').map((c) => c.args)).toEqual([
+      { jobId: '4242', commands: 'make test1' },
+    ]);
+    expect(box).toHaveValue('');
+  });
+
+  it('offers no command box while the session is queued', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({ state: 'pending', stateRaw: 'PENDING' }),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request: sessionRequest() },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    expect(await screen.findByText(/Commands can be sent while the session is Running/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Commands to send')).toBeNull();
+  });
+});
+
 describe('Edit and run again', () => {
   it('refills New job with the request a finished job was submitted with', async () => {
     const request: JobRequest = {
@@ -707,6 +797,7 @@ describe('Python environment only for Python jobs', () => {
       runner: 'commands' as const,
       program: '',
       commands: 'make test1',
+      sessionIdle: 30,
       args: '',
       pythonEnv: '/home/u/projects/icf-env',
       setupSource: '',
