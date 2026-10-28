@@ -1,8 +1,12 @@
 # Changelog
 
-## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
+## [0.5.1] — 2026-10-28 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Lines to look at** above a job's log: test `FAIL`s, `error:` lines, tracebacks, CUDA errors and
+  session blocks that ended with a non-zero code, each once, with their line number.
+- **Review marks the app's lines**: in a script job's review, lines the app adds from your settings
+  (environment, setup file, the run line) are highlighted, and the lines you typed are marked.
 - **GPU session** (ADR-038), a new job type: holds one GPU, runs optional setup lines once, then
   runs each command block you send from the job's page (**Send**, ⌘↩) in the same folder, without
   queueing again. Output and each block's exit code are in the job log. It ends by itself after the
@@ -37,6 +41,7 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **New jobs ask for 1 hour** by default instead of 4 (short jobs tend to start sooner).
 - **New job starts empty** each time it opens (also after a restart), unless you load a preset;
   switching answers inside it still keeps what you entered.
 - **The Python environment comes from the folder's project** (ADR-037): picking a file in a project

@@ -3,6 +3,7 @@ import { Badge, Dialog, EmptyState, Icon, Notice, NumberInput } from '../compone
 import { formatDuration } from '../../logic/format';
 import { typedRunner, useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
 import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
+import { annotateScript } from '../../logic/jobs/scriptLines';
 import { SETUP_LINES, validCondaEnv, withSetupLine } from '../../logic/jobs/sbatchImport';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
@@ -494,8 +495,17 @@ export function RequestGpuView({
             This is byte-for-byte what will be sent to <code>sbatch</code> (checksum <code>{preview.checksum}</code>).
             Logs: <code>{preview.stdoutPattern}</code>, <code>{preview.stderrPattern}</code>.
           </p>
+          <p className="muted small script-legend">
+            <span className="line-app">Highlighted</span> lines are added by the app from your settings (environment,
+            setup file, the run line); <span className="line-yours">marked</span> lines are the ones you typed.
+          </p>
           <pre className="code script" aria-label="Batch script">
-            {preview.script}
+            {annotateScript(preview.script, typedRunner(draft.runner) ? draft.commands : '').map((l, i) => (
+              <span key={i} className={`line-${l.kind}`}>
+                {l.line}
+                {'\n'}
+              </span>
+            ))}
           </pre>
           {preview.warnings.map((w, i) => (
             <Notice key={i} tone="warn">

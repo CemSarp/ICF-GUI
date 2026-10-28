@@ -10,6 +10,7 @@ import { commandsFor, rememberCommands, resolveWorkingDir, toRequest } from '../
 import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
 import { describeProjectEnv, envDirOf, projectFor } from '../src/logic/jobs/projectEnv';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
+import { annotateScript, problemLines } from '../src/logic/jobs/scriptLines';
 import * as v3 from './v3Fixtures';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
@@ -944,5 +945,62 @@ describe('Project environment helpers (ADR-037)', () => {
     expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: null })], h).kind).toBe('unset');
     expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: '/usr/bin/python3' })], h).kind).toBe('unusable');
     expect(describeProjectEnv(v3.PROJECT, [p], h)).toMatchObject({ kind: 'env', dir: `${h}/projects/icf-env` });
+  });
+});
+
+describe('What to read first', () => {
+  it('pulls failures and errors of a log to the top, each once', () => {
+    const log = [
+      'nvcc -O3 ...',
+      'rmsnorm, one short row               FAIL  max_err=2.06e+00',
+      'csrc/task2.cu(12): error: identifier "x" is undefined',
+      'Traceback (most recent call last):',
+      'Task 2 (reductions): SOME CASES FAILED',
+      'rmsnorm, one short row               FAIL  max_err=2.06e+00',
+      '@@icfcc-block 0000000000002 end rc=2',
+      '@@icfcc-block 0000000000003 end rc=0',
+      'Task 1 (RoPE): ALL PASS',
+    ].join('\n');
+    expect(problemLines(log).map((p) => p.n)).toEqual([2, 3, 4, 5, 7]);
+  });
+
+  it('shows them above the log', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_log_tail: () => ({
+        path: '/home/s1/p/icfcc-run/slurm-4242.out',
+        size: 40,
+        from: 0,
+        next: 40,
+        rotated: false,
+        text: 'build ok\ntiny 3 x 5   FAIL  max_err=1.1e-01\n',
+      }),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Load log' }));
+    const box = await screen.findByRole('region', { name: 'Lines to look at' });
+    expect(box).toHaveTextContent('2 tiny 3 x 5 FAIL max_err=1.1e-01');
+    expect(box).not.toHaveTextContent('build ok');
+  });
+
+  it('marks what the app added in the reviewed script apart from the lines you typed', async () => {
+    const lines = annotateScript(
+      "#!/bin/bash\n#SBATCH --partition=Teaching\nset -e\nsource '/home/s1/icf-env/bin/activate'\nmake test1\n",
+      'make test1',
+    );
+    expect(lines.map((l) => l.kind)).toEqual(['slurm', 'slurm', 'app', 'app', 'yours', 'slurm']);
+
+    backend.reset(connectedLive, {
+      jobs_preview: () => okPreview({ script: '#!/bin/bash\nset -e\nexport PATH=/x/bin:"$PATH"\nmake test1\n' }),
+    });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    const script = await screen.findByLabelText('Batch script');
+    expect(script).toHaveTextContent('export PATH=/x/bin:"$PATH" make test1'); // still the exact text
+    expect(within(script).getByText('make test1')).toHaveClass('line-yours');
+    expect(within(script).getByText('export PATH=/x/bin:"$PATH"')).toHaveClass('line-app');
   });
 });

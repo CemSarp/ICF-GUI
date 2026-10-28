@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Notice } from '../components/ui';
+import { problemLines } from '../../logic/jobs/scriptLines';
 import { useLogStream } from '../../logic/jobs/useLogStream';
 
 /** Log panel; reading, trimming and follow mode live in useLogStream. Rendered as plain text. */
@@ -10,6 +11,8 @@ export function LogViewer({ jobId, active, stderrMerged }: { jobId: string; acti
       if (pre.current) pre.current.scrollTop = pre.current.scrollHeight;
     }),
   );
+
+  const problems = cur.loaded && !cur.error ? problemLines(cur.text) : [];
 
   return (
     <section className="card" aria-labelledby="logs-title">
@@ -41,6 +44,18 @@ export function LogViewer({ jobId, active, stderrMerged }: { jobId: string; acti
           </div>
           {cur.error && <Notice tone="warn">{cur.error}</Notice>}
           {cur.note && <p className="muted small">{cur.note}</p>}
+          {problems.length > 0 && (
+            <div className="log-problems" role="region" aria-label="Lines to look at">
+              <strong className="small">Lines to look at ({problems.length})</strong>
+              <ul className="mono small">
+                {problems.map((p) => (
+                  <li key={p.n}>
+                    <span className="muted">{p.n}</span> {p.line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {cur.loaded && !cur.error && (
             <pre className="code log" ref={pre} tabIndex={0} aria-label={`${stream} log`}>
               {cur.text || '(empty)'}

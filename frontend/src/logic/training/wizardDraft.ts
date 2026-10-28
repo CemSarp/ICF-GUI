@@ -69,7 +69,7 @@ export const DEFAULT_DRAFT: Draft = {
   gpuCount: 1,
   cpus: 4,
   memoryGb: 16,
-  hours: 4,
+  hours: 1, // course work is mostly short; short jobs also tend to start sooner
   minutes: 0,
   checkModules: '',
   mail: false,

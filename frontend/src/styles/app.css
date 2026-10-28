@@ -2543,3 +2543,38 @@ input[type='checkbox'][role='switch']:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Log: problem lines pulled to the top. */
+.log-problems {
+  border: 1px solid var(--border-strong, var(--border));
+  border-left: 3px solid var(--bad, #d70015);
+  border-radius: 8px;
+  padding: var(--s2) var(--s3);
+  margin-bottom: var(--s2);
+}
+.log-problems ul {
+  list-style: none;
+  margin: var(--s1) 0 0;
+  padding: 0;
+  overflow-x: auto;
+}
+.log-problems li {
+  white-space: pre;
+}
+
+/* Review: what the app added versus what was typed. */
+.code.script .line-app {
+  background: color-mix(in srgb, var(--alloc) 16%, transparent);
+}
+.code.script .line-yours {
+  box-shadow: inset 3px 0 0 var(--accent, #0a84ff);
+}
+.script-legend .line-app {
+  background: color-mix(in srgb, var(--alloc) 16%, transparent);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.script-legend .line-yours {
+  box-shadow: inset 3px 0 0 var(--accent, #0a84ff);
+  padding-left: 6px;
+}

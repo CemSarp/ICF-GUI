@@ -109,8 +109,12 @@
       runs, Rename (Enter no longer reopens the sheet), the Unpack sheet, Terminal commands with
       Choose a file (`kernel.cu` → its folder and an `nvcc` command), the one-question New job form
       (Python ↔ Managed training ↔ Shell script carries the job name)
+- [x] Later on the same PR (ADR-036–038): New job redesign, logs in `icfcc-run/`, `<env>/bin/python`,
+      project environment default, empty start, Edit and run again, recent commands, Job logs
+      cleanup, GPU session, lines to look at, review markers. Gates: 129 UI tests; 150 Rust unit
+      tests (incl. a sandbox run of the session loop and log cleanup), 15 auth + 5 job flows
 - [ ] macOS CI green on the PR and on `main`
-- [ ] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
 - [ ] Merge the PR (merge commit), tag `v0.5.1` on `main`, push the tag
 - [ ] Release workflow green: zip + `.sha256` attached to a draft
 - [ ] Downloaded zip: `shasum -a 256 -c` OK, `codesign --verify --deep --strict` passes; sidebar shows
@@ -118,5 +122,8 @@
 - [ ] Live (owner): Unpack a Transfers archive on ICF gives the original folder; Rename a file; ICF has `unzip`
 - [ ] Live (owner): a Terminal commands job (e.g. `nvidia-smi -L` and building a `.cu` file) runs in
       the chosen folder and its output is in `slurm-<id>.out`
+- [ ] Live (owner): a GPU session runs a sent block (`nvidia-smi -L`) and ends after its idle minutes
+- [ ] Live (owner): Job logs → Check and Delete old logs in a project's `icfcc-run`
+- [ ] Live (owner): a Python script job with a conda environment (`mls-asr`) runs `<env>/bin/python`
 - [ ] Published
 
