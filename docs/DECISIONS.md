@@ -400,9 +400,11 @@ in one place applied unseen in another.
   is named and not used.
 - **Clear** empties the field and keeps it empty for that folder; *Choose* picks another one. Presets
   and *Edit and run again* bring their own value.
-- **Python script** runs `<env>/bin/python`. **Commands** offers *+ Project environment*, which adds a
-  visible `export PATH="<env>/bin:$PATH"` line; nothing is added unless clicked. **Shell script** gets
-  none (the script activates what it needs). The backend refuses an environment with non-Python jobs.
+- **Python script** runs `<env>/bin/python`. **Commands** and **GPU session** show a *Python
+  environment* card too: what the typed lines use (an `export PATH="<env>/bin:$PATH"` or
+  `conda activate` line), *Use <project env>* to add that line visibly, and *Remove* to take it out;
+  nothing is added unless clicked. **Shell script** says the script sets up its own environment and
+  names the project's. The backend refuses an environment field with non-Python jobs.
 - New job opens empty each time (or from a loaded preset); switching answers inside it keeps entries.
 
 ## ADR-038 — A held GPU session is a batch job with an inbox

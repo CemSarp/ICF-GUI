@@ -89,8 +89,9 @@ by itself if one of its fields has a problem. Switching answers keeps what you e
    - **Python environment**: filled in from the project the file is in, if you opened that folder in
      **Projects** and chose an environment there (*From your project …*). Otherwise **Choose** your
      virtualenv or conda folder; its `bin/python` runs the job. **Clear** keeps it empty for that
-     folder; a script job without one uses the node's `python3`. In **Commands**, *+ Project
-     environment* adds an `export PATH="<env>/bin:$PATH"` line.
+     folder; a script job without one uses the node's `python3`. In **Commands** and
+     **GPU session**, the *Python environment* card shows what your lines use; *Use <name>* adds the
+     project's as an `export PATH="<env>/bin:$PATH"` line and *Remove* takes it out.
    - New job opens **empty** every time, unless you load a preset.
    - **Commands**: type the commands you would type in a terminal on the GPU node, for example
      `export PATH=/opt/cuda-12.8.0/bin:$PATH`, `make && ./run.sh 2>&1 | tee run.log`. They go into the

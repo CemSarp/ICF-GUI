@@ -516,16 +516,29 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     expect((backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).pythonEnv).toBeNull();
   });
 
-  it('offers the project environment to Commands as a visible line', async () => {
+  it('shows the environment Commands use, offers the project one, and removes it again', async () => {
     backend.reset(asFixtureUser, { jobs_preview: () => okPreview() });
     await openWizard();
     await userEvent.click(screen.getByLabelText('Commands'));
     await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
     await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
-    await userEvent.click(await screen.findByRole('button', { name: '+ Project environment (icf-env)' }));
-    expect(screen.getByLabelText('Commands to run')).toHaveValue(
+    const card = () => screen.getByRole('group', { name: 'Python environment' });
+    expect(within(card()).getByText("None: the node's python3, unless your lines activate one")).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Use icf-env' }));
+    const box = screen.getByLabelText('Commands to run');
+    expect(box).toHaveValue(
       `export PATH="${v3.HOME}/projects/icf-env/bin:$PATH"\nnvcc -O2 -o kernel kernel.cu\n./kernel`,
     );
+    expect(within(card()).getByText('~/projects/icf-env')).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Remove' }));
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    // A conda environment typed with + Conda environment is recognised too.
+    await userEvent.click(screen.getByRole('button', { name: '+ Conda environment' }));
+    await userEvent.type(screen.getByLabelText('Conda environment name'), 'mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(within(card()).getByText('mls-asr')).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Remove' }));
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
   });
 
   it('without a project for the folder, no environment is filled and Projects is suggested', async () => {

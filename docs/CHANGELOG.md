@@ -51,7 +51,8 @@
   switching answers inside it still keeps what you entered.
 - **The Python environment comes from the folder's project** (ADR-037): picking a file in a project
   you opened fills in that project's environment (and, for workflows, its CUDA toolchain), labelled
-  *From your project …*. Commands gets *+ Project environment*. Without a project nothing is filled.
+  *From your project …*. Commands and GPU session show the environment their lines use, with *Use <project env>* and
+  *Remove*; Shell script names the project's. Without a project nothing is filled.
 - **Four job types on New job**: the GPU test is no longer a tile; it is a check of an environment,
   started from Projects → Python environment → *Run the GPU smoke test*.
 - **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,

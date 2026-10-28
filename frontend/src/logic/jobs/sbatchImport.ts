@@ -129,6 +129,34 @@ export const SETUP_LINES = {
   conda: (env: string) => `source "\${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate ${env}`,
 };
 
+/**
+ * The environment typed lines use, as the setup buttons write it: an environment's `bin` first on
+ * PATH, or `conda activate <name>`. `lines` are what removing it takes out again.
+ */
+export function envInCommands(commands: string): { label: string; lines: string[] } | null {
+  const all = commands.split('\n');
+  const path = all.find((l) => /^export PATH="(.+)\/bin:\$PATH"$/.test(l.trim()));
+  if (path) return { label: /^export PATH="(.+)\/bin:\$PATH"$/.exec(path.trim())![1]!, lines: [path] };
+  const i = all.findIndex((l) => /^conda activate [\w.-]+$/.test(l.trim()));
+  if (i < 0) return null;
+  const hook = i > 0 && all[i - 1]!.includes('etc/profile.d/conda.sh') ? [all[i - 1]!] : [];
+  return { label: all[i]!.trim().slice('conda activate '.length), lines: [...hook, all[i]!] };
+}
+
+/** The commands without these lines (each once). */
+export function withoutLines(commands: string, lines: string[]): string {
+  const drop = [...lines];
+  return commands
+    .split('\n')
+    .filter((l) => {
+      const k = drop.indexOf(l);
+      if (k < 0) return true;
+      drop.splice(k, 1);
+      return false;
+    })
+    .join('\n');
+}
+
 /** Puts a setup line before the commands, once. */
 export function withSetupLine(commands: string, line: string): string {
   if (commands.includes(line)) return commands;

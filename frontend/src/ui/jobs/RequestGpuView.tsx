@@ -4,7 +4,7 @@ import { formatDuration } from '../../logic/format';
 import { typedRunner, useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
 import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
 import { annotateScript } from '../../logic/jobs/scriptLines';
-import { SETUP_LINES, validCondaEnv, withSetupLine } from '../../logic/jobs/sbatchImport';
+import { envInCommands, SETUP_LINES, validCondaEnv, withoutLines, withSetupLine } from '../../logic/jobs/sbatchImport';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
 import { Field, FieldError, GpuPicker, PathCard, PresetBar, ProjectEnvNote } from './JobParts';
@@ -230,19 +230,6 @@ export function RequestGpuView({
                     >
                       + Conda environment
                     </button>
-                    {projectEnv.env.kind === 'env' && /^[\w./-]+$/.test(projectEnv.env.dir) && (
-                      <button
-                        type="button"
-                        className="chip"
-                        onClick={() =>
-                          projectEnv.env.kind === 'env' &&
-                          set('commands', withSetupLine(draft.commands, SETUP_LINES.env(projectEnv.env.dir)))
-                        }
-                        title={SETUP_LINES.env(projectEnv.env.dir)}
-                      >
-                        + Project environment ({splitPath(projectEnv.env.dir).name})
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="chip"
@@ -396,6 +383,58 @@ export function RequestGpuView({
                 />
               </Field>
             </div>
+            {typedRunner(draft.runner) &&
+              (() => {
+                // What the typed lines use, shown like the Python card; nothing applies unless added.
+                const used = envInCommands(draft.commands);
+                const proj =
+                  projectEnv.env.kind === 'env' && /^[\w./-]+$/.test(projectEnv.env.dir) ? projectEnv.env : null;
+                return (
+                  <>
+                    <PathCard
+                      icon="layers"
+                      label="Python environment"
+                      title={used ? tilde(used.label, home) : ''}
+                      empty="None: the node's python3, unless your lines activate one"
+                      home={home}
+                    >
+                      {used ? (
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() => set('commands', withoutLines(draft.commands, used.lines))}
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        proj && (
+                          <button
+                            type="button"
+                            className="btn"
+                            title={SETUP_LINES.env(proj.dir)}
+                            onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.env(proj.dir)))}
+                          >
+                            Use {splitPath(proj.dir).name}
+                          </button>
+                        )
+                      )}
+                    </PathCard>
+                    <small className="muted path-card-note">
+                      {used
+                        ? `Your ${session ? 'setup lines' : 'commands'} put it first on PATH (the line is in the box above).`
+                        : proj
+                          ? `Your project ${tilde(proj.project, home)} uses ${splitPath(proj.dir).name}; Use adds one visible line.`
+                          : 'Add one with + Conda environment, or choose one for this folder in Projects.'}
+                    </small>
+                  </>
+                );
+              })()}
+            {draft.runner === 'bash' && (
+              <small className="muted path-card-note">
+                A shell script sets up its own environment (e.g. <code>conda activate</code> in the script)
+                {projectEnv.env.kind === 'env' ? `; your project uses ${splitPath(projectEnv.env.dir).name}` : ''}.
+              </small>
+            )}
             {draft.runner === 'python' && (
               <>
                 <PathCard
