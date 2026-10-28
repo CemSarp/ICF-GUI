@@ -124,6 +124,8 @@ export function parseSbatch(text: string): SbatchImport | null {
 export const SETUP_LINES = {
   cuda: 'export PATH=/opt/cuda-12.8.0/bin:$PATH',
   gpu: 'nvidia-smi -L',
+  /** A venv or conda environment's programs first on PATH (its python, pip, …). */
+  env: (dir: string) => `export PATH="${dir.replace(/\/+$/, '')}/bin:$PATH"`,
   conda: (env: string) => `source "\${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate ${env}`,
 };
 

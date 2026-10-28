@@ -27,6 +27,11 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **New job starts empty** each time it opens (also after a restart), unless you load a preset;
+  switching answers inside it still keeps what you entered.
+- **The Python environment comes from the folder's project** (ADR-037): picking a file in a project
+  you opened fills in that project's environment (and, for workflows, its CUDA toolchain), labelled
+  *From your project …*. Commands gets *+ Project environment*. Without a project nothing is filled.
 - **Four job types on New job**: the GPU test is no longer a tile; it is a check of an environment,
   started from Projects → Python environment → *Run the GPU smoke test*.
 - **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,

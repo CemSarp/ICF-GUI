@@ -14,6 +14,7 @@ import {
   type RunChoice,
 } from '../jobs/newJob';
 import { usePresets } from '../jobs/presets';
+import { useProjectEnv } from '../jobs/projectEnv';
 import type {
   ClusterSnapshot,
   ConnectionStatus,
@@ -106,6 +107,10 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const tcList = toolchains.data ?? [];
   const home = status.capabilities?.home ?? '';
   const project = expandHome(effective.projectDir, home).replace(/\/+$/, '');
+  // ADR-037: the project's interpreter and toolchain, when the form has none yet.
+  const projectEnv = useProjectEnv(status, project, home, effective.interpreter, (e) =>
+    patch({ interpreter: e.interpreter, ...(e.toolchainId ? { toolchainId: e.toolchainId } : {}) }),
+  );
   const maxGpus = snapshot ? maxGpusFor(snapshot, partition, gres) : 1;
 
   const review = async () => {
@@ -267,6 +272,7 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     draft,
     set,
     patch,
+    projectEnv,
     choice,
     choose,
     pickEntry,

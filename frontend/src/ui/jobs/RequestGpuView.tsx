@@ -6,7 +6,7 @@ import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
 import { SETUP_LINES, validCondaEnv, withSetupLine } from '../../logic/jobs/sbatchImport';
 import type { ClusterSnapshot, ConnectionStatus } from '../../types';
 import { PickRemote } from '../projects/RemoteBrowser';
-import { Field, FieldError, GpuPicker, PathCard, PresetBar } from './JobParts';
+import { Field, FieldError, GpuPicker, PathCard, PresetBar, ProjectEnvNote } from './JobParts';
 import { RunChoice } from './RunChoice';
 
 /** Fields under "More options": it opens by itself when one of them has a problem. */
@@ -38,6 +38,7 @@ export function RequestGpuView({
     wd,
     fileAbs,
     runFrom,
+    projectEnv,
     presets,
     partition,
     gres,
@@ -223,6 +224,19 @@ export function RequestGpuView({
                     >
                       + Conda environment
                     </button>
+                    {projectEnv.env.kind === 'env' && /^[\w./-]+$/.test(projectEnv.env.dir) && (
+                      <button
+                        type="button"
+                        className="chip"
+                        onClick={() =>
+                          projectEnv.env.kind === 'env' &&
+                          set('commands', withSetupLine(draft.commands, SETUP_LINES.env(projectEnv.env.dir)))
+                        }
+                        title={SETUP_LINES.env(projectEnv.env.dir)}
+                      >
+                        + Project environment ({splitPath(projectEnv.env.dir).name})
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="chip"
@@ -338,7 +352,14 @@ export function RequestGpuView({
                   home={home}
                 >
                   {draft.pythonEnv.trim() && (
-                    <button type="button" className="btn ghost" onClick={() => set('pythonEnv', '')}>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        projectEnv.decline();
+                        set('pythonEnv', '');
+                      }}
+                    >
                       Clear
                     </button>
                   )}
@@ -346,6 +367,11 @@ export function RequestGpuView({
                     Choose
                   </button>
                 </PathCard>
+                <ProjectEnvNote
+                  env={projectEnv.env}
+                  fromProject={projectEnv.fromProject(draft.pythonEnv)}
+                  home={home}
+                />
                 <FieldError issues={issues} field="pythonEnv" />
               </>
             )}

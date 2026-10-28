@@ -5,7 +5,7 @@ import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
 import { useTrainingWizard } from '../../logic/training/useTrainingWizard';
 import { expandHome, importCounts, isArchiveName, type Draft, type WizardInit } from '../../logic/training/wizardDraft';
 import type { CheckpointMode, ClusterSnapshot, ConnectionStatus, ImportResult } from '../../types';
-import { Field as JobField, FieldError, GpuPicker, PathCard, PresetBar } from '../jobs/JobParts';
+import { Field as JobField, FieldError, GpuPicker, PathCard, PresetBar, ProjectEnvNote } from '../jobs/JobParts';
 import { PickRemote } from '../projects/RemoteBrowser';
 import { RunChoice } from '../jobs/RunChoice';
 
@@ -93,6 +93,7 @@ export function TrainingWizard({
     draft,
     set,
     patch,
+    projectEnv,
     choice,
     choose,
     pickEntry,
@@ -372,6 +373,7 @@ export function TrainingWizard({
                 {draft.interpreter.trim() ? 'Change' : 'Choose'}
               </button>
             </PathCard>
+            <ProjectEnvNote env={projectEnv.env} fromProject={projectEnv.fromProject(draft.interpreter)} home={home} />
             <FieldError issues={issues} field="interpreter" />
           </section>
 

@@ -2,12 +2,13 @@ import { focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JobRequest, PreviewResponse } from '../src/types';
+import type { ConnectionStatus, JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
 import { commandsFor, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
 import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
+import { describeProjectEnv, envDirOf, projectFor } from '../src/logic/jobs/projectEnv';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
 import * as v3 from './v3Fixtures';
 
@@ -443,6 +444,12 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
   });
 });
 
+/** Signed in as the user whose home the project fixtures live in. */
+const asFixtureUser: ConnectionStatus = {
+  ...connectedLive,
+  capabilities: { ...connectedLive.capabilities!, remoteUser: 's1234567', home: v3.HOME },
+};
+
 describe('Script job: pick files on ICF, or run terminal commands', () => {
   beforeEach(() => backend.reset(connectedLive));
 
@@ -484,6 +491,49 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
     expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
     expect(screen.getByLabelText('Job name')).toHaveValue('explore');
+  });
+
+  it('uses the Python environment of the project the file is in, and Clear keeps it empty (ADR-037)', async () => {
+    backend.reset(asFixtureUser, { jobs_preview: () => okPreview() });
+    backend.handlers.jobs_preview = () => okPreview();
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    const env = await screen.findByRole('group', { name: 'Python environment' });
+    expect(await within(env).findByText('~/projects/icf-env')).toBeInTheDocument();
+    expect(screen.getByText('From your project ~/projects/semeval.')).toBeInTheDocument();
+    await userEvent.click(within(env).getByRole('button', { name: 'Clear' }));
+    expect(within(env).getByText('None: python3 of the GPU node')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }));
+    await chooseInPicker('Choose the script', [], 'train.py'); // same folder again: stays cleared
+    expect(
+      within(screen.getByRole('group', { name: 'Python environment' })).getByText('None: python3 of the GPU node'),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect((backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).pythonEnv).toBeNull();
+  });
+
+  it('offers the project environment to Commands as a visible line', async () => {
+    backend.reset(asFixtureUser, { jobs_preview: () => okPreview() });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
+    await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
+    await userEvent.click(await screen.findByRole('button', { name: '+ Project environment (icf-env)' }));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(
+      `export PATH="${v3.HOME}/projects/icf-env/bin:$PATH"\nnvcc -O2 -o kernel kernel.cu\n./kernel`,
+    );
+  });
+
+  it('without a project for the folder, no environment is filled and Projects is suggested', async () => {
+    backend.handlers.projects_recent = () => [];
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    const env = screen.getByRole('group', { name: 'Python environment' });
+    expect(within(env).getByText('None: python3 of the GPU node')).toBeInTheDocument();
+    expect(screen.getByText(/open this folder in Projects and choose its Python environment/)).toBeInTheDocument();
   });
 
   it('runs terminal commands in the folder of a chosen file, with no script or arguments', async () => {
@@ -533,6 +583,28 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     ]);
     expect(timePresets(3600).map((t) => t.label)).toEqual(['10 min', '30 min', '1 h']);
     expect(timePresets(null)).toHaveLength(8);
+  });
+});
+
+describe('New job starts empty', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('does not bring back earlier entries when it is opened again', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'make test1');
+    const name = screen.getByLabelText('Job name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'old-name');
+    await userEvent.click(screen.getByLabelText('Notebook')); // switching inside New job keeps entries
+    expect(screen.getByLabelText('Job name')).toHaveValue('old-name');
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Python script')).toBeChecked();
+    expect(screen.getByLabelText('Job name')).toHaveValue('job');
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('');
   });
 });
 
@@ -721,5 +793,29 @@ describe('Run buttons in Projects', () => {
     expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
     expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
     expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+  });
+});
+
+describe('Project environment helpers (ADR-037)', () => {
+  const p = v3.project();
+  it('finds the project holding a folder, nearest first', () => {
+    const inner = v3.project({ path: `${v3.PROJECT}/sub`, interpreter: null });
+    expect(projectFor(`${v3.PROJECT}/data`, [p, inner])?.path).toBe(v3.PROJECT);
+    expect(projectFor(`${v3.PROJECT}/sub/x`, [p, inner])?.path).toBe(`${v3.PROJECT}/sub`);
+    expect(projectFor(`${v3.PROJECT}-other`, [p])).toBeNull(); // a sibling with a common prefix is not inside
+    expect(projectFor('', [p])).toBeNull();
+  });
+  it('uses only environment folders in home', () => {
+    expect(envDirOf('/home/u/miniconda3/envs/mls-asr/bin/python', '/home/u')).toBe('/home/u/miniconda3/envs/mls-asr');
+    expect(envDirOf('/home/u/env/bin/python3.11', '/home/u')).toBe('/home/u/env');
+    expect(envDirOf('/usr/bin/python3', '/home/u')).toBeNull();
+    expect(envDirOf(null, '/home/u')).toBeNull();
+  });
+  it('tells the four cases apart', () => {
+    const h = v3.HOME;
+    expect(describeProjectEnv(`${h}/elsewhere`, [p], h).kind).toBe('none');
+    expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: null })], h).kind).toBe('unset');
+    expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: '/usr/bin/python3' })], h).kind).toBe('unusable');
+    expect(describeProjectEnv(v3.PROJECT, [p], h)).toMatchObject({ kind: 'env', dir: `${h}/projects/icf-env` });
   });
 });

@@ -25,6 +25,7 @@ import {
   type RunChoice,
 } from './newJob';
 import { usePresets } from './presets';
+import { useProjectEnv } from './projectEnv';
 import { jobsKey } from './useJobs';
 import { DEFAULT_DRAFT, fromConfig, toConfig } from '../training/wizardDraft';
 
@@ -206,6 +207,9 @@ export function useRequestGpu(
   const maxGpus = maxGpusFor(snapshot, partition, gres);
 
   const wd = resolveWorkingDir(draft.workingDir, home);
+  const projectEnv = useProjectEnv(status, draft.workingDir.trim() ? wd : '', home, draft.pythonEnv, (e) =>
+    patch({ pythonEnv: e.dir }),
+  );
   /** The script as an absolute path ('' when none is chosen). */
   const fileAbs = !draft.program.trim() ? '' : draft.program.startsWith('/') ? draft.program : `${wd}/${draft.program}`;
   /** A new job name for a newly chosen file, unless the user named the job themselves. */
@@ -408,6 +412,7 @@ export function useRequestGpu(
     wd,
     fileAbs,
     runFrom,
+    projectEnv,
     presets,
     partition,
     gpuTypes,

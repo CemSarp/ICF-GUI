@@ -387,6 +387,24 @@ different GPU picker per kind of job, hidden name/CPUs/RAM/e-mail, and a separat
   allocated / unavailable GPUs (physical only; MIG slices listed apart), its GPU types and actions.
   Allocated is yellow (`--alloc`), always next to its number.
 
+## ADR-037 — A job's Python environment comes from its folder's project
+*Status: accepted (0.5.1), option A chosen by the owner.* The environment was picked in three places
+(Projects, the Python script field, the training interpreter) and Commands used none, so a value set
+in one place applied unseen in another.
+- **Default:** the environment chosen in Projects for the project that holds the job's folder (the
+  folder itself or its nearest parent project). It is *filled into the form* when the folder changes
+  and the field is empty, so what is sent is what is shown; the card says "From your project …".
+  Training workflows also take the project's CUDA toolchain.
+- **No project, or no environment chosen in it:** nothing is filled; the card says how to set one in
+  Projects. A project interpreter that is not an environment folder in home (e.g. `/usr/bin/python3`)
+  is named and not used.
+- **Clear** empties the field and keeps it empty for that folder; *Choose* picks another one. Presets
+  and *Edit and run again* bring their own value.
+- **Python script** runs `<env>/bin/python`. **Commands** offers *+ Project environment*, which adds a
+  visible `export PATH="<env>/bin:$PATH"` line; nothing is added unless clicked. **Shell script** gets
+  none (the script activates what it needs). The backend refuses an environment with non-Python jobs.
+- New job opens empty each time (or from a loaded preset); switching answers inside it keeps entries.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

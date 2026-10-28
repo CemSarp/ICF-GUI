@@ -3,7 +3,8 @@ import { Badge, Dialog, Icon, NumberInput, type IconName } from '../components/u
 import { granularityLabel } from '../../logic/cluster/gpu';
 import { partitionGpus } from '../../logic/cluster/overview';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
-import { crumbs, timePresets } from '../../logic/jobs/newJob';
+import { crumbs, tilde, timePresets } from '../../logic/jobs/newJob';
+import type { ProjectEnv } from '../../logic/jobs/projectEnv';
 import type { usePresets } from '../../logic/jobs/presets';
 import type { ClusterSnapshot, Issue, Partition } from '../../types';
 import { GpuBar } from '../cluster/GpuBar';
@@ -159,6 +160,21 @@ export function PathCard({
       <div className="path-card-actions">{children}</div>
     </div>
   );
+}
+
+/** Where the Python environment comes from (ADR-037), under the environment card. */
+export function ProjectEnvNote({ env, fromProject, home }: { env: ProjectEnv; fromProject: boolean; home: string }) {
+  const note =
+    env.kind === 'none'
+      ? 'Tip: open this folder in Projects and choose its Python environment there; new jobs here then use it.'
+      : env.kind === 'unset'
+        ? `Your project ${tilde(env.project, home)} has no Python environment chosen yet (Projects → Python environment).`
+        : env.kind === 'unusable'
+          ? `Your project ${tilde(env.project, home)} uses ${env.interpreter}, which is not an environment folder in your home, so it is not used here.`
+          : fromProject
+            ? `From your project ${tilde(env.project, home)}.`
+            : null;
+  return note ? <small className="muted path-card-note">{note}</small> : null;
 }
 
 interface Resources {
