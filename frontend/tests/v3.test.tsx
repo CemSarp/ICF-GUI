@@ -517,3 +517,31 @@ describe('V3 helpers', () => {
     expect(expandHome('~/x', '')).toBe('~/x');
   });
 });
+
+describe('Workflows send only what the form shows', () => {
+  it('hidden training-only and GPU-test settings go out as defaults', () => {
+    const train = {
+      ...DEFAULT_DRAFT,
+      projectDir: '/home/u/p',
+      entry: 'train.py',
+      args: '--epochs\n3',
+      resumeFrom: '/home/u/p/runs/old/checkpoints',
+      checkpointMode: 'direct' as const,
+      datasets: [{ archive: '/home/u/d.tar.gz', into: 'd' }],
+    };
+    const t = toConfig(train, []);
+    expect(t.resumeFrom).toBe('/home/u/p/runs/old/checkpoints');
+    expect(t.args).toEqual(['--epochs', '3']);
+
+    const nb = toConfig({ ...train, kind: 'notebook', entry: 'nb.ipynb' }, []);
+    expect(nb.resumeFrom).toBeNull();
+    expect(nb.args).toEqual([]);
+    expect(nb.checkpointMode).toBe(DEFAULT_DRAFT.checkpointMode);
+    expect(nb.datasets).toHaveLength(1); // the Datasets section is shown for notebooks
+
+    const smoke = toConfig({ ...train, kind: 'gpu_smoke_test' }, []);
+    expect(smoke.entry).toBe('');
+    expect(smoke.datasets).toEqual([]);
+    expect(smoke.resumeFrom).toBeNull();
+  });
+});

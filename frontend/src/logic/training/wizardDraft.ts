@@ -96,7 +96,8 @@ export function expandHome(p: string, home: string): string {
 }
 
 /** Paths go to Rust absolute: `home` expands `~/…` (empty = no expansion). */
-export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
+export function toConfig(form: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
+  const d = visibleOnly(form);
   const tc = toolchains.find((t) => t.id === d.toolchainId);
   const abs = (p: string) => expandHome(p, home);
   const project = abs(d.projectDir).replace(/\/+$/, '');
@@ -104,8 +105,8 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
     kind: d.kind,
     jobName: d.jobName.trim(),
     projectDir: project,
-    entry: d.kind === 'gpu_smoke_test' ? '' : abs(d.entry),
-    args: d.kind === 'train' ? lines(d.args) : [],
+    entry: abs(d.entry),
+    args: lines(d.args),
     interpreter: abs(d.interpreter),
     toolchain: tc ? tc.spec : { kind: 'none' },
     datasets: d.datasets.filter((x) => x.archive.trim()).map((x) => ({ archive: abs(x.archive), into: x.into.trim() })),
@@ -136,6 +137,37 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
       timeLimitSeconds: d.hours * 3600 + d.minutes * 60,
     },
     mailUser: d.mail ? d.mailUser.trim() : null,
+  };
+}
+
+/**
+ * What is sent is what the form shows: settings hidden for this kind (kept in the draft for
+ * switching back) go out as their defaults. Checkpoints are training-only; the GPU test also has
+ * no datasets, scratch or Hugging Face settings.
+ */
+export function visibleOnly(d: Draft): Draft {
+  const D = DEFAULT_DRAFT;
+  const train = d.kind === 'train';
+  const smoke = d.kind === 'gpu_smoke_test';
+  return {
+    ...d,
+    ...(train
+      ? {}
+      : {
+          args: D.args,
+          checkpointMode: D.checkpointMode,
+          checkpointSyncMinutes: D.checkpointSyncMinutes,
+          resumeFrom: D.resumeFrom,
+        }),
+    ...(smoke
+      ? {
+          entry: D.entry,
+          datasets: D.datasets,
+          scratchRoot: D.scratchRoot,
+          expectedOutputGib: D.expectedOutputGib,
+          hfMode: D.hfMode,
+        }
+      : {}),
   };
 }
 

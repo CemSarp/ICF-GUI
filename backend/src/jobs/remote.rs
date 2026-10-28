@@ -54,7 +54,7 @@ pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
         s += &format!("need_file {} program home\n", q(&r.program_path()));
     }
     if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
-        s += &format!("need_file {} pythonEnv home\n", q(&format!("{env}/bin/activate")));
+        s += &format!("need_exec {} pythonEnv\n", q(&format!("{}/bin/python", env.trim_end_matches('/'))));
     }
     if let Some(src) = r.setup_source.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("need_file {} setupSource any\n", q(src));
@@ -117,7 +117,7 @@ pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
     let field = match field.trim() {
         "workingDir" => "working directory",
         "program" => "program",
-        "pythonEnv" => "Python environment (bin/activate)",
+        "pythonEnv" => "Python environment (bin/python)",
         "setupSource" => "setup file",
         "project" => "project directory",
         "entry" => "training script or notebook",

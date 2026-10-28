@@ -55,6 +55,19 @@ fn fields(v: &crate::jobs::request::Validation) -> Vec<String> {
 }
 
 #[test]
+fn settings_of_other_kinds_are_refused() {
+    let mut c = cfg(HOME); // a training config with a dataset
+    c.resume_from = Some(format!("{HOME}/proj/runs/old/checkpoints"));
+    assert!(!fields(&check(&c).0).contains(&"resumeFrom".to_string()), "training may resume");
+    c.kind = WorkflowKind::Notebook;
+    c.entry = "nb.ipynb".into();
+    assert!(fields(&check(&c).0).contains(&"resumeFrom".to_string()));
+    c.kind = WorkflowKind::GpuSmokeTest;
+    c.resume_from = None;
+    assert!(fields(&check(&c).0).contains(&"datasets".to_string()));
+}
+
+#[test]
 fn valid_config_plans_prechecks_and_the_durability_warning() {
     let (v, checks) = check(&cfg(HOME));
     assert!(v.errors.is_empty(), "{:?}", v.errors);

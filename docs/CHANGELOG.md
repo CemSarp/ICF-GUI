@@ -30,7 +30,11 @@
   the folder it runs in. The folder is created before `sbatch` (inside your home only). Runs submitted
   earlier still read their logs from where they were written.
 - **Python environment only for Python script**: a saved environment no longer adds a hidden
-  `source …/bin/activate` line to Commands or Shell script jobs.
+  `source …/bin/activate` line to Commands or Shell script jobs; the backend refuses one sent with
+  them. Training workflows likewise send hidden settings (resume, checkpoints, the GPU test's
+  datasets) as their defaults, and the backend refuses them for kinds that do not use them.
+- **Conda environments work for Python script jobs**: the job runs `<env>/bin/python` (with
+  `<env>/bin` first on `PATH`) instead of sourcing `bin/activate`, which conda environments lack.
 - **New job: choose, don't type.** What to run is five tiles; the file is chosen on ICF and its
   folder is where the job runs (click a folder above in the path to run from there). Partition and
   GPU type are tiles with live free counts; GPUs, CPUs and RAM have − / +; time limits are one click.

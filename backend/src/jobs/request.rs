@@ -47,7 +47,7 @@ pub struct JobRequest {
     pub program: String,
     #[serde(default)]
     pub program_args: Vec<String>,
-    /// Optional virtualenv directory (activated with `source <dir>/bin/activate`).
+    /// Optional venv or conda environment directory; Python jobs run its `bin/python` (Python runner only).
     #[serde(default)]
     pub python_env: Option<String>,
     /// Optional file to `source` first (e.g. a CUDA toolchain rc).
@@ -326,6 +326,9 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
         }
     }
     if let Some(env) = r.python_env.as_deref().filter(|s| !s.is_empty()) {
+        if r.runner != Runner::Python {
+            e.push(issue("pythonEnv", "A Python environment applies only to Python script jobs; activate one in your commands or script instead."));
+        }
         match check_abs_path(env) {
             Err(m) => e.push(issue("pythonEnv", format!("Python environment {m}."))),
             Ok(()) if !under(env, cx.home) => e.push(issue("pythonEnv", "Python environment must be inside your home directory.")),
@@ -398,8 +401,11 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
     if let Some(src) = r.setup_source.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("source {}\n", shell_quote(src));
     }
-    if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
-        s += &format!("source {}\n", shell_quote(&format!("{env}/bin/activate")));
+    // The environment's own interpreter, not `bin/activate`: conda environments have no activate
+    // script, venvs and conda both have `bin/python`. Its `bin` goes first on PATH for pip & co.
+    let env = r.python_env.as_deref().filter(|x| !x.is_empty()).map(|e| e.trim_end_matches('/'));
+    if let Some(e) = env {
+        s += &format!("export PATH={}:\"$PATH\"\n", shell_quote(&format!("{e}/bin")));
     }
     if r.runner == Runner::Commands {
         s += &format!("# Your commands, exactly as typed. They start in {wd}; the job stops at the first failing command.\n");
@@ -407,10 +413,10 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
         s.push('\n');
         return s;
     }
-    let exe = match (r.runner, r.python_env.as_deref().is_some_and(|x| !x.is_empty())) {
-        (Runner::Python, true) => "python",
-        (Runner::Python, false) => "python3",
-        (Runner::Bash, _) | (Runner::Commands, _) => "bash",
+    let exe = match (r.runner, env) {
+        (Runner::Python, Some(e)) => shell_quote(&format!("{e}/bin/python")),
+        (Runner::Python, None) => "python3".into(),
+        (Runner::Bash, _) | (Runner::Commands, _) => "bash".into(),
     };
     s += &format!("exec {exe} {}", shell_quote(&r.program_path()));
     for a in &r.program_args {
