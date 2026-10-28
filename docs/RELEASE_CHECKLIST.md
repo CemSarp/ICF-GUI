@@ -99,3 +99,33 @@
       Apple Silicon Mac; sidebar shows **Version 0.5.0**; demo data works
 - [x] Published 2026-10-27; `releases/latest` → v0.5.0.
       SHA-256 `af8e7d93c78560f161e943d32292cc1e6f5b8cb3d6e924abbe947c0196d3a6dd`
+
+## v0.5.1 (Cluster and My Jobs tabs, Rename and Unpack; ADR-033)
+
+- [x] Frontend gates: lint (incl. ui/logic boundary), typecheck, 100 UI tests, production build
+- [x] Rust gates locally: fmt, clippy `-D warnings`, 143 unit tests (incl. rename and unpack against a
+      sandbox home with `../x` and `/x` archive members, terminal-command jobs), 15 auth + 5 job flows
+- [x] Dev preview (demo data): Cluster → Overview/Nodes and a partition's Nodes, My Jobs → Training
+      runs, Rename (Enter no longer reopens the sheet), the Unpack sheet, Terminal commands with
+      Choose a file (`kernel.cu` → its folder and an `nvcc` command), the one-question New job form
+      (Python ↔ Managed training ↔ Shell script carries the job name)
+- [x] Later on the same PR (ADR-036–038): New job redesign, logs in `icfcc-run/`, `<env>/bin/python`,
+      project environment default, empty start, Edit and run again, recent commands, Job logs
+      cleanup, GPU session, lines to look at, review markers, presets with job type, log move, Avoid nodes. Gates: 135 UI tests; 154 Rust unit
+      tests (incl. a sandbox run of the session loop and log cleanup), 15 auth + 5 job flows
+- [ ] macOS CI green on the PR and on `main`
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [ ] Merge the PR (merge commit), tag `v0.5.1` on `main`, push the tag
+- [ ] Release workflow green: zip + `.sha256` attached to a draft
+- [ ] Downloaded zip: `shasum -a 256 -c` OK, `codesign --verify --deep --strict` passes; sidebar shows
+      **Version 0.5.1**; demo data works
+- [ ] Live (owner): Unpack a Transfers archive on ICF gives the original folder; Rename a file; ICF has `unzip`
+- [ ] Live (owner): a Terminal commands job (e.g. `nvidia-smi -L` and building a `.cu` file) runs in
+      the chosen folder and its output is in `slurm-<id>.out`
+- [x] Live (owner): a GPU session ran on ICF (after jobs on `damnii11` failed with 0:53 and no log)
+- [ ] Live (owner): a GPU session runs a sent block (`nvidia-smi -L`) and ends after its idle minutes
+- [ ] Live (owner): a job with Avoid nodes = `damnii11` and a 2080 Ti runs elsewhere
+- [ ] Live (owner): Job logs → Check and Delete old logs in a project's `icfcc-run`
+- [ ] Live (owner): a Python script job with a conda environment (`mls-asr`) runs `<env>/bin/python`
+- [ ] Published
+

@@ -45,13 +45,16 @@ pub fn heredoc_safe(body: &str, delimiter: &str) -> bool {
 /// Pre-checks paths on ICF (exist, resolve under $HOME), then runs `sbatch --parsable` exactly once.
 pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     let mut s = String::from("# icfcc:submit\numask 077\n");
-    s += PATH_HELPERS;
+    s += &precheck_helpers();
     s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
     s += &format!("need_dir {} workingDir\n", q(&r.working_dir));
     s += &format!("[ -w {} ] || {{ printf '@@err unwritable workingDir\\n'; exit 0; }}\n", q(&r.working_dir));
-    s += &format!("need_file {} program home\n", q(&r.program_path()));
+    s += &format!("make_dir {} logDir\n", q(&super::request::log_dir(&r.working_dir)));
+    if !matches!(r.runner, super::request::Runner::Commands | super::request::Runner::Session) {
+        s += &format!("need_file {} program home\n", q(&r.program_path()));
+    }
     if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
-        s += &format!("need_file {} pythonEnv home\n", q(&format!("{env}/bin/activate")));
+        s += &format!("need_exec {} pythonEnv\n", q(&format!("{}/bin/python", env.trim_end_matches('/'))));
     }
     if let Some(src) = r.setup_source.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("need_file {} setupSource any\n", q(src));
@@ -91,6 +94,36 @@ pub(crate) fn precheck_lines(checks: &[Precheck]) -> String {
     s
 }
 
+/// Drops one command block into a running session's inbox: written beside it first, then moved in,
+/// so the session never reads half a block. Only while SLURM says the job is RUNNING for `user`.
+pub fn session_send_script(session_dir: &str, job_id: &str, user: &str, name: &str, block: &str, delim: &str) -> String {
+    let mut s = String::from("# icfcc:session-send\numask 077\n");
+    s += PATH_HELPERS;
+    s += &format!("st=$(squeue -h -j {} -u {} -o %T 2>/dev/null)\n", q(job_id), q(user));
+    s += "[ \"$st\" = RUNNING ] || { printf '@@err not_running %s\\n' \"$st\"; exit 0; }\n";
+    s += &format!("S={}\nn={}\n", q(session_dir), q(name));
+    s += r#"[ -d "$S/inbox" ] || { printf '@@err not_ready\n'; exit 0; }
+r=$(cd -P -- "$S" 2>/dev/null && pwd -P) || { printf '@@err not_ready\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+"#;
+    s += &format!("cat > \"$r/.tmp-$n\" <<'{delim}' || {{ printf '@@err failed\\n'; exit 0; }}\n{block}\n{delim}\n");
+    s += "mv -f -- \"$r/.tmp-$n\" \"$r/inbox/$n.sh\" || { printf '@@err failed\\n'; exit 0; }\nprintf '@@ok %s\\n' \"$n\"\n";
+    s
+}
+
+pub fn parse_session_send(out: &str) -> AppResult<String> {
+    let line = |p: &str| out.lines().find_map(|l| l.strip_prefix(p)).map(str::trim);
+    if let Some(id) = line("@@ok ") {
+        return Ok(id.to_string());
+    }
+    Err(match line("@@err ").map(|e| e.split_once(' ').map_or(e, |(k, _)| k)) {
+        Some("not_running") => AppError::invalid("The session is not running (still queued, or it has ended). Nothing was sent."),
+        Some("not_ready") => AppError::invalid("The session has not started its loop yet. Wait a moment and send again."),
+        Some("outside") => AppError::new(ErrorCode::InvalidPath, "The session folder resolves outside your home. Nothing was sent."),
+        _ => AppError::new(ErrorCode::SlurmError, "The commands could not be handed to the session."),
+    })
+}
+
 fn finish_submit(mut s: String, job_script: &str, tag: &str) -> String {
     s += "printf '@@submitting\\n'\n";
     s += &format!("sbatch --parsable 2>&1 <<'ICFCC_JOB_{tag}'\n{job_script}ICFCC_JOB_{tag}\n");
@@ -114,7 +147,7 @@ pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
     let field = match field.trim() {
         "workingDir" => "working directory",
         "program" => "program",
-        "pythonEnv" => "Python environment (bin/activate)",
+        "pythonEnv" => "Python environment (bin/python)",
         "setupSource" => "setup file",
         "project" => "project directory",
         "entry" => "training script or notebook",
@@ -125,6 +158,7 @@ pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
         "hfHome" => "Hugging Face cache directory",
         "resume" => "checkpoint to resume from",
         "resultsRoot" => "results directory",
+        "logDir" => "icfcc-run log folder",
         "notebook" => "notebook",
         "file" => "file",
         _ => "path",
@@ -334,8 +368,15 @@ pub fn parse_detail(out: &str) -> AppResult<Detail> {
 
 /// Bounded read of a log file. `offset = None` → last 64 KiB; otherwise continue from `offset`
 /// (if the file shrank, it was rotated/truncated: restart at the tail and say so).
+/// A job's logs start in its folder and move into icfcc-run once it runs (`request::log_lines`):
+/// `log_where <path>` prints the path where the file is now, under either name.
+pub const LOG_WHERE: &str = r#"log_where() { f=$1; if [ ! -e "$f" ]; then d=${f%/*}; b=${f##*/}; case "$d" in */icfcc-run) a="${d%/icfcc-run}/$b";; *) a="$d/icfcc-run/$b";; esac; [ -e "$a" ] && f=$a; fi; printf '%s' "$f"; }
+"#;
+
 pub fn log_script(path: &str, user: &str, offset: Option<u64>, max_bytes: u64) -> String {
     let mut s = format!("# icfcc:log\nf={}\n", q(path));
+    s += LOG_WHERE;
+    s += "f=$(log_where \"$f\")\n";
     s += r#"H=$(cd "$HOME" && pwd -P) || { printf '@@err home\n'; exit 0; }
 [ -e "$f" ] || { printf '@@err missing\n'; exit 0; }
 r=$(readlink -f -- "$f" 2>/dev/null) || { printf '@@err missing\n'; exit 0; }

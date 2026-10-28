@@ -21,7 +21,7 @@ export function Legend() {
 }
 
 /** Stacked bar with exact numbers as text; the bar is decorative, the numbers carry meaning. */
-export function GpuBar({ t }: { t: GpuTotals }) {
+export function GpuBar({ t, compact = false }: { t: GpuTotals; compact?: boolean }) {
   const total = Math.max(t.configured, 1);
   const summary = SEGMENTS.map((s) => `${t[s.key]} ${s.label.toLowerCase()}`).join(', ');
   return (
@@ -33,13 +33,15 @@ export function GpuBar({ t }: { t: GpuTotals }) {
           ) : null,
         )}
       </div>
-      <div className="gpubar-nums" aria-hidden="true">
-        <span title="Potentially free">○ {t.potentiallyFree}</span>
-        <span title="Allocated">● {t.allocated}</span>
-        {t.unavailable > 0 && <span title="Unavailable">✕ {t.unavailable}</span>}
-        {t.unknown > 0 && <span title="Unknown">? {t.unknown}</span>}
-        <span className="muted">/ {t.configured}</span>
-      </div>
+      {!compact && (
+        <div className="gpubar-nums" aria-hidden="true">
+          <span title="Potentially free">○ {t.potentiallyFree}</span>
+          <span title="Allocated">● {t.allocated}</span>
+          {t.unavailable > 0 && <span title="Unavailable">✕ {t.unavailable}</span>}
+          {t.unknown > 0 && <span title="Unknown">? {t.unknown}</span>}
+          <span className="muted">/ {t.configured}</span>
+        </div>
+      )}
     </div>
   );
 }

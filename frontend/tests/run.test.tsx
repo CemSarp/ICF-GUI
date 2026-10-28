@@ -90,7 +90,7 @@ describe('Run on GPU in the editor', () => {
   it('runs a Python file as a script with its path', async () => {
     backend.reset(connectedLive);
     await openFile('train.py');
-    await userEvent.click(screen.getByRole('button', { name: 'Start kernel…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start kernel' }));
     await startKernel();
     await userEvent.click(screen.getByRole('button', { name: /Run on GPU/ }));
     await waitFor(() => expect(executed()).toHaveLength(1));
@@ -99,7 +99,7 @@ describe('Run on GPU in the editor', () => {
 
   it('asks before leaving the file while its kernel runs, then stops it', async () => {
     await openFile('kernel.cu');
-    await userEvent.click(screen.getByRole('button', { name: 'Start kernel…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start kernel' }));
     await startKernel();
     await userEvent.click(screen.getByRole('button', { name: 'Project files' }));
     const sheet = await screen.findByRole('dialog', { name: 'Stop the kernel?' });
@@ -107,9 +107,9 @@ describe('Run on GPU in the editor', () => {
     await waitFor(() => expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(1));
     // The sidebar asks too.
     await userEvent.click(await screen.findByRole('button', { name: 'kernel.cu' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Start kernel…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Start kernel' }));
     await startKernel();
-    await userEvent.click(screen.getByRole('button', { name: 'Overview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     expect(await screen.findByRole('dialog', { name: 'Stop the kernel?' })).toBeInTheDocument();
   });
 

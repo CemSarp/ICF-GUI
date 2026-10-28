@@ -50,7 +50,7 @@ export function NotebooksView({
           <h3 id="nb-recent">Recent notebooks</h3>
         </div>
         {recent.length === 0 ? (
-          <EmptyState title="No notebooks yet">Open a notebook below, or create one with New file….</EmptyState>
+          <EmptyState title="No notebooks yet">Open a notebook below, or create one with New file.</EmptyState>
         ) : (
           <ul className="nb-recent">
             {recent.map((r) => {

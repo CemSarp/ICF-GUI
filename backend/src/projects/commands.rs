@@ -2,7 +2,7 @@
 //! the existing SSH master; `projects_mkdir` is the only remote write here (separate capability).
 
 use super::remote::{self, check_browse_path, EnvReport, Listing};
-use super::{valid_id, valid_label, InterpreterSummary, Prefs, Preset, ProjectPrefs, ProjectRecord, ToolchainProfile};
+use super::{valid_id, valid_label, InterpreterSummary, Prefs, Preset, PresetJob, ProjectPrefs, ProjectRecord, ToolchainProfile};
 use crate::commands::AppState;
 use crate::errors::{AppError, AppResult, ErrorCode};
 use crate::jobs::commands::{ctx, live};
@@ -214,15 +214,36 @@ pub async fn presets_list(state: State<'_, AppState>) -> AppResult<Vec<Preset>> 
 
 /// Save a named configuration. It is stored as-is and fully re-validated at every preview.
 #[tauri::command]
-pub async fn presets_save(state: State<'_, AppState>, id: Option<String>, label: String, config: WorkflowConfig) -> AppResult<Vec<Preset>> {
+pub async fn presets_save(
+    state: State<'_, AppState>,
+    id: Option<String>,
+    label: String,
+    config: WorkflowConfig,
+    job: Option<PresetJob>,
+) -> AppResult<Vec<Preset>> {
     if !valid_label(&label) {
         return Err(AppError::invalid("Preset name: 1–80 printable characters."));
     }
+    check_preset_job(job.as_ref())?;
     let c = ctx(&state).await?;
     let id = id.filter(|i| valid_id(i)).unwrap_or_else(|| random_hex(6));
     let mut store = state.projects.lock().unwrap();
-    store.save_preset(Preset { id, label: label.trim().into(), profile_id: c.profile_id.clone(), user: c.user.clone(), config, saved_at: now_iso() })?;
+    store.save_preset(Preset { id, label: label.trim().into(), profile_id: c.profile_id.clone(), user: c.user.clone(), config, saved_at: now_iso(), job })?;
     Ok(store.presets(&c.profile_id, &c.user))
+}
+
+/// A preset's commands are bounded plain text; the idle limit, if any, is in range. Both are checked
+/// again at review like anything typed.
+pub(crate) fn check_preset_job(job: Option<&PresetJob>) -> AppResult<()> {
+    let Some(j) = job else { return Ok(()) };
+    if !j.commands.as_deref().is_none_or(crate::jobs::request::plain_commands) {
+        return Err(AppError::invalid("A preset's commands must be plain text, at most 16 KB."));
+    }
+    let idle = crate::jobs::request::SESSION_IDLE_MIN..=crate::jobs::request::SESSION_IDLE_MAX;
+    if !j.session_idle_minutes.is_none_or(|m| idle.contains(&m)) {
+        return Err(AppError::invalid("A preset's idle minutes must be 5–240."));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -310,5 +331,94 @@ pub async fn files_delete(state: State<'_, AppState>, dir: String, name: String,
     remote::parse_ok(&session.run(&remote::delete_script(&dir, &name, kind), FILE_TIMEOUT, 16 * 1024).await?)
 }
 
+/// Rename one entry of a listed folder in place (explicit user action; never over an existing name).
+#[tauri::command]
+pub async fn files_rename(state: State<'_, AppState>, dir: String, name: String, kind: remote::EntryKind, new_name: String) -> AppResult<String> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    if !remote::valid_entry_name(&name) || !matches!(kind, remote::EntryKind::Dir | remote::EntryKind::File | remote::EntryKind::Symlink) {
+        return Err(AppError::invalid("Only files, folders and links with supported names can be renamed from the app."));
+    }
+    if !valid_name(&new_name) {
+        return Err(AppError::invalid("New name: up to 128 letters, digits, '.', '_', '-', '+', '@', '=' or ',' starting with a letter, digit or '_'."));
+    }
+    if new_name == name {
+        return Err(AppError::invalid("That is already its name."));
+    }
+    let c = ctx(&state).await?;
+    let session = live(&c, "renaming files")?;
+    remote::parse_ok(&session.run(&remote::rename_script(&dir, &name, kind, &new_name), COMMAND_TIMEOUT, 16 * 1024).await?)
+}
+
+/// Unpack one archive (.tar.gz, .tgz, .tar.bz2, .tar.xz, .tar, .zip) next to itself on ICF; the
+/// archive is kept and nothing existing is overwritten. Runs on the login node.
+#[tauri::command]
+pub async fn files_unpack(state: State<'_, AppState>, dir: String, name: String) -> AppResult<String> {
+    check_browse_path(&dir).map_err(bad_path("Folder"))?;
+    let (stem, zip) = remote::unpack_target(&name)
+        .filter(|_| remote::valid_entry_name(&name))
+        .ok_or_else(|| AppError::invalid("Only .tar.gz, .tgz, .tar.bz2, .tar.xz, .tar and .zip files can be unpacked."))?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "unpacking archives")?;
+    match session.run(&remote::unpack_script(&dir, &name, &stem, zip), UNPACK_TIMEOUT, 16 * 1024).await {
+        Err(e) if matches!(e.code, ErrorCode::SshTimeout) => Err(AppError::new(
+            ErrorCode::SshTimeout,
+            "Unpacking took longer than 20 minutes, so the app stopped waiting. It may still be running on ICF in a hidden .icfcc-unpack folder next to the archive; delete that folder once it stops growing, or unpack big datasets in a job instead.",
+        )),
+        r => remote::parse_unpack(&r?),
+    }
+}
+
+/// Unpacking a large dataset on NFS can take many minutes; stays under the 30-minute idle disconnect.
+const UNPACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20 * 60);
+
 /// Large notebooks over a slow link need longer than the usual 15 s command budget.
 const FILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Job logs in one `icfcc-run` folder: how many, and how many are older than `days`.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LogsSummary {
+    pub files: u64,
+    pub bytes: u64,
+    pub old_files: u64,
+    pub old_bytes: u64,
+}
+
+pub fn parse_logs(out: &str) -> AppResult<LogsSummary> {
+    let ok = remote::parse_ok(out)?;
+    let n: Vec<u64> = ok.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+    match n[..] {
+        [files, bytes, old_files, old_bytes] => Ok(LogsSummary { files, bytes, old_files, old_bytes }),
+        _ => Err(AppError::new(ErrorCode::SlurmError, "The log folder summary could not be read.")),
+    }
+}
+
+pub(crate) fn check_logs_args(dir: &str, days: u32) -> AppResult<()> {
+    check_abs_path(dir).map_err(|m| AppError::invalid(format!("Log folder {m}.")))?;
+    if !dir.trim_end_matches('/').ends_with("/icfcc-run") {
+        return Err(AppError::invalid("Only the app's own icfcc-run log folders can be cleaned up."));
+    }
+    if !(1..=365).contains(&days) {
+        return Err(AppError::invalid("Choose between 1 and 365 days."));
+    }
+    Ok(())
+}
+
+/// Read-only: counts the job logs in an `icfcc-run` folder.
+#[tauri::command]
+pub async fn logs_summary(state: State<'_, AppState>, dir: String, days: u32) -> AppResult<LogsSummary> {
+    check_logs_args(&dir, days)?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "reading job logs")?;
+    parse_logs(&session.run(&remote::logs_script(&dir, days, false), COMMAND_TIMEOUT, 16 * 1024).await?)
+}
+
+/// Deletes the job logs in an `icfcc-run` folder last changed more than `days` days ago (explicit,
+/// confirmed user action). Returns the counts from before deleting; `old_files` were removed.
+#[tauri::command]
+pub async fn logs_clean(state: State<'_, AppState>, dir: String, days: u32) -> AppResult<LogsSummary> {
+    check_logs_args(&dir, days)?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "deleting job logs")?;
+    parse_logs(&session.run(&remote::logs_script(&dir, days, true), FILE_TIMEOUT, 16 * 1024).await?)
+}

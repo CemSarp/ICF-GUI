@@ -43,6 +43,9 @@ pub struct Resources {
     pub cpus: u32,
     pub memory_mib: u64,
     pub time_limit_seconds: u64,
+    /// Nodes SLURM must not use (`--exclude`).
+    #[serde(default)]
+    pub exclude_nodes: Vec<String>,
 }
 
 /// Environment bootstrap run in the job before the interpreter.
@@ -241,6 +244,9 @@ impl WorkflowConfig {
             python_env: None,
             setup_source: None,
             mail_user: self.mail_user.clone(),
+            commands: None,
+            session_idle_minutes: None,
+            exclude_nodes: r.exclude_nodes.clone(),
         }
     }
 
@@ -267,6 +273,7 @@ pub fn plan(c: &WorkflowConfig, cx: &Context) -> (Validation, Vec<Precheck>) {
 
     if path_in_home("projectDir", "Project directory", &c.project_dir, &mut v.errors) {
         checks.push(Precheck::Dir(c.project_dir.clone(), "project"));
+        checks.push(Precheck::MakeDir(crate::jobs::request::log_dir(&c.project_dir), "logDir"));
     }
     match c.kind {
         WorkflowKind::GpuSmokeTest => {}
@@ -340,6 +347,13 @@ pub fn plan(c: &WorkflowConfig, cx: &Context) -> (Validation, Vec<Precheck>) {
 
     if path_in_home("resultsRoot", "Results directory", &c.results_root, &mut v.errors) {
         checks.push(Precheck::MakeDir(c.results_root.clone(), "resultsRoot"));
+    }
+    // Settings the form shows only for some kinds must not reach the others unseen.
+    if c.resume_from.is_some() && c.kind != WorkflowKind::Train {
+        v.errors.push(issue("resumeFrom", "Resuming from a checkpoint applies only to training runs."));
+    }
+    if !c.datasets.is_empty() && c.kind == WorkflowKind::GpuSmokeTest {
+        v.errors.push(issue("datasets", "The GPU test stages no datasets."));
     }
     if let Some(r) = &c.resume_from {
         if path_in_home("resumeFrom", "Checkpoint to resume from", r, &mut v.errors) {

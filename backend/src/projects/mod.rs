@@ -84,6 +84,34 @@ pub struct Preset {
     pub user: String,
     pub config: WorkflowConfig,
     pub saved_at: String,
+    /// What New job asked when it was saved (the job type) and what only script jobs have.
+    /// Absent in presets saved before 0.5.1: they keep the job type that is open.
+    #[serde(default)]
+    pub job: Option<PresetJob>,
+}
+
+/// The job type ("What do you want to run?") of a preset; `Managed` is Python with managed training.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PresetChoice {
+    Python,
+    Managed,
+    Bash,
+    Commands,
+    Session,
+    Notebook,
+    Smoke,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresetJob {
+    pub choice: PresetChoice,
+    /// Commands, or a GPU session's setup lines.
+    #[serde(default)]
+    pub commands: Option<String>,
+    #[serde(default)]
+    pub session_idle_minutes: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]

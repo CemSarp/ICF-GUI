@@ -164,6 +164,7 @@ export const backend = {
     const files: Record<string, string> = { ...v3.FILES }; // editor saves stay within one test
     let shared = false;
     const deleted = new Set<string>(); // files_delete, until the next reset
+    const renamed = new Map<string, string>(); // files_rename: old path → new name
     const snap: SnapshotResponse = {
       snapshot,
       lastError: null,
@@ -225,12 +226,23 @@ export const backend = {
       projects_recent: () => [v3.project()],
       projects_browse: (a) => {
         const l = v3.listing((a.path as string | null) ?? null);
-        return { ...l, entries: l.entries.filter((e) => !deleted.has(`${l.path}/${e.name}`)) };
+        return {
+          ...l,
+          entries: l.entries
+            .filter((e) => !deleted.has(`${l.path}/${e.name}`))
+            .map((e) => ({ ...e, name: renamed.get(`${l.path}/${e.name}`) ?? e.name })),
+        };
       },
       files_delete: (a) => {
         deleted.add(`${a.dir}/${a.name}`);
         return `${a.dir}/${a.name}`;
       },
+      files_rename: (a) => {
+        renamed.set(`${a.dir}/${a.name}`, a.newName as string);
+        return `${a.dir}/${a.newName}`;
+      },
+      files_unpack: (a) =>
+        `${a.dir}/${(a.name as string).replace(/\.(tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|tar|zip)$/i, '')}`,
       files_create: (a) => {
         const path = `${a.dir}/${a.name}`;
         if (files[path] !== undefined)
@@ -307,6 +319,7 @@ export const backend = {
         return null;
       },
       workflow_refresh: () => v3.runs(),
+      workflow_runs: () => v3.runs().runs,
       workflow_list_files: () => v3.listing(`${v3.PROJECT}/runs/train-4242/outputs`),
       jobs_get_detail: (a) => ({
         job: jobRow({ jobId: a.jobId as string }),

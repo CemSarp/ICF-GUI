@@ -86,6 +86,9 @@ fn req() -> JobRequest {
         python_env: None,
         setup_source: None,
         mail_user: None,
+        commands: None,
+        session_idle_minutes: None,
+        exclude_nodes: vec![],
     }
 }
 

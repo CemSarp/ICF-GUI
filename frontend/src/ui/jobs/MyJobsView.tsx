@@ -20,8 +20,38 @@ const RECEIPT_LABEL: Record<JobReceipt['status'], { label: string; tone: string 
   not_found: { label: 'Not found', tone: 'muted' },
 };
 
-export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpen: (jobId: string) => void }) {
-  const { jobs, list, err, shown, unresolved, dismiss, reconcile } = useMyJobs(status);
+export function MyJobsView({
+  status,
+  onOpen,
+  onOpenRun,
+}: {
+  status: ConnectionStatus;
+  onOpen: (jobId: string) => void;
+  onOpenRun: (tag: string) => void;
+}) {
+  const { jobs, list, err, shown, unresolved, dismiss, reconcile, runOf } = useMyJobs(status);
+
+  /** Job name, plus a link to its training run when it is one (stage, metrics, results). */
+  const nameCell = (j: JobRow) => {
+    const run = runOf(j.jobId);
+    return (
+      <td>
+        {j.name}
+        {run && (
+          <>
+            {' '}
+            <button
+              className="link small"
+              onClick={() => onOpenRun(run.tag)}
+              aria-label={`Open training run ${run.name} (job ${j.jobId})`}
+            >
+              Training run ›
+            </button>
+          </>
+        )}
+      </td>
+    );
+  };
 
   const jobLink = (j: JobRow) => (
     <button className="link" onClick={() => onOpen(j.jobId)}>
@@ -107,7 +137,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
                 {list.active.map((j) => (
                   <tr key={j.jobId}>
                     <th scope="row">{jobLink(j)}</th>
-                    <td>{j.name}</td>
+                    {nameCell(j)}
                     <td>
                       <StateBadge j={j} />
                     </td>
@@ -193,7 +223,7 @@ export function MyJobsView({ status, onOpen }: { status: ConnectionStatus; onOpe
                 {newestFirst(list.history).map((j) => (
                   <tr key={j.jobId}>
                     <th scope="row">{jobLink(j)}</th>
-                    <td>{j.name}</td>
+                    {nameCell(j)}
                     <td>
                       <StateBadge j={j} />
                     </td>

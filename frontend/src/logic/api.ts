@@ -7,6 +7,8 @@ import type {
   AppError,
   EnvReport,
   FolderPick,
+  LogsSummary,
+  PresetJob,
   ImportResult,
   KernelEvent,
   KernelPreview,
@@ -110,6 +112,12 @@ export const api = {
   filesCreate: (dir: string, name: string, content: string) =>
     invoke<FileSaved>('files_create', { dir, name, content }),
   filesDelete: (dir: string, name: string, kind: EntryKind) => invoke<string>('files_delete', { dir, name, kind }),
+  filesRename: (dir: string, name: string, kind: EntryKind, newName: string) =>
+    invoke<string>('files_rename', { dir, name, kind, newName }),
+  filesUnpack: (dir: string, name: string) => invoke<string>('files_unpack', { dir, name }),
+  sessionSend: (jobId: string, commands: string) => invoke<string>('session_send', { jobId, commands }),
+  logsSummary: (dir: string, days: number) => invoke<LogsSummary>('logs_summary', { dir, days }),
+  logsClean: (dir: string, days: number) => invoke<LogsSummary>('logs_clean', { dir, days }),
   filesWrite: (path: string, content: string, expectedSha256: string) =>
     invoke<FileSaved>('files_write', { path, content, expectedSha256 }),
   pythonCheckImports: (interpreter: string, modules: string[]) =>
@@ -118,8 +126,8 @@ export const api = {
   saveToolchain: (profile: ToolchainProfile) => invoke<ToolchainProfile[]>('toolchains_save', { profile }),
   deleteToolchain: (id: string) => invoke<ToolchainProfile[]>('toolchains_delete', { id }),
   presets: () => invoke<Preset[]>('presets_list'),
-  savePreset: (id: string | null, label: string, config: WorkflowConfig) =>
-    invoke<Preset[]>('presets_save', { id, label, config }),
+  savePreset: (id: string | null, label: string, config: WorkflowConfig, job: PresetJob | null) =>
+    invoke<Preset[]>('presets_save', { id, label, config, job }),
   deletePreset: (id: string) => invoke<Preset[]>('presets_delete', { id }),
   prefs: () => invoke<Prefs>('prefs_get'),
   setPrefs: (prefs: Prefs) => invoke<Prefs>('prefs_set', { prefs }),

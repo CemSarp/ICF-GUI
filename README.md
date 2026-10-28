@@ -43,7 +43,7 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 - 🔑 **VS Code without password prompts.** Opt in once and VS Code reuses the app's signed-in
   connection. Your password never leaves the app, and `~/.ssh/config` is never touched.
   → [Sign VS Code in through this app](docs/USER_GUIDE.md#sign-vs-code-in-through-this-app-no-password-prompts)
-- 📄 **New file…** in Project files creates a Python, notebook, CUDA, C/C++ or Markdown file and opens
+- 📄 **New file** in Project files creates a Python, notebook, CUDA, C/C++ or Markdown file and opens
   it straight in the editor. Existing files are never overwritten.
 - 🚀 **One *New job* screen** for script jobs and training workflows, and **Runs** in the sidebar.
 - 🎨 **A cleaner, Apple-style look** across every screen.
@@ -89,7 +89,7 @@ worked. **ICF Control Center puts all of that in one window.**
 | Python, with syntax colours | CUDA (dark mode) |
 |---|---|
 | ![Editing train.py on ICF in the app](docs/screenshots/editor-python.jpg) | ![Editing a CUDA kernel in dark mode](docs/screenshots/editor-cuda-dark.jpg) |
-| **Run on GPU** | **New file…** |
+| **Run on GPU** | **New file** |
 | ![The editor running kernel.cu on a GPU node with program arguments; the output appears below the code](docs/screenshots/editor-run-gpu.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
 
 ### Notebooks on a GPU (experimental)
@@ -141,7 +141,7 @@ with ICF access.
 flowchart LR
     A[Open the app] --> B[Enter UUN + password]
     B --> C[Verify host keys<br/>first time only]
-    C --> D[📊 Overview]
+    C --> D[📊 Cluster]
     D --> E[🚀 New job]
     E --> F[Review script<br/>and Submit]
     F --> G[📋 My Jobs<br/>logs · cancel]
@@ -155,12 +155,12 @@ flowchart LR
    `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
-3. **Look around.** *Overview* shows GPUs by type, *Partitions* and *GPU Nodes* show the details.
-4. **Start a job.** Open **New job**, keep **Script job**, pick a partition (normally **Teaching**) and
-   a GPU type, then set CPUs, RAM and wall time. Give the working directory (relative paths start in
-   your home, e.g. `projects/myrun`) and your script (`train.py`, or a bash script).
+3. **Look around.** **Cluster** shows each partition with its free GPUs; its *Nodes* tab lists every node.
+4. **Start a job.** Open **New job**, click what you want to run (e.g. **Python script**), then
+   **Choose script** on ICF: the job runs in that file's folder. Click a partition (normally
+   **Teaching**) and a GPU type, a time limit, and adjust CPUs and RAM with − / +.
 5. **Review and submit.** The app shows the exact batch script. Tick the notices, click
-   **Submit job…**, then confirm. The job is submitted **exactly once**.
+   **Submit job**, then confirm. The job is submitted **exactly once**.
 6. **Follow it** in **My Jobs**: open the job, load its log, and cancel it if you need to.
 7. **Work on a project.** In **Projects**, open your project folder. Edit files right there, or tick
    *Sign VS Code in through this app* and click *Open in VS Code*. Pick the project's Python

@@ -49,6 +49,8 @@
   --warn: #c93400;
   --bad: #d70015;
   --busy: #8944ab;
+  /* Allocated GPUs (system yellow); bars pair it with numbers, never colour alone. */
+  --alloc: #f2b705;
   --tint: 11%;
   --scrim: rgb(0 0 0 / 40%);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 5%), 0 0 0 0.5px rgb(0 0 0 / 3%);
@@ -95,6 +97,7 @@
     --warn: #ff9f0a;
     --bad: #ff6961;
     --busy: #da8fff;
+    --alloc: #ffd60a;
     --tint: 18%;
     --scrim: rgb(0 0 0 / 58%);
     --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 4%);
@@ -135,6 +138,7 @@
   --warn: #ff9f0a;
   --bad: #ff6961;
   --busy: #da8fff;
+  --alloc: #ffd60a;
   --tint: 18%;
   --scrim: rgb(0 0 0 / 58%);
   --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 4%);

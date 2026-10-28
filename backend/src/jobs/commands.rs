@@ -4,7 +4,7 @@
 
 use super::parse::{resolve_log_path, valid_job_id, JobRow, JobState, LogChunk};
 use super::remote::{self, CancelOutcome, Detail, JobsList, SubmitOutcome};
-use super::request::{checksum, format_time_limit, render_script, validate, Context, Issue, JobRequest};
+use super::request::{checksum, format_time_limit, log_dir, render_script, validate, Context, Issue, JobRequest};
 use super::store::{JobReceipt, ReceiptStatus};
 use crate::commands::{note_remote_error, AppState, ConnState};
 use crate::errors::{AppError, AppResult, ErrorCode};
@@ -138,8 +138,8 @@ pub async fn jobs_preview(state: State<'_, AppState>, request: JobRequest) -> Ap
         acknowledgements: v.acknowledgements,
         snapshot_at: Some(snap.fetched_at.clone()),
         time_limit: format_time_limit(request.time_limit_seconds),
-        stdout_pattern: format!("{}/slurm-%j.out", request.working_dir),
-        stderr_pattern: format!("{}/slurm-%j.err", request.working_dir),
+        stdout_pattern: format!("{}/slurm-%j.out", log_dir(&request.working_dir)),
+        stderr_pattern: format!("{}/slurm-%j.err", log_dir(&request.working_dir)),
         home: c.home,
     })
 }
@@ -201,8 +201,8 @@ pub async fn jobs_submit(
         None => validate(&p.request, &cx),
     };
     let (stdout_pattern, stderr_pattern) = match &p.workflow {
-        Some(w) => (format!("{}/slurm-%j.out", w.config.results_root), format!("{}/slurm-%j.err", w.config.results_root)),
-        None => (format!("{}/slurm-%j.out", p.request.working_dir), format!("{}/slurm-%j.err", p.request.working_dir)),
+        Some(w) => (format!("{}/slurm-%j.out", log_dir(&w.config.project_dir)), format!("{}/slurm-%j.err", log_dir(&w.config.project_dir))),
+        None => (format!("{}/slurm-%j.out", log_dir(&p.request.working_dir)), format!("{}/slurm-%j.err", log_dir(&p.request.working_dir))),
     };
     let mut receipt = JobReceipt {
         tag: p.tag.clone(),
@@ -222,6 +222,7 @@ pub async fn jobs_submit(
         message: None,
         access_denied: false,
         dismissed: false,
+        request: p.workflow.is_none().then(|| p.request.clone()),
     };
     if !super::remote::heredoc_safe(&p.script, &format!("ICFCC_JOB_{}", p.tag)) {
         receipt.status = ReceiptStatus::Rejected;
@@ -508,6 +509,40 @@ pub async fn jobs_cancel(state: State<'_, AppState>, job_id: String, cancel_toke
     let outcome = remote::classify_cancel(session.run_raw(&remote::cancel_script(&job_id, &c.user), COMMAND_TIMEOUT, 64 * 1024).await);
     state.jobs_cache.lock().await.invalidate();
     Ok(outcome)
+}
+
+/// Sends one command block to your running GPU session (ADR-038). The session is found from this
+/// Mac's receipt (its folder), and the block is accepted on ICF only while SLURM reports the job
+/// RUNNING for you. Never retried automatically; returns the block's id, which marks it in the log.
+#[tauri::command]
+pub async fn session_send(state: State<'_, AppState>, job_id: String, commands: String) -> AppResult<String> {
+    if !valid_job_id(&job_id) {
+        return Err(AppError::invalid("Invalid job id."));
+    }
+    let block = commands.replace("\r\n", "\n");
+    if block.trim().is_empty() || !super::request::plain_commands(&block) {
+        return Err(AppError::invalid("Send at least one command, as plain text of at most 16 KB."));
+    }
+    let c = ctx(&state).await?;
+    let wd = state
+        .receipts
+        .lock()
+        .unwrap()
+        .by_job(&c.user, &job_id)
+        .and_then(|r| r.request.clone())
+        .filter(|r| r.runner == super::request::Runner::Session)
+        .map(|r| r.working_dir)
+        .ok_or_else(|| AppError::invalid("This job is not a GPU session started from this Mac."))?;
+    let delim = format!("ICFCC_BLOCK_{}", random_hex(8));
+    if !remote::heredoc_safe(&block, &delim) {
+        return Err(AppError::invalid("A line of these commands would end the block early; change it and send again."));
+    }
+    let session = live(&c, "sending commands")?;
+    let _guard = state.submit_lock.lock().await; // never overlap two mutations
+    let name = format!("{:013}", now_ms());
+    let dir = super::request::session_dir(&wd, &job_id);
+    let out = session.run(&remote::session_send_script(&dir, &job_id, &c.user, &name, &block, &delim), COMMAND_TIMEOUT, 16 * 1024).await?;
+    remote::parse_session_send(&out)
 }
 
 #[tauri::command]

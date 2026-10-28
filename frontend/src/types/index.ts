@@ -270,7 +270,8 @@ export interface JobsResponse {
   requests: number;
 }
 
-export type Runner = 'python' | 'bash';
+/** `commands`: the user's own shell lines, run in the working directory (ADR-034). */
+export type Runner = 'python' | 'bash' | 'commands' | 'session';
 
 export interface JobRequest {
   partition: string;
@@ -288,6 +289,12 @@ export interface JobRequest {
   setupSource: string | null;
   /** SLURM e-mails this address when the job ends or fails. */
   mailUser: string | null;
+  /** Shell lines for runner `commands`; setup lines for `session`; null otherwise. */
+  commands: string | null;
+  /** Runner `session` only: it ends after this many minutes without a command block (5–240). */
+  sessionIdleMinutes?: number | null;
+  /** Nodes SLURM must not use (`--exclude`). */
+  excludeNodes?: string[];
 }
 
 export interface Issue {
@@ -331,6 +338,8 @@ export interface JobReceipt {
   accessDenied: boolean;
   /** Hidden from the list; still counts for what was learned about the partition. */
   dismissed: boolean;
+  /** The reviewed script-job request (absent for workflows and receipts before 0.5.1). */
+  request?: JobRequest | null;
 }
 
 export type SubmitOutcome =
@@ -445,6 +454,14 @@ export interface ProjectRecord {
   toolchainId: string | null;
   partition: string | null;
   gresType: string | null;
+}
+
+/** Job logs in one icfcc-run folder; `old*` are those last changed more than the chosen days ago. */
+export interface LogsSummary {
+  files: number;
+  bytes: number;
+  oldFiles: number;
+  oldBytes: number;
 }
 
 export interface ProjectPrefs {
@@ -614,6 +631,8 @@ export interface WorkflowConfig {
     cpus: number;
     memoryMib: number;
     timeLimitSeconds: number;
+    /** Nodes SLURM must not use (`--exclude`). */
+    excludeNodes?: string[];
   };
   /** SLURM e-mails this address when the job ends or fails. */
   mailUser: string | null;
@@ -687,6 +706,18 @@ export interface Preset {
   user: string;
   config: WorkflowConfig;
   savedAt: string;
+  /** The job type and typed commands; absent in presets saved before 0.5.1. */
+  job?: PresetJob | null;
+}
+
+/** "What do you want to run?" as a preset keeps it; `managed` is Python with managed training. */
+export type PresetChoice = 'python' | 'managed' | 'bash' | 'commands' | 'session' | 'notebook' | 'smoke';
+
+export interface PresetJob {
+  choice: PresetChoice;
+  /** Commands, or a GPU session's setup lines. */
+  commands?: string | null;
+  sessionIdleMinutes?: number | null;
 }
 
 export type WorkflowState =

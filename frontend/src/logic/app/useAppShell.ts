@@ -5,23 +5,15 @@ import { useSnapshot } from '../cluster/useSnapshot';
 import { isLive, useConnection } from '../connection/useConnection';
 import { fileKind } from '../editor/languages';
 import type { JobMode } from '../jobs/newJob';
-import { usePersistentState } from '../persist';
+import type { RunTarget } from '../jobs/jobRequest';
+import { forget, usePersistentState } from '../persist';
 import type { PageGuard } from './guard';
 import { useApplyTheme, type Theme } from '../settings/theme';
 import type { WizardInit } from '../training/wizardDraft';
-import type { Settings } from '../../types';
+import type { JobRequest, Settings } from '../../types';
 
 export type View =
-  | 'overview'
-  | 'partitions'
-  | 'nodes'
-  | 'request'
-  | 'jobs'
-  | 'projects'
-  | 'notebooks'
-  | 'training'
-  | 'transfers'
-  | 'settings';
+  'home' | 'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'training' | 'transfers' | 'settings';
 
 /**
  * App-wide state: connection, settings, the cluster snapshot, which screen and item is open, and
@@ -31,7 +23,11 @@ export type View =
 export function useAppShell() {
   const { status, challenges, setChallenges } = useConnection();
   const [settings, setSettings] = useState<Settings>({ pollIntervalSecs: 60 });
-  const [view, setView] = usePersistentState<View>('view', 'overview');
+  const [savedView, setView] = usePersistentState<View | 'partitions'>('view', 'home');
+  // Partitions became part of Cluster → Overview; a screen remembered from before opens there.
+  const view: View = savedView === 'partitions' ? 'overview' : savedView;
+  // Also after a restart: New job never shows a draft from an earlier session.
+  useState(() => forget('job.draft', 'workflow.draft', 'preset.pending'));
   const [theme, setTheme] = usePersistentState<Theme>('theme', 'system');
   const [partitionFilter, setPartitionFilter] = usePersistentState('nodes.partition', '');
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -80,7 +76,29 @@ export function useAppShell() {
     setSelectedJob(null);
     setRequestPartition(null);
     if (v !== 'training') setSelectedRun(null);
+    // New job opens empty (or from a preset the user loads); switching answers inside it still
+    // carries what was entered, because that only happens while it is open.
+    if (v === 'request' && view !== 'request') forget('job.draft', 'workflow.draft', 'preset.pending');
     setView(v);
+  };
+  /** Projects' Run buttons: New job opens on this folder or file (as a script job). */
+  const [runTarget, setRunTarget] = useState<RunTarget | null>(null);
+  const runOnGpu = (path: string, isDir: boolean, request?: JobRequest) => {
+    setRunTarget((t) => ({
+      path,
+      isDir,
+      key: Math.max(Date.now(), (t?.key ?? 0) + 1),
+      ...(request ? { request } : {}),
+    }));
+    setJobMode('script');
+    go('request');
+  };
+  /** A finished job's "Edit and run again": New job refilled with what was reviewed and submitted. */
+  const runAgain = (request: JobRequest) => runOnGpu(request.workingDir, true, request);
+  /** New job's "What do you want to run?" moved to the other form: it opens from its saved draft. */
+  const switchJobMode = (m: JobMode) => {
+    setWizardInit((w) => ({ init: null, key: w.key + 1 }));
+    setJobMode(m);
   };
   const startTraining = (init: WizardInit) => {
     setWizardInit((w) => ({ init, key: w.key + 1 }));
@@ -162,6 +180,10 @@ export function useAppShell() {
     project,
     setProject,
     jobMode,
+    switchJobMode,
+    runTarget,
+    runOnGpu,
+    runAgain,
     setJobMode,
     wizardInit,
     selectedRun,

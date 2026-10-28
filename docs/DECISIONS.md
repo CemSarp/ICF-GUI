@@ -300,6 +300,130 @@ host-key-changed errors (ADR-003), and a second login.
 - **No trash.** ICF has none, and a copy would fill the quota, so the confirmation says it cannot
   be undone and Cancel has the focus.
 
+## ADR-033 — Rename, Unpack, and fewer screens (Cluster, My Jobs tabs)
+*Status: accepted (unreleased).* The user asked to unpack the archives Transfers makes and to rename
+files and folders, and to simplify My Jobs vs Runs.
+- **Rename.** `files_rename` takes the listed folder, the entry name and kind (as for delete,
+  ADR-032) and a new name with the same strict charset as New folder (jobs need simple paths). On
+  ICF the entry must still be that kind and the new name must be free (a folder of that name is
+  taken too, so nothing is ever moved into it); `mv -n` within the same folder.
+- **Unpack.** `files_unpack` accepts only archive names Rust recognises (`.tar.gz .tgz .tar.bz2
+  .tbz2 .tar.xz .txz .tar .zip`) of a regular file (not a link). It extracts into a hidden
+  `.icfcc-unpack.XXXXXX` folder next to the archive with `tar -xf` (compression auto-detected) or
+  `unzip`; both drop leading `/` and refuse `..` member names. Then: exactly one top folder whose
+  name is free → that folder (what Transfers' *pack a folder* makes); otherwise a folder named after
+  the archive if free; otherwise the extracted copy is removed and the user is told the name is
+  taken. A failed extraction removes everything it wrote. It runs on the login node with a
+  20-minute limit (under the 30-minute idle disconnect); on timeout the user is told a hidden folder
+  may remain. Unpacking on a compute node remains the workflow's job for big datasets.
+- **Runs → My Jobs tab.** The view id `training` is kept (saved navigation and *Monitor this run*
+  still work) but shown as the *Training runs* tab of My Jobs. All jobs links rows to their run
+  from the local run list (`workflow_runs`, no ICF request), so the polling budget is unchanged:
+  the run status read still happens only while the Training runs tab is open.
+- **Overview + Partitions + GPU Nodes → Cluster.** All three rendered the same snapshot: Overview and
+  Partitions both listed partitions with free GPUs, so they merge into Cluster → *Overview* (one
+  partition table; its search/sort/"hide not permitted" filters are dropped, ICF has a handful of
+  partitions and *Not permitted* is a badge). GPU Nodes stays as the *Nodes* tab (view id `nodes`). A
+  remembered `partitions` view is read as `overview`. No change to what is fetched or how often.
+
+## ADR-034 — Terminal commands as a Script job
+*Status: accepted (0.5.1).* The user wanted to run commands such as `make && ./run.sh | tee log` on
+the GPU node without first writing a script file.
+- **What changes.** `Runner::Commands` puts the user's own lines verbatim in the body of the batch
+  script, after the generated `#SBATCH` header, `set -e`, the optional setup file and virtualenv. This
+  is the one place user text is not quoted (request.rs's injection policy). It is acceptable because
+  the text is the user's own program, runs only inside their SLURM allocation with their account, is
+  shown byte-for-byte with its checksum before submission, and never reaches a `#SBATCH` line (SLURM
+  stops reading those at the first command) or the login node's shell: the reviewed script travels to
+  `sbatch` in a quoted here-document whose random delimiter is checked against the script.
+- **Limits.** Plain text only (no control characters or `\r`), at most 16 KB, and no script or
+  arguments alongside. Warnings, not errors, for `$0` (SLURM's spool copy, so `dirname "$0"` is not the
+  project) and for `#SBATCH` lines in the body (ignored). The submit pre-check still requires the
+  working directory to exist inside home and be writable; there is no script file to check.
+- **One New job form.** Script job and training workflow keep their engines (`jobs_preview` /
+  `workflow_preview`), drafts and review flows; the user sees one question, *What do you want to
+  run?*, whose answer picks the form (Notebook, GPU test and *Managed training* Python → workflow;
+  Python, Shell script, Commands → script job). Shared values (partition, GPU, counts, time, job
+  name, folder, file, Python, e-mail) are written into the other form's saved draft before it opens.
+  Only the essentials are visible; the rest sits in folded sections that open when they hold an
+  error. Merging the engines themselves was not needed for a simpler screen.
+- **Pickers.** Working directory, script and "file to run" use the existing home-confined remote
+  browser (read-only). The picker dialog is rendered outside the form so its buttons cannot submit it.
+
+## ADR-035 — Start screen, Run buttons and batch-file import
+*Status: accepted (0.5.1).* The owner, running a CUDA homework, found it unclear how to get from a
+folder of course code to a GPU run.
+- **Start** shows one next step, a milestone checklist and free GPUs. It reads only local data
+  (recent projects, receipts, the local run list, transfers) plus two milestones remembered in
+  localStorage (a log was read, a kernel started), so the polling budget is unchanged.
+- **Run buttons** open New job as a script job on a file or folder. A press is applied once (keyed by
+  time), so reopening New job later never overwrites edits.
+- **`.sbatch` import** reads the file with the existing read-only `files_read` and parses `#SBATCH`
+  lines in the frontend (partition, gres, cpus, mem, time, job name); everything else is listed as
+  not taken over. The body becomes Commands, so the usual review shows exactly what will run.
+  `cd "$SLURM_SUBMIT_DIR"` is dropped because the generated script sets `--chdir`.
+- **Setup lines** are fixed snippets inserted into the user's own Commands text (ADR-034); nothing
+  new reaches a shell outside the reviewed batch script.
+
+## ADR-036 — New job is chosen, not typed; partitions as cards
+*Status: accepted (0.5.1).* The owner found New job still hard: two path fields for one file, a
+different GPU picker per kind of job, hidden name/CPUs/RAM/e-mail, and a separate results folder.
+- **The file decides the folder.** Picking a script, notebook or file sets the working directory /
+  project folder to the file's own folder; the path is shown as a clickable trail, and clicking a
+  folder above runs from there (the file path becomes relative). Paths are chosen, not typed.
+- **Results go next to the code**: `<file's folder>/runs/<job name>-<job id>`. The *Results folder*
+  field is gone; a preset or older draft that named another one is ignored. This changes where runs
+  land for anyone who used a custom results folder.
+- **A `.ipynb` is never run with `python`**: picked as a Python script or run from Projects, it opens
+  as a Notebook job.
+- **One GPU picker** for every kind of job: partition and GPU type as tiles with live free counts,
+  a −/+ GPU count, one-click time limits within the partition maximum, CPUs and RAM steppers and an
+  e-mail switch, always visible. The job name is visible and follows the chosen file until edited;
+  the GPU test is called `gpu-test`.
+- **Presets** can be created, updated, renamed and deleted from both forms (existing
+  `presets_save`/`presets_delete`; no new backend command). A preset is a workflow config; in the
+  script form it carries the GPU, resources, name, e-mail, folder and file, not typed Commands.
+- **Cluster → Overview** drops *GPUs by type*; each partition is a card with a ring of free /
+  allocated / unavailable GPUs (physical only; MIG slices listed apart), its GPU types and actions.
+  Allocated is yellow (`--alloc`), always next to its number.
+
+## ADR-037 — A job's Python environment comes from its folder's project
+*Status: accepted (0.5.1), option A chosen by the owner.* The environment was picked in three places
+(Projects, the Python script field, the training interpreter) and Commands used none, so a value set
+in one place applied unseen in another.
+- **Default:** the environment chosen in Projects for the project that holds the job's folder (the
+  folder itself or its nearest parent project). It is *filled into the form* when the folder changes
+  and the field is empty, so what is sent is what is shown; the card says "From your project …".
+  Training workflows also take the project's CUDA toolchain.
+- **No project, or no environment chosen in it:** nothing is filled; the card says how to set one in
+  Projects. A project interpreter that is not an environment folder in home (e.g. `/usr/bin/python3`)
+  is named and not used.
+- **Clear** empties the field and keeps it empty for that folder; *Choose* picks another one. Presets
+  and *Edit and run again* bring their own value.
+- **Python script** runs `<env>/bin/python`. **Commands** and **GPU session** show a *Python
+  environment* card too: what the typed lines use (an `export PATH="<env>/bin:$PATH"` or
+  `conda activate` line), *Use <project env>* to add that line visibly, and *Remove* to take it out;
+  nothing is added unless clicked. **Shell script** says the script sets up its own environment and
+  names the project's. The backend refuses an environment field with non-Python jobs.
+- New job opens empty each time (or from a loaded preset); switching answers inside it keeps entries.
+
+## ADR-038 — A held GPU session is a batch job with an inbox
+*Status: accepted (0.5.1), not yet tried on ICF.* Course work is edit → build → test many times, and
+each batch job waits in the queue again; `srun --pty bash` avoids that but needs a terminal.
+- **New job → GPU session** submits one ordinary, reviewed batch job (`Runner::Session`): optional
+  setup lines run once (e.g. `conda activate mls-asr`), then a fixed loop runs, oldest first, each
+  block found in `<folder>/icfcc-run/session-<job id>/inbox/`, in a subshell in the folder, stopping
+  at the block's first failing command. Output goes to the normal job log between
+  `@@icfcc-block <id> start` / `end rc=<n>` lines; run blocks move to `done/`.
+- **It releases the GPU by itself**: after 5–240 idle minutes (required, default 30) without a block,
+  at the time limit, or on Cancel job. No heartbeat, no extra polling: the log is the existing
+  follow (10 s, visible only).
+- **Sending** (`session_send`, job-mutations capability) is one press = one block: plain text up to
+  16 KB, from this Mac's receipt only, accepted on ICF only while `squeue` says the job is RUNNING
+  for the user; written beside the inbox and moved in, through a quoted heredoc with a random
+  delimiter (the content is never expanded on the login node). Never retried automatically.
+- Not done: a pseudo-terminal (interactive programs, prompts), several sessions sharing one GPU.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

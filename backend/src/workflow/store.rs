@@ -40,6 +40,9 @@ pub struct WorkflowRun {
     pub finalized: bool,
     #[serde(default)]
     pub dismissed: bool,
+    /// Folder of `slurm-<id>.out/.err`; absent for runs submitted before 0.5.1 (they used `results_root`).
+    #[serde(default)]
+    pub log_dir: Option<String>,
 }
 
 impl WorkflowRun {
@@ -47,7 +50,8 @@ impl WorkflowRun {
         self.job_id.as_deref().map(|id| self.config.run_dir(id))
     }
     pub fn log_path(&self, stream: &str) -> Option<String> {
-        self.job_id.as_deref().map(|id| format!("{}/slurm-{id}.{stream}", self.config.results_root))
+        let dir = self.log_dir.as_deref().unwrap_or(&self.config.results_root);
+        self.job_id.as_deref().map(|id| format!("{dir}/slurm-{id}.{stream}"))
     }
     pub fn state(&self) -> WorkflowState {
         self.observed.state.unwrap_or(match self.submission {

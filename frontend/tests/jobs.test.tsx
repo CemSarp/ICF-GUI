@@ -2,10 +2,17 @@ import { focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JobRequest, PreviewResponse } from '../src/types';
+import type { ConnectionStatus, JobRequest, Preset, PreviewResponse, WorkflowConfig } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
+import { commandsFor, rememberCommands, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
+import { failureHint } from '../src/logic/jobs/jobDetail';
+import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
+import { describeProjectEnv, envDirOf, projectFor } from '../src/logic/jobs/projectEnv';
+import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
+import { annotateScript, problemLines } from '../src/logic/jobs/scriptLines';
+import * as v3 from './v3Fixtures';
 
 const okPreview = (o: Partial<PreviewResponse> = {}): PreviewResponse => ({
   previewId: 'pv1',
@@ -52,7 +59,7 @@ async function reviewAndConfirm() {
   await userEvent.click(await screen.findByRole('button', { name: 'Review script' }));
   await screen.findByRole('heading', { name: 'Review the exact batch script' });
   await userEvent.click(screen.getByLabelText('I understand these notices'));
-  await userEvent.click(screen.getByRole('button', { name: 'Submit job…' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Submit job' }));
   return screen.findByRole('dialog', { name: 'Submit this job to SLURM?' });
 }
 
@@ -61,12 +68,19 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
 
   it('offers live partitions and their GPU types with potential availability', async () => {
     await openWizard();
-    expect(screen.getByLabelText('Partition')).toHaveValue('Teaching');
+    expect(screen.getByRole('radio', { name: 'Teaching' })).toBeChecked();
     const group = screen.getByRole('group', { name: 'GPU type in Teaching' });
     expect(within(group).getByText('RTX A6000')).toBeInTheDocument();
-    expect(within(group).getAllByText(/○ \d+ free/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/potentially free at .*not a reservation/)).toBeInTheDocument();
+    expect(within(group).getAllByText(/of \d+ free/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Free counts from .*not a reservation/)).toBeInTheDocument();
     expect(within(group).getByText(/48 GB VRAM/)).toBeInTheDocument();
+    // Time limits are one click, within the partition's maximum.
+    await userEvent.click(screen.getByRole('button', { name: '30 min' }));
+    expect(screen.getByLabelText('Hours')).toHaveValue(0);
+    expect(screen.getByLabelText('Minutes')).toHaveValue(30);
+    expect(screen.getByRole('button', { name: '30 min' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'More CPUs' }));
+    expect(screen.getByLabelText('CPUs')).toHaveValue(5);
   });
 
   it('shows validation errors next to fields and does not reach review', async () => {
@@ -102,9 +116,9 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     await openWizard();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
     expect(await screen.findByLabelText('Batch script')).toHaveTextContent('#SBATCH --partition=Teaching');
-    expect(screen.getByRole('button', { name: 'Submit job…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit job' })).toBeDisabled();
     await userEvent.click(screen.getByLabelText('I understand these notices'));
-    await userEvent.click(screen.getByRole('button', { name: 'Submit job…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit job' }));
     const dialog = await screen.findByRole('dialog', { name: 'Submit this job to SLURM?' });
     const btn = within(dialog).getByRole('button', { name: 'Submit to SLURM' });
     await userEvent.dblClick(btn);
@@ -222,35 +236,48 @@ describe('GPU request wizard (V2-AC01, AC02, AC08)', () => {
     await openWizard();
     expect(screen.getByText(/submission is disabled/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
-    expect(await screen.findByRole('button', { name: 'Submit job…' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Submit job' })).toBeDisabled();
   });
 });
 
 describe('New job: one screen for script jobs and training workflows', () => {
   beforeEach(() => backend.reset(connectedLive, { jobs_preview: () => okPreview() }));
 
-  it('switches between the two forms without losing either draft or submitting anything', async () => {
+  it('asks one question first and carries what was entered when the answer needs the other form', async () => {
     await openWizard();
+    // Only the essentials are open; the rest is folded under More options. Name, CPUs, RAM and e-mail show.
+    expect(screen.getByText('More options').closest('details')).not.toHaveAttribute('open');
+    for (const shown of ['CPUs', 'RAM (GB)', 'E-mail me when the job ends or fails'])
+      expect(screen.getByLabelText(shown).closest('details')).toBeNull();
     const name = screen.getByLabelText('Job name');
     await userEvent.clear(name);
     await userEvent.type(name, 'mine');
-    await userEvent.click(screen.getByLabelText('Training workflow'));
-    await screen.findByRole('heading', { name: 'Workflow' });
+    await userEvent.click(
+      screen.getByLabelText(/Managed training: stage datasets to fast scratch, keep checkpoints and copy results back/),
+    );
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine');
     expect(screen.queryByRole('button', { name: 'Review script' })).toBeNull();
-    await userEvent.click(screen.getByLabelText('Script job'));
-    expect(await screen.findByLabelText('Job name')).toHaveValue('mine');
-    expect(screen.queryByRole('heading', { name: 'Workflow' })).toBeNull();
+    await userEvent.click(screen.getByLabelText('Shell script'));
+    expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Shell script')).toBeChecked();
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine');
+    // The GPU test is started from Projects (a check of an environment), not offered as a job type.
+    expect(screen.queryByLabelText('GPU test')).toBeNull();
+    await userEvent.click(screen.getByLabelText('Notebook'));
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('mine'); // a name the user chose is kept
     expect(backend.count('jobs_submit')).toBe(0);
   });
 
   it('opens the script form with the partition chosen from a partition card', async () => {
     await openWizard();
-    await userEvent.click(screen.getByLabelText('Training workflow'));
-    await userEvent.click(screen.getByRole('button', { name: 'Partitions' }));
+    await userEvent.click(screen.getByLabelText('Notebook'));
+    await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
     await userEvent.click(await screen.findByRole('button', { name: 'New job on Interactive' }));
     await screen.findByRole('heading', { name: 'New job' });
-    expect(screen.getByLabelText('Script job')).toBeChecked();
-    expect(screen.getByLabelText('Partition')).toHaveValue('Interactive'); // not the default (Teaching)
+    expect(await screen.findByRole('button', { name: 'Review script' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Interactive' })).toBeChecked(); // not the default (Teaching)
   });
 });
 
@@ -295,7 +322,7 @@ describe('My Jobs, details, cancel and logs (V2-AC04..AC07)', () => {
     });
     await openJobs();
     await userEvent.click(await screen.findByRole('button', { name: '4242' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel job' }));
     expect(backend.count('jobs_cancel')).toBe(0);
     const dialog = screen.getByRole('dialog', { name: 'Cancel job 4242?' });
     expect(within(dialog).getByText('semeval-train')).toBeInTheDocument();
@@ -316,7 +343,7 @@ describe('My Jobs, details, cancel and logs (V2-AC04..AC07)', () => {
     await openJobs();
     await userEvent.click(await screen.findByRole('button', { name: '4242' }));
     expect(await screen.findByText(/belongs to another user/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cancel job…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel job' })).not.toBeInTheDocument();
   });
 
   it('logs load incrementally, handle rotation and missing files', async () => {
@@ -408,21 +435,394 @@ describe('V2 polish: receipts, learned partitions, working dir', () => {
     expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
   });
 
-  it('marks a partition that rejected you and sends relative working dirs inside home', async () => {
+  it('marks a partition that rejected you and resolves relative working dirs inside home', async () => {
     await openWizard();
-    const sel = screen.getByLabelText('Partition');
-    expect(within(sel).getByRole('option', { name: /ICF-Free.*rejected you before/ })).toBeInTheDocument();
-    const wd = screen.getByLabelText('Working directory');
-    await userEvent.clear(wd);
-    await userEvent.type(wd, 'projects/semeval');
+    expect(screen.getByRole('radio', { name: 'ICF-Free' }).closest('label')).toHaveTextContent(
+      'Rejected your last job',
+    );
+    // Relative folders (from presets and older drafts) start in the home folder.
+    expect(resolveWorkingDir('projects/semeval', '/home/s1')).toBe('/home/s1/projects/semeval');
+    expect(resolveWorkingDir('~/p/', '/home/s1')).toBe('/home/s1/p');
+  });
+});
+
+/** Signed in as the user whose home the project fixtures live in. */
+const asFixtureUser: ConnectionStatus = {
+  ...connectedLive,
+  capabilities: { ...connectedLive.capabilities!, remoteUser: 's1234567', home: v3.HOME },
+};
+
+describe('Script job: pick files on ICF, or run terminal commands', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  async function chooseInPicker(dialogName: string, folders: string[], file: string) {
+    const dialog = await screen.findByRole('dialog', { name: dialogName });
+    for (const f of folders) await userEvent.click(await within(dialog).findByRole('button', { name: f }));
+    const row = (await within(dialog).findByText(file)).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
+  }
+
+  it('runs a picked script in its own folder, named after it, and can run it from a folder above', async () => {
+    backend.handlers.jobs_preview = () => okPreview();
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    const card = screen.getByRole('group', { name: 'Script' });
+    expect(within(card).getByText('train.py')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('train');
+    expect(backend.count('jobs_preview')).toBe(0); // the picker never submits the form
+    await userEvent.click(within(card).getByRole('button', { name: 'projects' }));
+    expect(within(card).getByText('semeval/train.py')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
-    await waitFor(() =>
-      expect(
-        backend.count(
-          'jobs_preview',
-          (a) => (a.request as { workingDir: string }).workingDir === '/home/s1/projects/semeval',
-        ),
-      ).toBe(1),
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).toMatchObject({
+      runner: 'python',
+      workingDir: `${v3.HOME}/projects`,
+      program: 'semeval/train.py',
+      jobName: 'train',
+    });
+  });
+
+  it('runs a notebook picked as a Python script as a Notebook', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'explore.ipynb');
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(screen.getByLabelText('Job name')).toHaveValue('explore');
+  });
+
+  it('uses the Python environment of the project the file is in, and Clear keeps it empty (ADR-037)', async () => {
+    backend.reset(asFixtureUser, { jobs_preview: () => okPreview() });
+    backend.handlers.jobs_preview = () => okPreview();
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    const env = await screen.findByRole('group', { name: 'Python environment' });
+    expect(await within(env).findByText('~/projects/icf-env')).toBeInTheDocument();
+    expect(screen.getByText('From your project ~/projects/semeval.')).toBeInTheDocument();
+    await userEvent.click(within(env).getByRole('button', { name: 'Clear' }));
+    expect(within(env).getByText('None: python3 of the GPU node')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }));
+    await chooseInPicker('Choose the script', [], 'train.py'); // same folder again: stays cleared
+    expect(
+      within(screen.getByRole('group', { name: 'Python environment' })).getByText('None: python3 of the GPU node'),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect((backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).pythonEnv).toBeNull();
+  });
+
+  it('shows the environment Commands use, offers the project one, and removes it again', async () => {
+    backend.reset(asFixtureUser, { jobs_preview: () => okPreview() });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
+    await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
+    const card = () => screen.getByRole('group', { name: 'Python environment' });
+    expect(within(card()).getByText("None: the node's python3, unless your lines activate one")).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Use icf-env' }));
+    const box = screen.getByLabelText('Commands to run');
+    expect(box).toHaveValue(
+      `export PATH="${v3.HOME}/projects/icf-env/bin:$PATH"\nnvcc -O2 -o kernel kernel.cu\n./kernel`,
+    );
+    expect(within(card()).getByText('~/projects/icf-env')).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Remove' }));
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    // A conda environment typed with + Conda environment is recognised too.
+    await userEvent.click(screen.getByRole('button', { name: '+ Conda environment' }));
+    await userEvent.type(screen.getByLabelText('Conda environment name'), 'mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(within(card()).getByText('mls-asr')).toBeInTheDocument();
+    await userEvent.click(within(card()).getByRole('button', { name: 'Remove' }));
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+  });
+
+  it('without a project for the folder, no environment is filled and Projects is suggested', async () => {
+    backend.handlers.projects_recent = () => [];
+    await openWizard();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    await chooseInPicker('Choose the script', ['projects', 'semeval'], 'train.py');
+    const env = screen.getByRole('group', { name: 'Python environment' });
+    expect(within(env).getByText('None: python3 of the GPU node')).toBeInTheDocument();
+    expect(screen.getByText(/open this folder in Projects and choose its Python environment/)).toBeInTheDocument();
+  });
+
+  it('runs terminal commands in the folder of a chosen file, with no script or arguments', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.queryByRole('group', { name: 'Script' })).toBeNull();
+    expect(screen.queryByLabelText('Arguments (optional, one per line)')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a file' }));
+    await chooseInPicker('Choose the file to run', ['projects', 'semeval'], 'kernel.cu');
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    const box = screen.getByLabelText('Commands to run');
+    expect(box).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    await userEvent.type(box, '{Enter}nvidia-smi -L');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).toMatchObject({
+      runner: 'commands',
+      workingDir: v3.PROJECT,
+      program: '',
+      programArgs: [],
+      commands: 'nvcc -O2 -o kernel kernel.cu\n./kernel\nnvidia-smi -L',
+    });
+  });
+
+  it('suggests a command per file type, a job name per file, and clickable folders', () => {
+    expect(commandsFor('train.py')).toBe('python train.py');
+    expect(commandsFor('run.sh')).toBe('bash run.sh');
+    expect(commandsFor('main.cpp')).toBe('g++ -O2 -o main main.cpp\n./main');
+    expect(commandsFor("my k'1.cu")).toBe(`nvcc -O2 -o 'my k'\\''1' 'my k'\\''1.cu'\n./'my k'\\''1'`);
+    expect(splitPath('/home/s1/q/a.py')).toEqual({ dir: '/home/s1/q', name: 'a.py' });
+    expect(autoJobName('/x/run_asr.sbatch')).toBe('run_asr');
+    expect(autoJobName('my model (v2).py')).toBe('my-model-v2-');
+    expect(autoJobName('.hidden')).toBe('job');
+    expect(replaceableName('gpu-test', '')).toBe(true);
+    expect(replaceableName('train', 'a.py')).toBe(true);
+    expect(replaceableName('a', 'a.py')).toBe(true);
+    expect(replaceableName('mine', 'a.py')).toBe(false);
+    expect(crumbs('/home/s1/p/q', '/home/s1')).toEqual([
+      ['~', '/home/s1'],
+      ['p', '/home/s1/p'],
+      ['q', '/home/s1/p/q'],
+    ]);
+    expect(crumbs('/opt/x', '/home/s1')).toEqual([
+      ['/', '/'],
+      ['opt', '/opt'],
+      ['x', '/opt/x'],
+    ]);
+    expect(timePresets(3600).map((t) => t.label)).toEqual(['10 min', '30 min', '1 h']);
+    expect(timePresets(null)).toHaveLength(8);
+  });
+});
+
+describe('New job starts empty', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('does not bring back earlier entries when it is opened again', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'make test1');
+    const name = screen.getByLabelText('Job name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'old-name');
+    await userEvent.click(screen.getByLabelText('Notebook')); // switching inside New job keeps entries
+    expect(screen.getByLabelText('Job name')).toHaveValue('old-name');
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Python script')).toBeChecked();
+    expect(screen.getByLabelText('Job name')).toHaveValue('job');
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('');
+  });
+});
+
+describe('Recent commands', () => {
+  it('offers submitted Commands blocks back, newest first, without filling them in', async () => {
+    backend.reset(connectedLive, {
+      jobs_preview: () => okPreview(),
+      jobs_submit: () => ({
+        outcome: 'accepted',
+        jobId: '4242',
+        cluster: null,
+        receipt: { ...receipt, status: 'accepted', jobId: '4242' },
+      }),
+    });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.queryByText(/Recent commands/)).toBeNull();
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'conda activate mls-asr{Enter}make test1');
+    const dialog = await reviewAndConfirm();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit to SLURM' }));
+    expect(await screen.findByText('Job 4242')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(''); // New job still opens empty
+    await userEvent.click(screen.getByText('Recent commands (1)'));
+    await userEvent.click(screen.getByRole('button', { name: 'Use: make test1' }));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('conda activate mls-asr\nmake test1');
+  });
+
+  it('keeps each block once, newest first, at most eight', () => {
+    let l: string[] = [];
+    for (const c of ['a', 'b', 'a', '  ', ...'cdefghij']) l = rememberCommands(l, c);
+    expect(l).toEqual(['j', 'i', 'h', 'g', 'f', 'e', 'd', 'c']);
+    expect(rememberCommands(['b', 'a'], 'a')).toEqual(['a', 'b']);
+  });
+});
+
+describe('GPU session (ADR-038)', () => {
+  const sessionRequest = (): JobRequest => ({
+    partition: 'Teaching',
+    gresType: null,
+    gpuCount: 1,
+    cpus: 4,
+    memoryMib: 16384,
+    timeLimitSeconds: 4 * 3600,
+    jobName: 'session',
+    workingDir: '/home/s1/hw1-asr',
+    runner: 'session',
+    program: '',
+    programArgs: [],
+    pythonEnv: null,
+    setupSource: null,
+    mailUser: null,
+    commands: 'conda activate mls-asr',
+    sessionIdleMinutes: 30,
+  });
+
+  it('is requested with setup lines and an idle limit, and no script', async () => {
+    backend.reset(connectedLive, { jobs_preview: () => okPreview() });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('GPU session'));
+    expect(screen.queryByRole('button', { name: 'Choose a file' })).toBeNull();
+    await userEvent.type(screen.getByLabelText('Setup lines (run once, optional)'), 'conda activate mls-asr');
+    expect(screen.getByLabelText('End after this many idle minutes')).toHaveValue(30);
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request).toMatchObject({
+      runner: 'session',
+      program: '',
+      programArgs: [],
+      commands: 'conda activate mls-asr',
+      sessionIdleMinutes: 30,
+      pythonEnv: null,
+    });
+  });
+
+  it("sends command blocks from the running job's page, one per press", async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({}),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request: sessionRequest() },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+      session_send: () => '1793212345678',
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    const box = await screen.findByLabelText('Commands to send');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await userEvent.type(box, 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText(/Sent: block 1793212345678/)).toBeInTheDocument();
+    expect(backend.calls.filter((c) => c.cmd === 'session_send').map((c) => c.args)).toEqual([
+      { jobId: '4242', commands: 'make test1' },
+    ]);
+    expect(box).toHaveValue('');
+  });
+
+  it('offers no command box while the session is queued', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({ state: 'pending', stateRaw: 'PENDING' }),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request: sessionRequest() },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    expect(await screen.findByText(/Commands can be sent while the session is Running/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Commands to send')).toBeNull();
+  });
+});
+
+describe('Edit and run again', () => {
+  it('refills New job with the request a finished job was submitted with', async () => {
+    const request: JobRequest = {
+      partition: 'Teaching',
+      gresType: 'nvidia_geforce_rtx_2080_ti',
+      gpuCount: 1,
+      cpus: 2,
+      memoryMib: 16384,
+      timeLimitSeconds: 5400,
+      jobName: 'hw1-test',
+      workingDir: '/home/s1/hw1-asr',
+      runner: 'commands',
+      program: '',
+      programArgs: [],
+      pythonEnv: null,
+      setupSource: null,
+      mailUser: null,
+      commands: 'make test1 && ./run.sh --cuda task1',
+    };
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({}),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: { ...receipt, jobId: '4242', status: 'accepted', request },
+        fetchedAt: '2026-10-16T14:00:00Z',
+      }),
+      jobs_preview: () => okPreview(),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit and run again' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(request.commands);
+    expect(screen.getByLabelText('Job name')).toHaveValue('hw1-test');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await screen.findByRole('heading', { name: 'Review the exact batch script' });
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')?.args.request).toEqual(request);
+    expect(backend.count('jobs_submit')).toBe(0);
+  });
+});
+
+describe('Python environment only for Python jobs', () => {
+  it('does not send a hidden saved environment with Commands or Shell script', () => {
+    const d = {
+      partition: 'Teaching',
+      gres: '',
+      gpuCount: 1,
+      cpus: 2,
+      memoryGb: 16,
+      hours: 1,
+      minutes: 0,
+      jobName: 'hw1',
+      workingDir: '/home/u/hw1',
+      runner: 'commands' as const,
+      program: '',
+      commands: 'make test1',
+      sessionIdle: 30,
+      args: '',
+      pythonEnv: '/home/u/projects/icf-env',
+      setupSource: '',
+      mail: false,
+      mailUser: '',
+    };
+    expect(toRequest(d, '/home/u').pythonEnv).toBeNull();
+    expect(toRequest({ ...d, runner: 'bash', program: 'run.sh' }, '/home/u').pythonEnv).toBeNull();
+    expect(toRequest({ ...d, runner: 'python', program: 'x.py' }, '/home/u').pythonEnv).toBe(
+      '/home/u/projects/icf-env',
     );
   });
 });
@@ -436,5 +836,316 @@ describe('My Jobs history order', () => {
       { jobId: '3682083', endedAt: '2026-10-20T02:40:00' },
     ];
     expect(newestFirst(jobs).map((j) => j.jobId)).toEqual(['3683913', '3682083', '3682082', '3678745']);
+  });
+});
+
+describe('Batch files and setup lines (course .sbatch files)', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  it('takes over the resources and commands of a picked .sbatch file', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Shell script'));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose script' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the script' });
+    for (const f of ['projects', 'semeval'])
+      await userEvent.click(await within(dialog).findByRole('button', { name: f }));
+    const row = (await within(dialog).findByText('run_asr.sbatch')).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Choose' }));
+    expect(await screen.findByText('Settings and commands taken from run_asr.sbatch')).toBeInTheDocument();
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(
+      'export PATH=/opt/cuda-12.8.0/bin:$PATH\nsource "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\n\nhostname\nnvidia-smi -L\nmake test\n./run.sh --profile',
+    );
+    expect(screen.getByText(/--output is not used/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Teaching' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'RTX A6000 48 GB' })).toBeChecked();
+    expect(screen.getByLabelText('Minutes')).toHaveValue(30);
+    expect(screen.getByLabelText('CPUs')).toHaveValue(2);
+    expect(screen.getByLabelText('Job name')).toHaveValue('run_asr');
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(backend.count('jobs_preview')).toBe(0);
+  });
+
+  it('adds setup lines once, before the commands', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    const box = screen.getByLabelText('Commands to run');
+    await userEvent.clear(box);
+    await userEvent.type(box, 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: '+ CUDA 12.8' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ CUDA 12.8' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ Conda environment' }));
+    await userEvent.type(screen.getByLabelText('Conda environment name'), 'mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(box).toHaveValue(
+      'source "${CONDA_BASE:-$HOME/miniconda3}/etc/profile.d/conda.sh"\nconda activate mls-asr\nexport PATH=/opt/cuda-12.8.0/bin:$PATH\nmake test1',
+    );
+  });
+
+  it('reads SLURM times, memory and GPU requests', () => {
+    expect(parseTime('30')).toEqual({ hours: 0, minutes: 30 });
+    expect(parseTime('01:00:00')).toEqual({ hours: 1, minutes: 0 });
+    expect(parseTime('1-02:30')).toEqual({ hours: 26, minutes: 30 });
+    expect(parseTime('0:90')).toEqual({ hours: 0, minutes: 2 });
+    expect(parseTime('soon')).toBeNull();
+    const s = parseSbatch(
+      '#!/bin/bash\n#SBATCH --gres=gpu:1\n#SBATCH --mem=16000M\n#SBATCH --account=x\necho hi\n#SBATCH -p Late\n',
+    );
+    expect(s?.settings).toEqual({ gpuCount: 1, memoryGb: 16 });
+    expect(s?.commands).toBe('echo hi\n#SBATCH -p Late'); // after the first command SLURM ignores #SBATCH
+    expect(s?.notes.join(' ')).toMatch(/--account=x is not taken over/);
+    expect(parseSbatch('echo no header')).toBeNull();
+  });
+});
+
+describe('Run buttons in Projects', () => {
+  beforeEach(() => backend.reset(connectedLive));
+
+  async function openProjectFiles() {
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'Projects' }));
+    await userEvent.click(await screen.findByText(v3.PROJECT, { selector: 'span' }));
+    await screen.findByRole('button', { name: 'Run kernel.cu on a GPU' });
+  }
+
+  it('opens New job with a .cu file ready as commands in its folder, and only for runnable files', async () => {
+    await openProjectFiles();
+    expect(screen.queryByRole('button', { name: 'Run requirements.txt on a GPU' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Run kernel.cu on a GPU' }));
+    expect(await screen.findByRole('heading', { name: 'New job' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('nvcc -O2 -o kernel kernel.cu\n./kernel');
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+  });
+
+  it('takes a project .sbatch file with its settings, and a folder as the working directory', async () => {
+    await openProjectFiles();
+    await userEvent.click(screen.getByRole('button', { name: 'Run run_asr.sbatch on a GPU' }));
+    expect(await screen.findByText('Settings and commands taken from run_asr.sbatch')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Run on a GPU/ }));
+    expect(await screen.findByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+    expect(backend.count('jobs_submit')).toBe(0);
+  });
+
+  it('runs a notebook from its Run button as a Notebook job in its folder', async () => {
+    await openProjectFiles();
+    await userEvent.click(screen.getByRole('button', { name: 'Run explore.ipynb on a GPU' }));
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    expect(within(screen.getByRole('group', { name: 'Notebook' })).getByText('explore.ipynb')).toBeInTheDocument();
+    expect(screen.getByTitle(`Runs in ${v3.PROJECT}`)).toBeInTheDocument();
+  });
+});
+
+describe('Project environment helpers (ADR-037)', () => {
+  const p = v3.project();
+  it('finds the project holding a folder, nearest first', () => {
+    const inner = v3.project({ path: `${v3.PROJECT}/sub`, interpreter: null });
+    expect(projectFor(`${v3.PROJECT}/data`, [p, inner])?.path).toBe(v3.PROJECT);
+    expect(projectFor(`${v3.PROJECT}/sub/x`, [p, inner])?.path).toBe(`${v3.PROJECT}/sub`);
+    expect(projectFor(`${v3.PROJECT}-other`, [p])).toBeNull(); // a sibling with a common prefix is not inside
+    expect(projectFor('', [p])).toBeNull();
+  });
+  it('uses only environment folders in home', () => {
+    expect(envDirOf('/home/u/miniconda3/envs/mls-asr/bin/python', '/home/u')).toBe('/home/u/miniconda3/envs/mls-asr');
+    expect(envDirOf('/home/u/env/bin/python3.11', '/home/u')).toBe('/home/u/env');
+    expect(envDirOf('/usr/bin/python3', '/home/u')).toBeNull();
+    expect(envDirOf(null, '/home/u')).toBeNull();
+  });
+  it('tells the four cases apart', () => {
+    const h = v3.HOME;
+    expect(describeProjectEnv(`${h}/elsewhere`, [p], h).kind).toBe('none');
+    expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: null })], h).kind).toBe('unset');
+    expect(describeProjectEnv(v3.PROJECT, [v3.project({ interpreter: '/usr/bin/python3' })], h).kind).toBe('unusable');
+    expect(describeProjectEnv(v3.PROJECT, [p], h)).toMatchObject({ kind: 'env', dir: `${h}/projects/icf-env` });
+  });
+});
+
+describe('What to read first', () => {
+  it('pulls failures and errors of a log to the top, each once', () => {
+    const log = [
+      'nvcc -O3 ...',
+      'rmsnorm, one short row               FAIL  max_err=2.06e+00',
+      'csrc/task2.cu(12): error: identifier "x" is undefined',
+      'Traceback (most recent call last):',
+      'Task 2 (reductions): SOME CASES FAILED',
+      'rmsnorm, one short row               FAIL  max_err=2.06e+00',
+      '@@icfcc-block 0000000000002 end rc=2',
+      '@@icfcc-block 0000000000003 end rc=0',
+      'Task 1 (RoPE): ALL PASS',
+    ].join('\n');
+    expect(problemLines(log).map((p) => p.n)).toEqual([2, 3, 4, 5, 7]);
+  });
+
+  it('shows them above the log', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_log_tail: () => ({
+        path: '/home/s1/p/icfcc-run/slurm-4242.out',
+        size: 40,
+        from: 0,
+        next: 40,
+        rotated: false,
+        text: 'build ok\ntiny 3 x 5   FAIL  max_err=1.1e-01\n',
+      }),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Load log' }));
+    const box = await screen.findByRole('region', { name: 'Lines to look at' });
+    expect(box).toHaveTextContent('2 tiny 3 x 5 FAIL max_err=1.1e-01');
+    expect(box).not.toHaveTextContent('build ok');
+  });
+
+  it('marks what the app added in the reviewed script apart from the lines you typed', async () => {
+    const lines = annotateScript(
+      "#!/bin/bash\n#SBATCH --partition=Teaching\nset -e\nsource '/home/s1/icf-env/bin/activate'\nmake test1\n",
+      'make test1',
+    );
+    expect(lines.map((l) => l.kind)).toEqual(['slurm', 'slurm', 'app', 'app', 'yours', 'slurm']);
+
+    backend.reset(connectedLive, {
+      jobs_preview: () => okPreview({ script: '#!/bin/bash\nset -e\nexport PATH=/x/bin:"$PATH"\nmake test1\n' }),
+    });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    const script = await screen.findByLabelText('Batch script');
+    expect(script).toHaveTextContent('export PATH=/x/bin:"$PATH" make test1'); // still the exact text
+    expect(within(script).getByText('make test1')).toHaveClass('line-yours');
+    expect(within(script).getByText('export PATH=/x/bin:"$PATH"')).toHaveClass('line-app');
+  });
+});
+
+describe('Presets keep the job type and commands', () => {
+  let saved: Preset[] = [];
+  beforeEach(() => {
+    saved = [];
+    backend.reset(connectedLive, {
+      presets_list: () => saved,
+      presets_save: (a) => {
+        const id = (a.id as string | null) ?? `p${saved.length + 1}`;
+        saved = [
+          ...saved.filter((x) => x.id !== id),
+          {
+            id,
+            label: a.label as string,
+            profileId: 'default',
+            user: 's1',
+            config: a.config as WorkflowConfig,
+            savedAt: new Date().toISOString(),
+            job: a.job as Preset['job'],
+          },
+        ];
+        return saved;
+      },
+    });
+  });
+
+  it('saves Commands with its lines, and choosing it brings both back', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'conda activate mls-asr{Enter}make test1');
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'hw1 task1{Enter}');
+    await waitFor(() =>
+      expect(saved[0]?.job).toEqual({ choice: 'commands', commands: 'conda activate mls-asr\nmake test1' }),
+    );
+    // New job opens empty; the preset brings the job type and the lines back.
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByLabelText('Python script')).toBeChecked();
+    await userEvent.selectOptions(await screen.findByLabelText('Preset'), 'hw1 task1');
+    expect(screen.getByLabelText('Commands')).toBeChecked();
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('conda activate mls-asr\nmake test1');
+  });
+
+  it('a GPU session preset keeps its setup lines and idle minutes', async () => {
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('GPU session'));
+    await userEvent.type(screen.getByLabelText('Setup lines (run once, optional)'), 'conda activate mls-asr');
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'hw1 session{Enter}');
+    await waitFor(() =>
+      expect(saved[0]?.job).toEqual({ choice: 'session', commands: 'conda activate mls-asr', sessionIdleMinutes: 30 }),
+    );
+  });
+
+  it('a preset of the other form switches to it and loads there', async () => {
+    await openWizard();
+    // Saved from the Notebook (workflow) form…
+    await userEvent.click(screen.getByLabelText('Notebook'));
+    await screen.findByRole('button', { name: 'Review workflow' });
+    await userEvent.click(screen.getByRole('button', { name: 'New preset' }));
+    await userEvent.type(screen.getByLabelText('Preset name'), 'nb{Enter}');
+    await waitFor(() => expect(saved[0]?.job).toEqual({ choice: 'notebook' }));
+    // …chosen in the script form, it opens the Notebook form with the preset loaded.
+    await userEvent.click(screen.getByRole('radio', { name: 'Shell script' }));
+    await screen.findByRole('button', { name: 'Review script' });
+    await userEvent.selectOptions(screen.getByLabelText('Preset'), 'nb');
+    expect(await screen.findByRole('button', { name: 'Review workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Notebook' })).toBeChecked();
+    await waitFor(() => expect(screen.getByLabelText('Preset')).toHaveDisplayValue('nb'));
+  });
+});
+
+describe('Failure hints read SLURM exit codes', () => {
+  it('tells a signal apart from an exit code', () => {
+    const f = (exitCode: string, elapsed = '00:01:00') => failureHint(jobRow({ state: 'failed', exitCode, elapsed }));
+    expect(f('0:53', '00:00:00')).toMatch(/stopped the job before it could run \(signal 53\), so no log was written/);
+    expect(f('0:9')).toMatch(/stopped by signal 9/);
+    expect(f('1:0')).toBe('The program exited with an error (exit code 1). Check the standard error log.');
+  });
+});
+
+describe('Avoid nodes', () => {
+  it('a job SLURM stopped before it ran offers to avoid its node, and new jobs then exclude it', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({ state: 'failed', stateRaw: 'FAILED', exitCode: '0:53', elapsed: '00:00:00', nodes: 'damnii11' }),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: null,
+        fetchedAt: '2026-10-28T20:00:00Z',
+      }),
+      jobs_preview: () => okPreview(),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    expect(await screen.findByText(/node damnii11 could not start jobs/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Avoid damnii11 in new jobs' }));
+    expect(screen.getByText('New jobs avoid damnii11.')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByRole('button', { name: 'Stop avoiding damnii11' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect((backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).excludeNodes).toEqual([
+      'damnii11',
+    ]);
+  });
+
+  it('is typed or removed in the form; only plain node names are accepted', async () => {
+    backend.reset(connectedLive, { jobs_preview: () => okPreview() });
+    await openWizard();
+    const box = screen.getByLabelText('Avoid nodes');
+    await userEvent.type(box, 'damnii10 damnii11');
+    expect(screen.getByRole('button', { name: 'Avoid' })).toBeDisabled();
+    await userEvent.clear(box);
+    await userEvent.type(box, 'landonia03{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Stop avoiding landonia03' }));
+    expect(screen.getByText('None: SLURM may use any node.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request).not.toHaveProperty('excludeNodes');
   });
 });

@@ -1,11 +1,28 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Badge, Dialog, EmptyState, Icon, Notice, NumberInput } from '../components/ui';
-import { bytes, formatTime, nominalVram } from '../../logic/format';
+import { bytes, formatDuration } from '../../logic/format';
+import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
 import { useTrainingWizard } from '../../logic/training/useTrainingWizard';
 import { expandHome, importCounts, isArchiveName, type Draft, type WizardInit } from '../../logic/training/wizardDraft';
-import type { CheckpointMode, ClusterSnapshot, ConnectionStatus, ImportResult, Issue } from '../../types';
-import { MailOption } from '../jobs/RequestGpuView';
+import type { CheckpointMode, ClusterSnapshot, ConnectionStatus, ImportResult } from '../../types';
+import { Field as JobField, FieldError, GpuPicker, PathCard, PresetBar, ProjectEnvNote } from '../jobs/JobParts';
 import { PickRemote } from '../projects/RemoteBrowser';
+import { RunChoice } from '../jobs/RunChoice';
+
+/** Fields in each folded section: a section opens by itself when one of its fields has a problem. */
+const DATA_FIELDS = ['datasets', 'scratchRoot', 'expectedOutputGib'];
+const CHECKPOINT_FIELDS = ['checkpointMode', 'checkpointSyncMinutes', 'resumeFrom'];
+const MORE_FIELDS = ['toolchain', 'args', 'hfCache', 'env', 'signalGraceSeconds'];
+
+const CHECKPOINTS: { mode: CheckpointMode; label: string; help: string }[] = [
+  {
+    mode: 'scratch_sync',
+    label: 'Synced',
+    help: 'Written to fast scratch and copied to /home regularly. Recommended.',
+  },
+  { mode: 'direct', label: 'Straight to /home', help: 'Safe at once, but slower and more load on the file server.' },
+  { mode: 'none', label: 'At the end', help: 'Copied back only when the job ends: lost if the node fails.' },
+];
 
 const IMPORT_BADGE = {
   ok: { tone: 'ok', glyph: '✓' },
@@ -53,33 +70,8 @@ function Resolved({ value, home }: { value: string; home: string }) {
   );
 }
 
-function Field({
-  label,
-  field,
-  issues,
-  help,
-  children,
-}: {
-  label: string;
-  field: string;
-  issues: Issue[];
-  help?: ReactNode;
-  children: ReactNode;
-}) {
-  const mine = issues.filter((i) => i.field === field);
-  return (
-    <div className={`field${mine.length ? ' invalid' : ''}`}>
-      <label htmlFor={`w-${field}`}>{label}</label>
-      {children}
-      {help && <small className="muted">{help}</small>}
-      {mine.length > 0 && (
-        <span className="field-error" role="alert">
-          {mine.map((i) => i.message).join(' ')}
-        </span>
-      )}
-    </div>
-  );
-}
+/** Same fields as the script job form, with `w-` ids. */
+const Field = (props: Omit<Parameters<typeof JobField>[0], 'prefix'>) => <JobField prefix="w" {...props} />;
 
 export function TrainingWizard({
   status,
@@ -87,22 +79,33 @@ export function TrainingWizard({
   init,
   onOpenRun,
   onRefreshCluster,
+  onSwitch,
 }: {
   status: ConnectionStatus;
   snapshot: ClusterSnapshot | null;
   init: WizardInit | null;
   onOpenRun: (tag: string) => void;
   onRefreshCluster: () => void;
+  /** "What do you want to run?" picked something the script job form handles. */
+  onSwitch: (m: JobMode) => void;
 }) {
   const {
     draft,
     set,
+    patch,
+    projectEnv,
+    avoid,
+    choice,
+    choose,
+    pickEntry,
+    entryAbs,
+    runFrom,
+    pickEnv,
     presets,
     tcList,
     home,
     project,
     partition,
-    gpuTypes,
     gres,
     effective,
     maxGpus,
@@ -118,8 +121,6 @@ export function TrainingWizard({
     setResult,
     reconcileMsg,
     upload,
-    presetLabel,
-    setPresetLabel,
     envCheck,
     interpreter,
     checkModules,
@@ -134,9 +135,7 @@ export function TrainingWizard({
     setDataset,
     removeDataset,
     addDataset,
-    loadPreset,
-    savePreset,
-  } = useTrainingWizard(status, snapshot, init);
+  } = useTrainingWizard(status, snapshot, init, onSwitch);
   const [picker, setPicker] = useState<null | {
     kind: 'dir' | 'file';
     title: string;
@@ -144,6 +143,11 @@ export function TrainingWizard({
     onPick: (p: string) => void;
     archives?: boolean;
   }>(null);
+
+  const openFor = (fields: string[]) => issues.some((i) => fields.includes(i.field ?? ''));
+  const smoke = draft.kind === 'gpu_smoke_test';
+  const notebook = draft.kind === 'notebook';
+  const gpuName = partition?.gpuTotals.find((t) => t.gresName === gres)?.modelLabel ?? 'GPU';
 
   if (!snapshot) {
     return (
@@ -154,6 +158,9 @@ export function TrainingWizard({
         </button>
       </EmptyState>
     );
+  }
+  if (!partition) {
+    return <EmptyState title="No partitions available">Refresh the cluster data first.</EmptyState>;
   }
   if (status.demo) {
     return (
@@ -178,7 +185,7 @@ export function TrainingWizard({
               SLURM queued the workflow. It runs on a compute node; this app only monitors it (closing the app does not
               stop it). Results go to{' '}
               <code>
-                {resultsRoot()}/{effective.jobName}-{result.jobId}
+                {resultsRoot}/{effective.jobName}-{result.jobId}
               </code>
               .
             </p>
@@ -251,476 +258,443 @@ export function TrainingWizard({
 
       {!preview ? (
         <form
-          className="card"
+          className="job-form"
           onSubmit={(e) => {
             e.preventDefault();
             void review();
           }}
           noValidate
         >
-          <div className="card-head">
-            <h2>Workflow</h2>
-            {(presets?.length ?? 0) > 0 && (
-              <label className="field inline">
-                <span>Load preset</span>
-                <select value="" onChange={(e) => loadPreset(e.target.value)}>
-                  <option value="">Choose…</option>
-                  {presets?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-          <fieldset className="segmented">
-            <legend>Type</legend>
-            {(
-              [
-                ['train', 'Training script (sbatch)'],
-                ['notebook', 'Notebook, batch execution'],
-                ['gpu_smoke_test', 'GPU smoke test'],
-              ] as const
-            ).map(([k, label]) => (
-              <label key={k}>
-                <input type="radio" name="kind" checked={draft.kind === k} onChange={() => set('kind', k)} />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          {draft.kind === 'gpu_smoke_test' && (
-            <Notice tone="info">
-              Runs a fixed check on the allocated GPU node: Python and PyTorch versions,{' '}
-              <code>torch.cuda.is_available()</code>, the GPU model and one tiny matrix multiply. No benchmark; it also
-              exercises scratch staging and result copy-back.
-            </Notice>
-          )}
-          {draft.kind === 'notebook' && (
-            <Notice tone="info">
-              The notebook is executed top to bottom on the compute node with <code>nbconvert</code> (must be installed
-              in the environment) and the executed copy is saved with the results. To run cells one at a time instead,
-              open the notebook in the Notebooks tab and start an interactive kernel.
-            </Notice>
-          )}
+          <section className="card form-card">
+            <PresetBar presets={presets} />
+            <RunChoice value={choice} managed onChange={(c, m) => choose(c, m, onSwitch)} />
+          </section>
 
-          <h3>Project and program</h3>
-          <div className="grid-2">
-            <Field label="Project folder on ICF" field="projectDir" issues={issues}>
-              <div className="input-row">
+          <section className="card form-card">
+            <h3>{smoke ? 'Where to keep the results' : notebook ? 'Notebook' : 'Script'}</h3>
+            {smoke ? (
+              <PathCard
+                icon="folder"
+                label="Folder"
+                title={project ? (project === home ? '~' : splitPath(project).name) : ''}
+                empty="No folder chosen yet"
+                folder={project || undefined}
+                home={home}
+              >
+                <button
+                  type="button"
+                  className={project ? 'btn' : 'btn primary'}
+                  onClick={() =>
+                    setPicker({
+                      kind: 'dir',
+                      title: 'Choose the folder for the results',
+                      start: project || null,
+                      onPick: (p) => set('projectDir', p),
+                    })
+                  }
+                >
+                  {project ? 'Change' : 'Choose folder'}
+                </button>
+              </PathCard>
+            ) : (
+              <PathCard
+                icon={notebook ? 'notebook' : 'file'}
+                label={notebook ? 'Notebook' : 'Script'}
+                title={
+                  entryAbs ? (entryAbs.startsWith(`${project}/`) ? entryAbs.slice(project.length + 1) : entryAbs) : ''
+                }
+                empty={notebook ? 'No notebook chosen yet' : 'No script chosen yet'}
+                folder={project || undefined}
+                home={home}
+                onRunFrom={runFrom}
+              >
+                {entryAbs && (
+                  <button type="button" className="btn ghost" onClick={() => set('entry', '')}>
+                    Remove
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={entryAbs ? 'btn' : 'btn primary'}
+                  onClick={() =>
+                    setPicker({
+                      kind: 'file',
+                      title: notebook ? 'Choose the notebook' : 'Choose the script',
+                      start: project || null,
+                      onPick: pickEntry,
+                    })
+                  }
+                >
+                  {entryAbs ? 'Change' : notebook ? 'Choose notebook' : 'Choose script'}
+                </button>
+              </PathCard>
+            )}
+            <FieldError issues={issues} field="projectDir" />
+            <FieldError issues={issues} field="entry" />
+            <FieldError issues={issues} field="resultsRoot" />
+            {project && (
+              <p className="muted small">
+                Results{draft.kind === 'train' ? ' and checkpoints' : ''} go to{' '}
+                <code>
+                  {tilde(resultsRoot, home)}/{effective.jobName || '<job name>'}-&lt;job id&gt;
+                </code>
+                , next to your code.
+              </p>
+            )}
+            <div className="grid-2">
+              <Field label="Job name" field="jobName" issues={issues} help="Shown in My Jobs. Letters, digits, . _ -">
                 <input
-                  id="w-projectDir"
-                  className="mono"
-                  value={draft.projectDir}
-                  onChange={(e) => set('projectDir', e.target.value)}
+                  id="w-jobName"
+                  value={draft.jobName}
+                  onChange={(e) => set('jobName', e.target.value)}
                   autoCapitalize="off"
                   spellCheck={false}
                 />
+              </Field>
+            </div>
+            <PathCard
+              icon="layers"
+              label="Python environment"
+              title={draft.interpreter.trim() ? tilde(interpreter, home) : ''}
+              empty="Not chosen yet: choose your virtualenv or conda environment"
+              home={home}
+            >
+              <button
+                type="button"
+                className={draft.interpreter.trim() ? 'btn' : 'btn primary'}
+                onClick={() =>
+                  setPicker({
+                    kind: 'dir',
+                    title: 'Choose the Python environment folder',
+                    start: draft.interpreter.trim() ? interpreter.replace(/\/bin\/python[\d.]*$/, '') : null,
+                    onPick: pickEnv,
+                  })
+                }
+              >
+                {draft.interpreter.trim() ? 'Change' : 'Choose'}
+              </button>
+            </PathCard>
+            <ProjectEnvNote env={projectEnv.env} fromProject={projectEnv.fromProject(draft.interpreter)} home={home} />
+            <FieldError issues={issues} field="interpreter" />
+          </section>
+
+          <GpuPicker
+            snapshot={snapshot}
+            partition={partition}
+            gres={gres}
+            draft={draft}
+            maxGpus={maxGpus}
+            issues={issues}
+            patch={patch}
+            prefix="w"
+            avoid={avoid}
+          />
+
+          {draft.kind === 'train' && (
+            <details className="card fold-section" open={!!draft.resumeFrom || openFor(CHECKPOINT_FIELDS)}>
+              <summary>Checkpoints</summary>
+              <p className="muted small">
+                Write checkpoints to <code>$ICFCC_CHECKPOINT_DIR</code> and results to <code>$ICFCC_OUTPUT_DIR</code>.
+                They are copied back at the end, on failure, on cancellation and before the time limit; nothing can be
+                copied from a node that has failed.
+              </p>
+              <div className="field">
+                <span id="w-checkpoint-label">Keep checkpoints</span>
+                <div className="segmented choice" role="radiogroup" aria-labelledby="w-checkpoint-label">
+                  {CHECKPOINTS.map((c) => (
+                    <label key={c.mode}>
+                      <input
+                        type="radio"
+                        name="w-checkpointMode"
+                        checked={draft.checkpointMode === c.mode}
+                        onChange={() => set('checkpointMode', c.mode)}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+                <small className="muted">{CHECKPOINTS.find((c) => c.mode === draft.checkpointMode)?.help}</small>
+                <FieldError issues={issues} field="checkpointMode" />
+              </div>
+              {draft.checkpointMode === 'scratch_sync' && (
+                <Field label="Copy to /home every (minutes)" field="checkpointSyncMinutes" issues={issues}>
+                  <NumberInput
+                    id="w-checkpointSyncMinutes"
+                    className="short"
+                    min={5}
+                    max={720}
+                    value={draft.checkpointSyncMinutes}
+                    onChange={(n) => set('checkpointSyncMinutes', n)}
+                  />
+                </Field>
+              )}
+              <PathCard
+                icon="refresh"
+                label="Resume from a checkpoint"
+                title={draft.resumeFrom.trim() ? tilde(expandHome(draft.resumeFrom, home), home) : ''}
+                empty="Start fresh"
+                home={home}
+              >
+                {draft.resumeFrom.trim() && (
+                  <button type="button" className="btn ghost" onClick={() => set('resumeFrom', '')}>
+                    Clear
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn"
                   onClick={() =>
                     setPicker({
                       kind: 'dir',
-                      title: 'Choose the project folder',
-                      start: project || null,
-                      onPick: (p) => set('projectDir', p),
+                      title: 'Choose the checkpoint folder',
+                      start: project ? `${project}/runs` : null,
+                      onPick: (p) => set('resumeFrom', p),
                     })
                   }
                 >
-                  Choose…
+                  Choose
                 </button>
-              </div>
-              <Resolved value={draft.projectDir} home={home} />
-            </Field>
-            <Field label="Job name" field="jobName" issues={issues} help="Letters, digits, . _ -">
-              <input
-                id="w-jobName"
-                value={draft.jobName}
-                onChange={(e) => set('jobName', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-              />
-            </Field>
-          </div>
-          {draft.kind !== 'gpu_smoke_test' && (
-            <Field
-              label={
-                draft.kind === 'notebook'
-                  ? 'Notebook (.ipynb, relative to the project)'
-                  : 'Script (relative to the project)'
-              }
-              field="entry"
-              issues={issues}
-            >
-              <input
-                id="w-entry"
-                className="mono"
-                value={draft.entry}
-                onChange={(e) => set('entry', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-              />
-            </Field>
-          )}
-          {draft.kind === 'train' && (
-            <Field
-              label="Arguments (one per line)"
-              field="args"
-              issues={issues}
-              help={
-                <>
-                  Passed literally. Placeholders: <code>{'{data}'}</code> <code>{'{outputs}'}</code>{' '}
-                  <code>{'{checkpoints}'}</code> <code>{'{scratch}'}</code> <code>{'{run_dir}'}</code>{' '}
-                  <code>{'{resume}'}</code> (also available as $ICFCC_DATA_DIR etc.)
-                </>
-              }
-            >
-              <textarea
-                id="w-args"
-                rows={3}
-                className="mono"
-                value={draft.args}
-                onChange={(e) => set('args', e.target.value)}
-                spellCheck={false}
-              />
-            </Field>
-          )}
-          <div className="grid-2">
-            <Field
-              label="Python interpreter on ICF"
-              field="interpreter"
-              issues={issues}
-              help="Full path or ~/…, e.g. ~/projects/icf-env/bin/python — or choose one in Projects → Python environment"
-            >
-              <input
-                id="w-interpreter"
-                className="mono"
-                value={draft.interpreter}
-                onChange={(e) => set('interpreter', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-              />
-              <Resolved value={draft.interpreter} home={home} />
-            </Field>
-            <Field
-              label="CUDA toolchain"
-              field="toolchain"
-              issues={issues}
-              help="Sourced in the job only if it exists then; never installed or upgraded"
-            >
-              <select id="w-toolchain" value={draft.toolchainId} onChange={(e) => set('toolchainId', e.target.value)}>
-                <option value="">None (virtualenv only)</option>
-                {tcList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field
-            label="Modules to check"
-            field="checkModules"
-            issues={[]}
-            help="Imports each one with this Python on the login node, without the CUDA toolchain. Read-only; nothing is installed."
-          >
-            <div className="input-row">
-              <input
-                id="w-checkModules"
-                className="mono"
-                value={checkModules}
-                onChange={(e) => set('checkModules', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-              />
-              <button type="button" className="btn" disabled={checking || !interpreter} onClick={() => void checkEnv()}>
-                {checking ? 'Checking…' : 'Check environment'}
-              </button>
-            </div>
-          </Field>
-          {envCheck?.interpreter === interpreter && envCheck.error && <Notice tone="bad">{envCheck.error}</Notice>}
-          {envCheck?.interpreter === interpreter && envCheck.results && (
-            <ImportReport interpreter={interpreter} results={envCheck.results} />
+              </PathCard>
+              <small className="muted">Your program gets it as $ICFCC_RESUME_FROM and {'{resume}'}.</small>
+              <FieldError issues={issues} field="resumeFrom" />
+            </details>
           )}
 
-          <h3>Data and scratch</h3>
-          <p className="muted small">
-            Archives are copied from /home (NFS) to a private folder on the compute node's local disk, checked (no
-            absolute or <code>..</code> paths, no links leaving the folder, no devices, no archive bombs) and only then
-            unpacked. The scratch folder exists only inside the job and is deleted when it ends.
-          </p>
-          <Field label="Dataset archives" field="datasets" issues={issues}>
-            <div className="dataset-list">
-              {draft.datasets.map((d, i) => (
-                <div key={i}>
-                  <div className="input-row">
-                    <input
-                      aria-label={`Archive ${i + 1}`}
-                      className="mono"
-                      value={d.archive}
-                      onChange={(e) => setDataset(i, { archive: e.target.value })}
-                    />
-                    <span className="muted">→ data/</span>
-                    <input
-                      aria-label={`Folder name for archive ${i + 1}`}
-                      className="mono short"
-                      value={d.into}
-                      onChange={(e) => setDataset(i, { into: e.target.value })}
-                    />
+          {!smoke && (
+            <details className="card fold-section" open={openFor(DATA_FIELDS)}>
+              <summary>Datasets{draft.datasets.length > 0 ? ` (${draft.datasets.length})` : ''}</summary>
+              <p className="muted small">
+                Archives are copied to a private folder on the GPU node&apos;s fast local disk, checked (no absolute or{' '}
+                <code>..</code> paths, no links leaving the folder, no devices, no archive bombs) and only then unpacked
+                into <code>data/</code>. The folder exists only while the job runs.
+              </p>
+              <Field label="Dataset archives" field="datasets" issues={issues}>
+                <div className="dataset-list">
+                  {draft.datasets.map((d, i) => (
+                    <div key={i}>
+                      <div className="input-row">
+                        <input
+                          aria-label={`Archive ${i + 1}`}
+                          className="mono"
+                          value={d.archive}
+                          onChange={(e) => setDataset(i, { archive: e.target.value })}
+                        />
+                        <span className="muted">→ data/</span>
+                        <input
+                          aria-label={`Folder name for archive ${i + 1}`}
+                          className="mono short"
+                          value={d.into}
+                          onChange={(e) => setDataset(i, { into: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="btn ghost icon-btn"
+                          aria-label={`Remove archive ${i + 1}`}
+                          onClick={() => removeDataset(i)}
+                        >
+                          <Icon name="close" size={14} />
+                        </button>
+                      </div>
+                      <Resolved value={d.archive} home={home} />
+                    </div>
+                  ))}
+                  <div className="actions start">
                     <button
                       type="button"
-                      className="btn ghost icon-btn"
-                      aria-label={`Remove archive ${i + 1}`}
-                      onClick={() => removeDataset(i)}
+                      className="btn"
+                      disabled={draft.datasets.length >= 4}
+                      onClick={() =>
+                        setPicker({
+                          kind: 'file',
+                          archives: true,
+                          title: 'Choose a dataset archive on ICF',
+                          start: project || null,
+                          onPick: addDataset,
+                        })
+                      }
                     >
-                      <Icon name="close" size={14} />
+                      Add archive on ICF
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={!project || phase === 'UPLOADING' || draft.datasets.length >= 4}
+                      onClick={() => void uploadArchive()}
+                    >
+                      Upload an archive from this Mac
                     </button>
                   </div>
-                  <Resolved value={d.archive} home={home} />
                 </div>
-              ))}
-              <div className="actions start">
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={draft.datasets.length >= 4}
-                  onClick={() =>
-                    setPicker({
-                      kind: 'file',
-                      archives: true,
-                      title: 'Choose a dataset archive on ICF',
-                      start: project || null,
-                      onPick: addDataset,
-                    })
-                  }
-                >
-                  Add archive on ICF…
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!project || phase === 'UPLOADING' || draft.datasets.length >= 4}
-                  onClick={() => void uploadArchive()}
-                >
-                  Upload an archive from this Mac…
-                </button>
-              </div>
-            </div>
-          </Field>
-          <div className="grid-2">
-            <Field label="Scratch location" field="scratchRoot" issues={issues}>
-              <select
-                id="w-scratchRoot"
-                value={draft.scratchRoot}
-                onChange={(e) => set('scratchRoot', e.target.value as Draft['scratchRoot'])}
-              >
-                <option value="disk_scratch">/disk/scratch/&lt;you&gt;/… (ICF node-local disk)</option>
-                <option value="slurm_tmpdir">$SLURM_TMPDIR (if the site provides it)</option>
-              </select>
-            </Field>
-            <Field
-              label="Space to reserve for outputs (GB)"
-              field="expectedOutputGib"
-              issues={issues}
-              help="Staging fails early if the node's scratch disk cannot hold data plus this"
-            >
-              <NumberInput
-                id="w-expectedOutputGib"
-                min={0}
-                value={draft.expectedOutputGib}
-                onChange={(n) => set('expectedOutputGib', n)}
-              />
-            </Field>
-          </div>
-          <div className="grid-2">
-            <Field label="Hugging Face cache" field="hfCache" issues={issues}>
-              <select
-                id="w-hfCache"
-                value={draft.hfMode}
-                onChange={(e) => set('hfMode', e.target.value as Draft['hfMode'])}
-              >
-                <option value="scratch">On scratch (fast; downloads again each job)</option>
-                <option value="home">Persistent folder in /home (download once; NFS)</option>
-                <option value="staged">Stage a packed cache archive to scratch</option>
-                <option value="off">Leave HF variables alone</option>
-              </select>
-            </Field>
-            {draft.hfMode === 'home' && (
-              <Field label="HF_HOME folder" field="hfCache" issues={[]}>
-                <input
-                  className="mono"
-                  value={draft.hfPath}
-                  onChange={(e) => set('hfPath', e.target.value)}
-                  placeholder={`${project}/hf-cache`}
-                />
-                <Resolved value={draft.hfPath} home={home} />
               </Field>
-            )}
-            {draft.hfMode === 'staged' && (
-              <Field label="Cache archive" field="hfCache" issues={[]}>
-                <input className="mono" value={draft.hfArchive} onChange={(e) => set('hfArchive', e.target.value)} />
-                <Resolved value={draft.hfArchive} home={home} />
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={draft.hfOffline}
-                    onChange={(e) => set('hfOffline', e.target.checked)}
+              <div className="grid-2">
+                <Field label="Scratch location" field="scratchRoot" issues={issues}>
+                  <select
+                    id="w-scratchRoot"
+                    value={draft.scratchRoot}
+                    onChange={(e) => set('scratchRoot', e.target.value as Draft['scratchRoot'])}
+                  >
+                    <option value="disk_scratch">/disk/scratch/&lt;you&gt;/… (ICF node-local disk)</option>
+                    <option value="slurm_tmpdir">$SLURM_TMPDIR (if the site provides it)</option>
+                  </select>
+                </Field>
+                <Field
+                  label="Space to reserve for outputs (GB)"
+                  field="expectedOutputGib"
+                  issues={issues}
+                  help="Staging fails early if the node's scratch disk cannot hold data plus this"
+                >
+                  <NumberInput
+                    id="w-expectedOutputGib"
+                    min={0}
+                    value={draft.expectedOutputGib}
+                    onChange={(n) => set('expectedOutputGib', n)}
                   />
-                  Offline mode (no downloads)
-                </label>
-              </Field>
-            )}
-          </div>
+                </Field>
+              </div>
+            </details>
+          )}
 
-          <h3>Results and checkpoints</h3>
-          <div className="grid-2">
-            <Field
-              label="Results folder"
-              field="resultsRoot"
-              issues={issues}
-              help={`Each run gets <folder>/<job name>-<job id>; default ${project || '<project>'}/runs`}
-            >
-              <input
-                id="w-resultsRoot"
-                className="mono"
-                value={draft.resultsRoot}
-                placeholder={project ? `${project}/runs` : ''}
-                onChange={(e) => set('resultsRoot', e.target.value)}
-              />
-              <Resolved value={draft.resultsRoot} home={home} />
-            </Field>
-            <Field label="Checkpoints" field="checkpointMode" issues={issues}>
-              <select
-                id="w-checkpointMode"
-                value={draft.checkpointMode}
-                onChange={(e) => set('checkpointMode', e.target.value as CheckpointMode)}
+          <details className="card fold-section" open={openFor(MORE_FIELDS)}>
+            <summary>More options</summary>
+            {draft.kind === 'train' && (
+              <Field
+                label="Arguments (one per line)"
+                field="args"
+                issues={issues}
+                help={
+                  <>
+                    Passed literally. Placeholders: <code>{'{data}'}</code> <code>{'{outputs}'}</code>{' '}
+                    <code>{'{checkpoints}'}</code> <code>{'{scratch}'}</code> <code>{'{run_dir}'}</code>{' '}
+                    <code>{'{resume}'}</code> (also available as $ICFCC_DATA_DIR etc.)
+                  </>
+                }
               >
-                <option value="scratch_sync">Scratch, copied to /home periodically (recommended)</option>
-                <option value="direct">Directly in /home (durable at once, more NFS load)</option>
-                <option value="none">Scratch only, copied at the end (lost if the node fails)</option>
-              </select>
-            </Field>
-          </div>
-          <div className="grid-4">
-            {draft.checkpointMode === 'scratch_sync' && (
-              <Field label="Sync every (minutes)" field="checkpointSyncMinutes" issues={issues}>
-                <NumberInput
-                  id="w-checkpointSyncMinutes"
-                  min={5}
-                  max={720}
-                  value={draft.checkpointSyncMinutes}
-                  onChange={(n) => set('checkpointSyncMinutes', n)}
+                <textarea
+                  id="w-args"
+                  rows={3}
+                  className="mono"
+                  value={draft.args}
+                  onChange={(e) => set('args', e.target.value)}
+                  spellCheck={false}
                 />
               </Field>
             )}
-            <Field
-              label="Copy-back warning (s)"
-              field="signalGraceSeconds"
-              issues={issues}
-              help="SIGTERM to your program this long before the time limit"
-            >
-              <NumberInput
-                id="w-signalGraceSeconds"
-                min={60}
-                max={1800}
-                value={draft.signalGraceSeconds}
-                onChange={(n) => set('signalGraceSeconds', n)}
-              />
-            </Field>
-          </div>
-          <Field
-            label="Resume from checkpoint (optional)"
-            field="resumeFrom"
-            issues={issues}
-            help="Exported as $ICFCC_RESUME_FROM and {resume}"
-          >
-            <input
-              id="w-resumeFrom"
-              className="mono"
-              value={draft.resumeFrom}
-              onChange={(e) => set('resumeFrom', e.target.value)}
-            />
-            <Resolved value={draft.resumeFrom} home={home} />
-          </Field>
-          <Notice tone="info">
-            Checkpoints and outputs survive only if they reach /home: the job copies them back at the end, on failure,
-            on cancellation and before the time limit, but nothing can be copied from a node that has failed. Write
-            checkpoints to <code>$ICFCC_CHECKPOINT_DIR</code> and results to <code>$ICFCC_OUTPUT_DIR</code>.
-          </Notice>
-          <Field label="Environment variables (NAME=value per line)" field="env" issues={issues}>
-            <textarea
-              id="w-env"
-              rows={2}
-              className="mono"
-              value={draft.env}
-              onChange={(e) => set('env', e.target.value)}
-              spellCheck={false}
-            />
-          </Field>
-
-          <h3>GPU resources</h3>
-          <div className="grid-2">
-            <Field label="Partition" field="partition" issues={issues}>
-              <select id="w-partition" value={partition?.name ?? ''} onChange={(e) => set('partition', e.target.value)}>
-                {snapshot.partitions.map((p) => (
-                  <option key={p.name} value={p.name} disabled={p.eligibility === 'not_permitted'}>
-                    {p.name}
-                    {p.isDefault ? ' (default)' : ''}
-                    {p.eligibility === 'not_permitted' ? ' — not permitted' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="GPU type"
-              field="gresType"
-              issues={issues}
-              help={`Potentially free at ${formatTime(snapshot.fetchedAt)}; not a reservation`}
-            >
-              <select id="w-gresType" value={gres} onChange={(e) => set('gres', e.target.value)}>
-                {gpuTypes.map((t) => (
-                  <option key={t.gresName} value={t.gresName}>
-                    {t.modelLabel}
-                    {nominalVram(t.gresName) ? ` (${nominalVram(t.gresName)})` : ''} — {t.potentiallyFree} free /{' '}
-                    {t.configured}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <div className="grid-4">
-            <Field label="GPUs" field="gpuCount" issues={issues} help={`Max ${maxGpus} on one node`}>
-              <NumberInput
-                id="w-gpuCount"
-                min={1}
-                max={maxGpus}
-                value={draft.gpuCount}
-                onChange={(n) => set('gpuCount', n)}
-              />
-            </Field>
-            <Field label="CPUs" field="cpus" issues={issues}>
-              <NumberInput id="w-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
-            </Field>
-            <Field label="RAM (GB)" field="memoryMib" issues={issues}>
-              <NumberInput id="w-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
-            </Field>
-            <Field label="Wall time" field="timeLimitSeconds" issues={issues}>
-              <div className="input-row" id="w-timeLimitSeconds">
-                <NumberInput aria-label="Hours" min={0} value={draft.hours} onChange={(n) => set('hours', n)} />
-                <span className="muted">h</span>
+            <div className="grid-2">
+              <Field
+                label="CUDA toolchain"
+                field="toolchain"
+                issues={issues}
+                help="Sourced in the job only if it exists then; never installed or upgraded"
+              >
+                <select id="w-toolchain" value={draft.toolchainId} onChange={(e) => set('toolchainId', e.target.value)}>
+                  <option value="">None (virtualenv only)</option>
+                  {tcList.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Stop warning before the time limit (s)"
+                field="signalGraceSeconds"
+                issues={issues}
+                help="Your program gets SIGTERM this long before the limit, to save and copy back"
+              >
                 <NumberInput
-                  aria-label="Minutes"
-                  min={0}
-                  max={59}
-                  value={draft.minutes}
-                  onChange={(n) => set('minutes', n)}
+                  id="w-signalGraceSeconds"
+                  min={60}
+                  max={1800}
+                  value={draft.signalGraceSeconds}
+                  onChange={(n) => set('signalGraceSeconds', n)}
                 />
-                <span className="muted">m</span>
+              </Field>
+            </div>
+            <Field
+              label="Modules to check"
+              field="checkModules"
+              issues={[]}
+              help="Imports each one with this Python on the login node, without the CUDA toolchain. Read-only; nothing is installed."
+            >
+              <div className="input-row">
+                <input
+                  id="w-checkModules"
+                  className="mono"
+                  value={checkModules}
+                  onChange={(e) => set('checkModules', e.target.value)}
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={checking || !interpreter}
+                  onClick={() => void checkEnv()}
+                >
+                  {checking ? 'Checking…' : 'Check environment'}
+                </button>
               </div>
             </Field>
-          </div>
-          <MailOption draft={draft} issues={issues} set={set} id="w-mailUser" />
+            {envCheck?.interpreter === interpreter && envCheck.error && <Notice tone="bad">{envCheck.error}</Notice>}
+            {envCheck?.interpreter === interpreter && envCheck.results && (
+              <ImportReport interpreter={interpreter} results={envCheck.results} />
+            )}
+            {!smoke && (
+              <div className="grid-2">
+                <Field label="Hugging Face cache" field="hfCache" issues={issues}>
+                  <select
+                    id="w-hfCache"
+                    value={draft.hfMode}
+                    onChange={(e) => set('hfMode', e.target.value as Draft['hfMode'])}
+                  >
+                    <option value="scratch">On scratch (fast; downloads again each job)</option>
+                    <option value="home">Persistent folder in /home (download once; NFS)</option>
+                    <option value="staged">Stage a packed cache archive to scratch</option>
+                    <option value="off">Leave HF variables alone</option>
+                  </select>
+                </Field>
+                {draft.hfMode === 'home' && (
+                  <Field label="HF_HOME folder" field="hfCache" issues={[]}>
+                    <input
+                      className="mono"
+                      value={draft.hfPath}
+                      onChange={(e) => set('hfPath', e.target.value)}
+                      placeholder={`${project}/hf-cache`}
+                    />
+                    <Resolved value={draft.hfPath} home={home} />
+                  </Field>
+                )}
+                {draft.hfMode === 'staged' && (
+                  <Field label="Cache archive" field="hfCache" issues={[]}>
+                    <input
+                      className="mono"
+                      value={draft.hfArchive}
+                      onChange={(e) => set('hfArchive', e.target.value)}
+                    />
+                    <Resolved value={draft.hfArchive} home={home} />
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={draft.hfOffline}
+                        onChange={(e) => set('hfOffline', e.target.checked)}
+                      />
+                      Offline mode (no downloads)
+                    </label>
+                  </Field>
+                )}
+              </div>
+            )}
+            <Field label="Environment variables (NAME=value per line)" field="env" issues={issues}>
+              <textarea
+                id="w-env"
+                rows={2}
+                className="mono"
+                value={draft.env}
+                onChange={(e) => set('env', e.target.value)}
+                spellCheck={false}
+              />
+            </Field>
+          </details>
           {issues.some((i) => !i.field) && (
             <Notice tone="bad">
               {issues
@@ -729,28 +703,13 @@ export function TrainingWizard({
                 .join(' ')}
             </Notice>
           )}
-          <div className="actions">
-            <div className="input-row">
-              <label className="sr-only" htmlFor="preset-label">
-                Preset name
-              </label>
-              <input
-                id="preset-label"
-                placeholder="Preset name"
-                value={presetLabel}
-                onChange={(e) => setPresetLabel(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn ghost"
-                disabled={!presetLabel.trim()}
-                onClick={() => void savePreset()}
-              >
-                Save as preset
-              </button>
-            </div>
-            <span className="spacer" />
+          <div className="actions submit-bar">
+            <span className="muted small">
+              {draft.gpuCount} × {gpuName} · {formatDuration(draft.hours * 3600 + draft.minutes * 60, '')} ·{' '}
+              {draft.cpus} CPUs · {draft.memoryGb} GB RAM
+            </span>
             <button type="submit" className="btn primary" disabled={phase !== 'DRAFT' || !gres}>
+              <Icon name="play" />
               {phase === 'VALIDATING' ? 'Checking…' : 'Review workflow'}
             </button>
           </div>
@@ -810,7 +769,7 @@ export function TrainingWizard({
               onClick={() => setConfirming(true)}
               disabled={preview.acknowledgements.length > 0 && !ack}
             >
-              Submit workflow…
+              Submit workflow
             </button>
           </div>
         </section>

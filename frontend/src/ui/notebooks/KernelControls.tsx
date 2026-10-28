@@ -28,7 +28,7 @@ export function KernelControls({ kernel, onStart }: { kernel: Kernel; onStart: (
             s.phase === 'ended' ? s.message : undefined,
           )}
           <button className="btn small primary" onClick={onStart}>
-            <Icon name="play" size={12} /> Start kernel…
+            <Icon name="play" size={12} /> Start kernel
           </button>
         </>
       );

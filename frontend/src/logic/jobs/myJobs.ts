@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import type { ConnectionStatus } from '../../types';
+import { useLocalRuns } from '../training/runs';
 import { useJobs } from './useJobs';
 
 /** Most recently ended first. Times are sortable cluster-local ISO strings; job IDs break ties. */
@@ -28,6 +29,9 @@ export function useMyJobs(status: ConnectionStatus) {
       .then(() => qc.invalidateQueries({ queryKey: ['receipts'] }))
       .catch(() => undefined);
   const unresolved = shown.filter((r) => r.status === 'uncertain' || r.status === 'submitting').slice(0, 5);
+  const runs = useLocalRuns(status).data ?? [];
+  /** The training run a job belongs to, if it was submitted as one from this Mac. */
+  const runOf = (jobId: string) => runs.find((r) => r.jobId === jobId) ?? null;
 
-  return { jobs, list, err, shown, unresolved, dismiss, reconcile };
+  return { jobs, list, err, shown, unresolved, dismiss, reconcile, runOf };
 }

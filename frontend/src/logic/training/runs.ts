@@ -52,6 +52,10 @@ export function timelineProgress(r: WorkflowRun) {
 /** `<results>/<name>-<jobid>` once the scheduler gave the run a job id. */
 export const runDirOf = (run: WorkflowRun) => (run.jobId ? `${run.config.resultsRoot}/${run.name}-${run.jobId}` : null);
 
+/** This Mac's runs as last recorded, read locally (no ICF request): links job rows to their run. */
+export const useLocalRuns = (s: ConnectionStatus) =>
+  useQuery({ queryKey: ['runs-local', s.profileId, s.connectedAt], queryFn: api.workflowRuns, retry: false });
+
 /**
  * Runs from this Mac, reconciled with SLURM. Polls every 60 s only while this screen is visible
  * and some run is still active; the backend single-flights and rate-limits regardless.

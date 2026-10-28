@@ -4,6 +4,19 @@ import { api, errorMessage } from '../api';
 import { maxGpusFor } from '../cluster/gpu';
 import { usePersistentState } from '../persist';
 import { safeName } from '../transfers/transfers';
+import {
+  autoJobName,
+  carryTo,
+  modeFor,
+  replaceableName,
+  runChoiceOf,
+  splitPath,
+  type JobMode,
+  type RunChoice,
+} from '../jobs/newJob';
+import { useAvoidNodes } from '../jobs/avoidNodes';
+import { handOver, usePresets } from '../jobs/presets';
+import { useProjectEnv } from '../jobs/projectEnv';
 import type {
   ClusterSnapshot,
   ConnectionStatus,
@@ -21,6 +34,8 @@ import {
   fromConfig,
   initialDraft,
   pickedDatasetName,
+  SMOKE_DEFAULTS,
+  SMOKE_NAME,
   toConfig,
   uploadedDatasetName,
   type Draft,
@@ -32,14 +47,14 @@ import {
  * submit, the login-node environment check, uploading a dataset archive, presets.
  * Phases: DRAFT → (UPLOADING) → VALIDATING → READY → SUBMITTING → DRAFT with a result.
  */
-export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSnapshot | null, init: WizardInit | null) {
+export function useTrainingWizard(
+  status: ConnectionStatus,
+  snapshot: ClusterSnapshot | null,
+  init: WizardInit | null,
+  onSwitch: (m: JobMode) => void,
+) {
   const qc = useQueryClient();
   const toolchains = useQuery({ queryKey: ['toolchains'], queryFn: api.toolchains, retry: false });
-  const presets = useQuery({
-    queryKey: ['presets', status.profileId, status.connectedAt],
-    queryFn: api.presets,
-    retry: false,
-  });
   const [stored, setStored] = usePersistentState<Draft>('workflow.draft', DEFAULT_DRAFT);
   const [draft, setDraftState] = useState<Draft>(() => initialDraft(stored, init, toolchains.data ?? []));
   const setDraft = (d: Draft) => {
@@ -55,7 +70,6 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const [result, setResult] = useState<SubmitResponse | null>(null);
   const [reconcileMsg, setReconcileMsg] = useState<string | null>(null);
   const [upload, setUpload] = useState<Transfer | null>(null);
-  const [presetLabel, setPresetLabel] = useState('');
   const [envCheck, setEnvCheck] = useState<{ interpreter: string; results?: ImportResult[]; error?: string } | null>(
     null,
   );
@@ -81,8 +95,9 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     },
   });
 
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
-    setDraft({ ...draft, [k]: v });
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => patch({ [k]: v } as Partial<Draft>);
+  const patch = (p: Partial<Draft>) => {
+    setDraft({ ...draft, ...p });
     setPreview(null);
     setResult(null);
     if (phase === 'READY') setPhase('DRAFT');
@@ -99,6 +114,11 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const tcList = toolchains.data ?? [];
   const home = status.capabilities?.home ?? '';
   const project = expandHome(effective.projectDir, home).replace(/\/+$/, '');
+  // ADR-037: the project's interpreter and toolchain, when the form has none yet.
+  const avoid = useAvoidNodes();
+  const projectEnv = useProjectEnv(status, project, home, effective.interpreter, (e) =>
+    patch({ interpreter: e.interpreter, ...(e.toolchainId ? { toolchainId: e.toolchainId } : {}) }),
+  );
   const maxGpus = snapshot ? maxGpusFor(snapshot, partition, gres) : 1;
 
   const review = async () => {
@@ -106,7 +126,10 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     setError(null);
     setAck(false);
     try {
-      const p = await api.workflowPreview(toConfig(effective, tcList, home));
+      const c = toConfig(effective, tcList, home);
+      const p = await api.workflowPreview(
+        avoid.nodes.length ? { ...c, resources: { ...c.resources, excludeNodes: avoid.nodes } } : c,
+      );
       setIssues(p.errors);
       if (p.errors.length) {
         setPreview(null);
@@ -150,8 +173,8 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
       .workflowReconcile(tag)
       .then((r) => setReconcileMsg(r.submissionMessage ?? r.submission))
       .catch((e) => setReconcileMsg(errorMessage(e)));
-  /** Where the accepted run writes its results (computed on demand). */
-  const resultsRoot = () => toConfig(effective, tcList, home).resultsRoot;
+  /** Where the accepted run writes its results: next to the code. */
+  const resultsRoot = `${project}/runs`;
 
   const interpreter = expandHome(draft.interpreter, home);
   const checkModules = draft.checkModules || CHECK_MODULES[draft.kind];
@@ -196,23 +219,87 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
   const addDataset = (path: string) =>
     set('datasets', [...draft.datasets, { archive: path, into: pickedDatasetName(path) }]);
 
-  const loadPreset = (id: string) => {
-    const p = presets.data?.find((x) => x.id === id);
-    if (p) setDraft(fromConfig(p.config, tcList));
+  const presets = usePresets(
+    status,
+    () => ({
+      config: toConfig(effective, tcList, home),
+      job: { choice: draft.kind === 'notebook' ? 'notebook' : draft.kind === 'gpu_smoke_test' ? 'smoke' : 'managed' },
+    }),
+    (p) => {
+      // A preset of a job type the script form runs (Python, Shell, Commands, GPU session): that form loads it.
+      if (p.job && modeFor(...runChoiceOf(p.job.choice)) === 'script') {
+        handOver(p.id);
+        return onSwitch('script');
+      }
+      setDraft(fromConfig(p.config, tcList));
+      setPreview(null);
+    },
+  );
+
+  /** The script or notebook as an absolute path ('' when none is chosen). */
+  const entryAbs = !draft.entry.trim()
+    ? ''
+    : draft.entry.startsWith('/')
+      ? expandHome(draft.entry, home)
+      : `${project}/${draft.entry}`;
+  /**
+   * A script or notebook picked on ICF: its folder becomes the project folder (results go there too),
+   * and a notebook runs as a notebook whatever was chosen before.
+   */
+  const pickEntry = (path: string) => {
+    const { dir, name } = splitPath(path);
+    const kind = /\.ipynb$/i.test(name) ? 'notebook' : draft.kind === 'notebook' ? 'train' : draft.kind;
+    patch({
+      projectDir: dir,
+      entry: name,
+      kind,
+      ...(replaceableName(draft.jobName, draft.entry) ? { jobName: autoJobName(name) } : {}),
+    });
   };
-  const savePreset = () =>
-    api
-      .savePreset(null, presetLabel.trim(), toConfig(effective, tcList, home))
-      .then(() => {
-        setPresetLabel('');
-        void qc.invalidateQueries({ queryKey: ['presets'] });
-      })
-      .catch((e) => setError(errorMessage(e)));
+  /** Run from a folder above the file's own (e.g. the project root): the file path becomes relative. */
+  const runFrom = (dir: string) =>
+    patch(
+      entryAbs.startsWith(`${dir}/`) ? { projectDir: dir, entry: entryAbs.slice(dir.length + 1) } : { projectDir: dir },
+    );
+  /** A virtualenv or conda environment folder: its Python runs the job. */
+  const pickEnv = (dir: string) => set('interpreter', `${dir.replace(/\/+$/, '')}/bin/python`);
+
+  /** "What do you want to run?": a workflow type here, or the script job form. */
+  const choice: RunChoice =
+    draft.kind === 'notebook' ? 'notebook' : draft.kind === 'gpu_smoke_test' ? 'smoke' : 'python';
+  const choose = (c: RunChoice, managed: boolean, onSwitch: (m: JobMode) => void) => {
+    const mode = modeFor(c, managed);
+    if (mode === 'workflow') {
+      const kind = c === 'notebook' ? 'notebook' : c === 'smoke' ? 'gpu_smoke_test' : 'train';
+      setDraft({
+        ...draft,
+        kind,
+        ...(kind === 'gpu_smoke_test'
+          ? { ...SMOKE_DEFAULTS, ...(replaceableName(draft.jobName, draft.entry) ? { jobName: SMOKE_NAME } : {}) }
+          : {}),
+        ...(kind === 'notebook' && !/\.ipynb$/i.test(draft.entry) ? { entry: '' } : {}),
+      });
+      setPreview(null);
+      return;
+    }
+    const d = effective;
+    carryTo(mode, c, { ...d, folder: d.projectDir, file: d.entry, python: d.interpreter }, home);
+    onSwitch(mode);
+  };
 
   return {
     draft,
     set,
-    presets: presets.data,
+    patch,
+    projectEnv,
+    avoid,
+    choice,
+    choose,
+    pickEntry,
+    entryAbs,
+    runFrom,
+    pickEnv,
+    presets,
     tcList,
     home,
     project,
@@ -233,8 +320,6 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     setResult,
     reconcileMsg,
     upload,
-    presetLabel,
-    setPresetLabel,
     envCheck,
     interpreter,
     checkModules,
@@ -249,7 +334,5 @@ export function useTrainingWizard(status: ConnectionStatus, snapshot: ClusterSna
     setDataset,
     removeDataset,
     addDataset,
-    loadPreset,
-    savePreset,
   };
 }

@@ -1,4 +1,4 @@
-import type { ClusterSnapshot, Partition } from '../../types';
+import type { ClusterSnapshot } from '../../types';
 
 /** Fleet-wide numbers: physical and untyped GPUs counted once per node; MIG slices kept separate. */
 export function fleetSummary(snapshot: ClusterSnapshot) {
@@ -18,10 +18,16 @@ export function fleetSummary(snapshot: ClusterSnapshot) {
   };
 }
 
-/** Potentially free (MIG excluded) and unknown GPUs in one partition. */
-export function partitionSummary(p: Partition) {
+/** One partition's physical (and untyped) GPUs added up; MIG slices are listed separately, never added. */
+export function partitionGpus(p: ClusterSnapshot['partitions'][number]) {
+  const physical = p.gpuTotals.filter((t) => t.granularity !== 'mig');
+  const sum = (k: 'configured' | 'potentiallyFree' | 'allocated' | 'unavailable' | 'unknown') =>
+    physical.reduce((a, t) => a + t[k], 0);
   return {
-    free: p.gpuTotals.reduce((a, t) => a + (t.granularity === 'mig' ? 0 : t.potentiallyFree), 0),
-    unknown: p.gpuTotals.reduce((a, t) => a + t.unknown, 0),
+    configured: sum('configured'),
+    free: sum('potentiallyFree'),
+    allocated: sum('allocated'),
+    unavailable: sum('unavailable'),
+    unknown: sum('unknown'),
   };
 }

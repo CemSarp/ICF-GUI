@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
-import { isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
-import type { CancelOutcome, ConnectionStatus } from '../../types';
+import { failedBeforeRunning, isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
+import { useAvoidNodes } from '../../logic/jobs/avoidNodes';
+import { useSessionSend } from '../../logic/jobs/session';
+import type { CancelOutcome, ConnectionStatus, JobRequest } from '../../types';
 import { LogViewer } from './LogViewer';
 
 /** The one confirmation before `jobs_cancel`; the token comes from the job's detail and is used once. */
@@ -52,16 +54,71 @@ export function CancelNotice({ result }: { result: CancelOutcome | null }) {
   );
 }
 
+/** A GPU session's command box; the output shows in the log below. */
+function SessionPanel({ jobId, running }: { jobId: string; running: boolean }) {
+  const { text, setText, sent, busy, error, send } = useSessionSend(jobId);
+  return (
+    <section className="card" aria-labelledby="session-title">
+      <h3 id="session-title">GPU session</h3>
+      {running ? (
+        <>
+          <div className="field">
+            <label htmlFor="session-commands">Commands to send</label>
+            <textarea
+              id="session-commands"
+              className="mono"
+              rows={Math.min(12, Math.max(3, text.split('\n').length + 1))}
+              value={text}
+              placeholder={'make test1 && ./run.sh --cuda task1'}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send();
+              }}
+              spellCheck={false}
+              autoCapitalize="off"
+            />
+            <small className="muted">
+              Runs in the session&apos;s folder on its GPU, after any block still running, and stops at its first
+              failing command. ⌘↩ sends. Turn on <strong>Follow</strong> in the log below to watch the output.
+            </small>
+          </div>
+          <div className="actions start">
+            <button className="btn primary" onClick={() => void send()} disabled={busy || !text.trim()}>
+              <Icon name="play" />
+              {busy ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          {sent.length > 0 && (
+            <p className="muted small">
+              Sent: {sent.map((id) => `block ${id}`).join(', ')}. Each appears in the log between{' '}
+              <code>@@icfcc-block</code> lines with its exit code.
+            </p>
+          )}
+          {error && <Notice tone="bad">{error}</Notice>}
+        </>
+      ) : (
+        <p className="muted">
+          Commands can be sent while the session is Running. It holds the GPU until it has been idle for the minutes you
+          chose, reaches its time limit or is cancelled.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function JobDetailView({
   jobId,
   status,
   onBack,
+  onRunAgain,
 }: {
   jobId: string;
   status: ConnectionStatus;
   onBack: () => void;
+  onRunAgain: (r: JobRequest) => void;
 }) {
   const { q, d, j, hint, cancelResult, onCancelResult } = useJobDetail(jobId, status);
+  const avoid = useAvoidNodes();
   const [confirm, setConfirm] = useState(false);
   const s = j ? JOB_STATE[j.state] : null;
 
@@ -77,9 +134,15 @@ export function JobDetailView({
             <Icon name="refresh" />
             {q.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
+          {d?.receipt?.request && (
+            <button className="btn" onClick={() => onRunAgain(d.receipt!.request!)}>
+              <Icon name="refresh" />
+              Edit and run again
+            </button>
+          )}
           {d?.cancelToken && !cancelResult && (
             <button className="btn danger" onClick={() => setConfirm(true)}>
-              Cancel job…
+              Cancel job
             </button>
           )}
         </div>
@@ -130,7 +193,22 @@ export function JobDetailView({
                 {j.source} at {formatTime(d?.fetchedAt)}
               </dd>
             </dl>
-            {hint && <Notice tone="warn">{hint}</Notice>}
+            {hint && (
+              <Notice tone="warn">
+                {hint}
+                {j && failedBeforeRunning(j) && j.nodes && /^[A-Za-z0-9._-]+$/.test(j.nodes) && (
+                  <div className="actions start">
+                    {avoid.nodes.includes(j.nodes) ? (
+                      <span className="muted small">New jobs avoid {j.nodes}.</span>
+                    ) : (
+                      <button className="btn" onClick={() => avoid.add(j.nodes!)}>
+                        Avoid {j.nodes} in new jobs
+                      </button>
+                    )}
+                  </div>
+                )}
+              </Notice>
+            )}
             {d?.receipt && (
               <p className="muted small">
                 Submitted from this Mac at {formatTime(d.receipt.submittedAt)} · script checksum{' '}
@@ -139,6 +217,7 @@ export function JobDetailView({
             )}
             {d?.logPathNote && <p className="muted small">{d.logPathNote}</p>}
           </div>
+          {d?.receipt?.request?.runner === 'session' && <SessionPanel jobId={jobId} running={j.state === 'running'} />}
           <LogViewer jobId={jobId} active={isActiveJob(j)} stderrMerged={!!d?.stderrMerged} />
           {d && d.fields.length > 0 && (
             <details className="card">

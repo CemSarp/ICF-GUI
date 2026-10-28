@@ -27,6 +27,7 @@ const COMMANDS: &[&str] = &[
     // V2 mutations — granted only via capabilities/job-mutations.json
     "jobs_submit",
     "jobs_cancel",
+    "session_send",
     // V3 reads / local (workflow submissions go through jobs_submit)
     "projects_recent",
     "projects_browse",
@@ -61,6 +62,7 @@ const COMMANDS: &[&str] = &[
     "workflow_reconcile",
     "workflow_list_files",
     "workflow_metrics",
+    "logs_summary",
     // Interactive kernels: preview is local; the rest only via capabilities/kernel-mutations.json
     "kernel_preview",
     "kernel_start",
@@ -78,6 +80,9 @@ const COMMANDS: &[&str] = &[
     "files_write",
     "files_create",
     "files_delete",
+    "files_rename",
+    "files_unpack",
+    "logs_clean",
     "vscode_share_apply",
     "vscode_share_disable",
 ];

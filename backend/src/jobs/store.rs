@@ -46,6 +46,10 @@ pub struct JobReceipt {
     /// Hidden from the list by the user; still counts for what we learned about the partition.
     #[serde(default)]
     pub dismissed: bool,
+    /// The reviewed script-job request, so "Edit and run again" can refill the form (no secrets in
+    /// it). None for workflows (their config is in the run record) and for receipts before 0.5.1.
+    #[serde(default)]
+    pub request: Option<super::request::JobRequest>,
 }
 
 /// What past submissions from this Mac say about a partition (newest decisive receipt wins).

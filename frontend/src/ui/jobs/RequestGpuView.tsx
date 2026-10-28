@@ -1,108 +1,57 @@
-import { type ReactNode } from 'react';
-import { Badge, Dialog, EmptyState, Notice, NumberInput } from '../components/ui';
-import { granularityLabel } from '../../logic/cluster/gpu';
-import { formatDuration, formatTime, nominalVram } from '../../logic/format';
-import { resolveWorkingDir, useRequestGpu, type Draft } from '../../logic/jobs/jobRequest';
-import type { ClusterSnapshot, ConnectionStatus, Issue } from '../../types';
+import { useState } from 'react';
+import { Badge, Dialog, EmptyState, Icon, Notice, NumberInput } from '../components/ui';
+import { formatDuration } from '../../logic/format';
+import { typedRunner, useRequestGpu, type RunTarget } from '../../logic/jobs/jobRequest';
+import { splitPath, tilde, type JobMode } from '../../logic/jobs/newJob';
+import { annotateScript } from '../../logic/jobs/scriptLines';
+import { envInCommands, SETUP_LINES, validCondaEnv, withoutLines, withSetupLine } from '../../logic/jobs/sbatchImport';
+import type { ClusterSnapshot, ConnectionStatus } from '../../types';
+import { PickRemote } from '../projects/RemoteBrowser';
+import { Field, FieldError, GpuPicker, PathCard, PresetBar, ProjectEnvNote } from './JobParts';
+import { RunChoice } from './RunChoice';
 
-function FieldError({ issues, field }: { issues: Issue[]; field: string }) {
-  const mine = issues.filter((i) => i.field === field);
-  if (!mine.length) return null;
-  return (
-    <span className="field-error" id={`err-${field}`} role="alert">
-      {mine.map((i) => i.message).join(' ')}
-    </span>
-  );
-}
-
-/** Optional SLURM e-mail on end/fail; works while the app is closed. Shared with the training wizard. */
-export function MailOption({
-  draft,
-  issues,
-  set,
-  id,
-}: {
-  draft: { mail: boolean; mailUser: string };
-  issues: Issue[];
-  set: (k: 'mail' | 'mailUser', v: boolean | string) => void;
-  id: string;
-}) {
-  const mine = issues.filter((i) => i.field === 'mailUser');
-  return (
-    <div className={`field${mine.length ? ' invalid' : ''}`}>
-      <label className="check">
-        <input type="checkbox" checked={draft.mail} onChange={(e) => set('mail', e.target.checked)} />
-        E-mail me when the job ends or fails
-      </label>
-      {draft.mail && (
-        <>
-          <label htmlFor={id}>E-mail address</label>
-          <input
-            id={id}
-            type="email"
-            className="mono"
-            value={draft.mailUser}
-            placeholder="s1234567@ed.ac.uk"
-            onChange={(e) => set('mailUser', e.target.value)}
-            autoCapitalize="off"
-            spellCheck={false}
-          />
-          <small className="muted">SLURM sends it itself, so it arrives even while this app is closed.</small>
-        </>
-      )}
-      {mine.length > 0 && (
-        <span className="field-error" role="alert">
-          {mine.map((i) => i.message).join(' ')}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  field,
-  issues,
-  help,
-  children,
-}: {
-  label: string;
-  field: string;
-  issues: Issue[];
-  help?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`field${issues.some((i) => i.field === field) ? ' invalid' : ''}`}>
-      <label htmlFor={`f-${field}`}>{label}</label>
-      {children}
-      {help && <small className="muted">{help}</small>}
-      <FieldError issues={issues} field={field} />
-    </div>
-  );
-}
+/** Fields under "More options": it opens by itself when one of them has a problem. */
+const MORE_FIELDS = ['programArgs', 'setupSource'];
 
 export function RequestGpuView({
   snapshot,
   status,
   initialPartition,
   onOpenJobs,
+  onSwitch,
+  runTarget = null,
 }: {
   snapshot: ClusterSnapshot;
   status: ConnectionStatus;
   initialPartition: string | null;
   onOpenJobs: (jobId?: string) => void;
+  /** "What do you want to run?" picked something the training workflow form handles. */
+  onSwitch: (m: JobMode) => void;
+  runTarget?: RunTarget | null;
 }) {
   const {
     home,
     learned,
+    choose,
     draft,
     set,
+    patch,
+    wd,
+    fileAbs,
+    runFrom,
+    projectEnv,
+    recentCommands,
+    avoid,
+    presets,
     partition,
-    gpuTypes,
     gres,
     effective,
     maxGpus,
+    picking,
+    setPicking,
+    imported,
+    pickDir,
+    pickFile,
     preview,
     setPreview,
     issues,
@@ -118,7 +67,11 @@ export function RequestGpuView({
     review,
     submit,
     reconcile,
-  } = useRequestGpu(snapshot, status, initialPartition);
+  } = useRequestGpu(snapshot, status, initialPartition, runTarget, onSwitch);
+  const session = draft.runner === 'session';
+  const [condaOpen, setCondaOpen] = useState(false);
+  const [condaEnv, setCondaEnv] = useState('');
+  const gpuName = partition?.gpuTotals.find((t) => t.gresName === gres)?.modelLabel ?? 'GPU';
 
   if (!partition) {
     return <EmptyState title="No partitions available">Refresh the cluster data first.</EmptyState>;
@@ -198,209 +151,357 @@ export function RequestGpuView({
       </ol>
       {status.demo && <Notice tone="info">Demo mode: you can review scripts, but submission is disabled.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
+      {/* Outside the form: the browser's buttons must not submit it. */}
+      {(picking === 'dir' || picking === 'env') && (
+        <PickRemote
+          status={status}
+          start={picking === 'env' ? draft.pythonEnv.trim() || null : draft.workingDir.trim() ? wd : null}
+          kind="dir"
+          onPick={pickDir}
+          onClose={() => setPicking(null)}
+          title={picking === 'env' ? 'Choose the Python environment folder' : 'Choose the folder to run in'}
+        />
+      )}
+      {(picking === 'program' || picking === 'file') && (
+        <PickRemote
+          status={status}
+          start={draft.workingDir.trim() ? wd : null}
+          kind="file"
+          onPick={(p) => void pickFile(p)}
+          onClose={() => setPicking(null)}
+          title={picking === 'file' ? 'Choose the file to run' : 'Choose the script'}
+        />
+      )}
 
       {!preview ? (
         <form
-          className="card"
+          className="job-form"
           onSubmit={(e) => {
             e.preventDefault();
             void review();
           }}
           noValidate
         >
-          <h2>Resources</h2>
-          <div className="grid-2">
-            <Field
-              label="Partition"
-              field="partition"
-              issues={issues}
-              help={
-                <>
-                  Max time {formatDuration(partition.maxTimeSeconds, partition.maxTimeRaw)}
-                  {learned.get(partition.name) === 'accepted' && ' · ✓ accepted your last job'}
-                  {learned.get(partition.name) === 'denied' && (
-                    <strong className="warn-text"> · ✕ rejected your last job (account not permitted)</strong>
-                  )}
-                </>
-              }
-            >
-              <select id="f-partition" value={partition.name} onChange={(e) => set('partition', e.target.value)}>
-                {snapshot.partitions.map((p) => (
-                  <option key={p.name} value={p.name} disabled={p.eligibility === 'not_permitted'}>
-                    {p.name}
-                    {p.isDefault ? ' (default)' : ''}
-                    {p.eligibility === 'not_permitted' ? ' — not permitted' : ''}
-                    {learned.get(p.name) === 'denied' ? ' — rejected you before' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Job name" field="jobName" issues={issues} help="Letters, digits, . _ -">
-              <input
-                id="f-jobName"
-                value={draft.jobName}
-                onChange={(e) => set('jobName', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-              />
-            </Field>
-          </div>
+          <section className="card form-card">
+            {!status.demo && <PresetBar presets={presets} />}
+            <RunChoice value={draft.runner} managed={false} onChange={choose} />
+          </section>
 
-          <fieldset className="gpu-choices">
-            <legend>GPU type in {partition.name}</legend>
-            <p className="muted small">
-              Free = potentially free at {formatTime(snapshot.fetchedAt)}, not a reservation. Hover a row for its SLURM
-              name.
-            </p>
-            {gpuTypes.length === 0 ? (
-              <p>No GPUs in this partition.</p>
-            ) : (
-              gpuTypes.map((t) => (
-                <label key={t.gresName} className={`gpu-choice${gres === t.gresName ? ' selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="gres"
-                    value={t.gresName}
-                    checked={gres === t.gresName}
-                    onChange={() => set('gres', t.gresName)}
-                  />
-                  <span className="gpu-choice-main" title={t.gresName}>
-                    <strong>{t.modelLabel}</strong>{' '}
-                    <span className="muted small">
-                      {nominalVram(t.gresName) ? `${nominalVram(t.gresName)} VRAM` : granularityLabel(t.granularity)}
-                      {t.granularity !== 'physical' ? ` · ${granularityLabel(t.granularity)}` : ''} · {t.nodes} node
-                      {t.nodes === 1 ? '' : 's'}
-                    </span>
-                  </span>
-                  <span className="gpu-choice-nums small">
-                    <strong>○ {t.potentiallyFree} free</strong> · ● {t.allocated} used
-                    {t.unavailable > 0 && ` · ✕ ${t.unavailable} down`}
-                    {t.unknown > 0 && ` · ? ${t.unknown} unknown`} / {t.configured}
-                  </span>
-                </label>
-              ))
-            )}
-            <FieldError issues={issues} field="gresType" />
-          </fieldset>
-
-          <div className="grid-4">
-            <Field label="GPUs" field="gpuCount" issues={issues} help={`Max ${maxGpus} on one node`}>
-              <NumberInput
-                id="f-gpuCount"
-                min={1}
-                max={maxGpus}
-                value={draft.gpuCount}
-                onChange={(n) => set('gpuCount', n)}
-              />
-            </Field>
-            <Field label="CPUs" field="cpus" issues={issues}>
-              <NumberInput id="f-cpus" min={1} value={draft.cpus} onChange={(n) => set('cpus', n)} />
-            </Field>
-            <Field label="RAM (GB)" field="memoryMib" issues={issues}>
-              <NumberInput id="f-memoryMib" min={1} value={draft.memoryGb} onChange={(n) => set('memoryGb', n)} />
-            </Field>
-            <Field label="Wall time" field="timeLimitSeconds" issues={issues}>
-              <div className="input-row" id="f-timeLimitSeconds">
-                <NumberInput aria-label="Hours" min={0} value={draft.hours} onChange={(n) => set('hours', n)} />
-                <span className="muted">h</span>
-                <NumberInput
-                  aria-label="Minutes"
-                  min={0}
-                  max={59}
-                  value={draft.minutes}
-                  onChange={(n) => set('minutes', n)}
-                />
-                <span className="muted">m</span>
-              </div>
-            </Field>
-          </div>
-          {draft.gpuCount > 1 && (
-            <Notice tone="warn">
-              Multi-GPU requests usually wait longer in the queue. Make sure your code uses all GPUs.
-            </Notice>
-          )}
-
-          <h2>Program (on ICF)</h2>
-          <p className="muted small">
-            Paths are on ICF, inside your home directory. They are checked on ICF (existence, symlinks) right before
-            submission.
-          </p>
-          <Field
-            label="Working directory"
-            field="workingDir"
-            issues={issues}
-            help={
+          <section className="card form-card">
+            <h3>{session ? 'GPU session' : draft.runner === 'commands' ? 'Commands' : 'Script'}</h3>
+            {typedRunner(draft.runner) ? (
               <>
-                Relative paths start in your home: <code>{resolveWorkingDir(draft.workingDir, home)}</code>. Logs are
-                written here as slurm-&lt;jobid&gt;.out / .err
+                <PathCard
+                  icon="folder"
+                  label="Folder"
+                  title={wd === home ? '~' : splitPath(wd).name}
+                  empty=""
+                  folder={wd}
+                  home={home}
+                  onRunFrom={runFrom}
+                >
+                  {!session && (
+                    <button type="button" className="btn" onClick={() => setPicking('file')}>
+                      Choose a file
+                    </button>
+                  )}
+                  <button type="button" className={session ? 'btn' : 'btn ghost'} onClick={() => setPicking('dir')}>
+                    Choose folder
+                  </button>
+                </PathCard>
+                <FieldError issues={issues} field="workingDir" />
+                <div className={`field${issues.some((i) => i.field === 'commands') ? ' invalid' : ''}`}>
+                  <label htmlFor="f-commands">{session ? 'Setup lines (run once, optional)' : 'Commands to run'}</label>
+                  <div className="chips">
+                    <span className="muted small">Add a line:</span>
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.cuda))}
+                      title={SETUP_LINES.cuda}
+                    >
+                      + CUDA 12.8
+                    </button>
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => setCondaOpen(!condaOpen)}
+                      aria-expanded={condaOpen}
+                    >
+                      + Conda environment
+                    </button>
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.gpu))}
+                      title={SETUP_LINES.gpu}
+                    >
+                      + Show the GPU
+                    </button>
+                  </div>
+                  {condaOpen && (
+                    <div className="input-row">
+                      <label className="sr-only" htmlFor="f-conda">
+                        Conda environment name
+                      </label>
+                      <input
+                        id="f-conda"
+                        className="mono"
+                        placeholder="Environment name, e.g. mls-asr"
+                        value={condaEnv}
+                        onChange={(e) => setCondaEnv(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                        autoCapitalize="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={!validCondaEnv(condaEnv.trim())}
+                        onClick={() => {
+                          set('commands', withSetupLine(draft.commands, SETUP_LINES.conda(condaEnv.trim())));
+                          setCondaOpen(false);
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                  {imported && (
+                    <Notice tone="ok" title={`Settings and commands taken from ${imported.name}`}>
+                      Check them below and under GPU before reviewing.
+                      {imported.notes.length > 0 && (
+                        <ul className="small">
+                          {imported.notes.map((n) => (
+                            <li key={n}>{n}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </Notice>
+                  )}
+                  {!session && recentCommands.length > 0 && (
+                    <details className="recent-commands">
+                      <summary>Recent commands ({recentCommands.length})</summary>
+                      <ul>
+                        {recentCommands.map((c) => (
+                          <li key={c}>
+                            <code className="mono" title={c}>
+                              {c.split('\n').slice(-1)[0]}
+                              {c.includes('\n') && <span className="muted"> · {c.split('\n').length} lines</span>}
+                            </code>
+                            <button
+                              type="button"
+                              className="btn small-btn"
+                              aria-label={`Use: ${c.split('\n').slice(-1)[0]}`}
+                              onClick={() => set('commands', c)}
+                            >
+                              Use
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  <textarea
+                    id="f-commands"
+                    rows={Math.min(16, Math.max(4, draft.commands.split('\n').length + 1))}
+                    value={draft.commands}
+                    placeholder={'nvidia-smi -L\nmake && ./run.sh 2>&1 | tee run.log'}
+                    onChange={(e) => set('commands', e.target.value)}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    className="mono"
+                  />
+                  {session ? (
+                    <small className="muted">
+                      For example <code>conda activate mls-asr</code>: they run once when the session starts and stay in
+                      effect. Then send command blocks from the job&apos;s page in My Jobs; each runs in this folder on
+                      the same GPU, without waiting in the queue again.
+                    </small>
+                  ) : (
+                    <small className="muted">
+                      They run on the GPU node exactly as typed and stop at the first failing command. A batch file
+                      (.sbatch) brings its settings and commands with it.
+                    </small>
+                  )}
+                  <FieldError issues={issues} field="commands" />
+                </div>
+                {session && (
+                  <div className={`field${issues.some((i) => i.field === 'sessionIdleMinutes') ? ' invalid' : ''}`}>
+                    <label htmlFor="f-idle">End after this many idle minutes</label>
+                    <NumberInput
+                      id="f-idle"
+                      min={5}
+                      max={240}
+                      value={draft.sessionIdle}
+                      onChange={(n) => set('sessionIdle', n)}
+                    />
+                    <small className="muted">
+                      With no block for this long, the session ends and the GPU goes back to the pool. It also ends at
+                      the time limit, or when you cancel the job.
+                    </small>
+                    <FieldError issues={issues} field="sessionIdleMinutes" />
+                  </div>
+                )}
               </>
-            }
-          >
-            <input
-              id="f-workingDir"
-              placeholder={`e.g. projects/semeval (inside ${home})`}
-              value={draft.workingDir}
-              onChange={(e) => set('workingDir', e.target.value)}
-              autoCapitalize="off"
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
-          <div className="grid-2">
-            <Field label="Run with" field="runner" issues={issues}>
-              <select
-                id="f-runner"
-                value={draft.runner}
-                onChange={(e) => set('runner', e.target.value as Draft['runner'])}
+            ) : (
+              <>
+                <PathCard
+                  icon="file"
+                  label="Script"
+                  title={fileAbs ? (fileAbs.startsWith(`${wd}/`) ? fileAbs.slice(wd.length + 1) : fileAbs) : ''}
+                  empty="No script chosen yet"
+                  folder={fileAbs || draft.workingDir.trim() ? wd : undefined}
+                  home={home}
+                  onRunFrom={runFrom}
+                >
+                  {fileAbs && (
+                    <button type="button" className="btn ghost" onClick={() => set('program', '')}>
+                      Remove
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={fileAbs ? 'btn' : 'btn primary'}
+                    onClick={() => setPicking('program')}
+                  >
+                    {fileAbs ? 'Change' : 'Choose script'}
+                  </button>
+                </PathCard>
+                <FieldError issues={issues} field="program" />
+                <FieldError issues={issues} field="workingDir" />
+              </>
+            )}
+            <div className="grid-2">
+              <Field label="Job name" field="jobName" issues={issues} help="Shown in My Jobs. Letters, digits, . _ -">
+                <input
+                  id="f-jobName"
+                  value={draft.jobName}
+                  onChange={(e) => set('jobName', e.target.value)}
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+              </Field>
+            </div>
+            {typedRunner(draft.runner) &&
+              (() => {
+                // What the typed lines use, shown like the Python card; nothing applies unless added.
+                const used = envInCommands(draft.commands);
+                const proj =
+                  projectEnv.env.kind === 'env' && /^[\w./-]+$/.test(projectEnv.env.dir) ? projectEnv.env : null;
+                return (
+                  <>
+                    <PathCard
+                      icon="layers"
+                      label="Python environment"
+                      title={used ? tilde(used.label, home) : ''}
+                      empty="None: the node's python3, unless your lines activate one"
+                      home={home}
+                    >
+                      {used ? (
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() => set('commands', withoutLines(draft.commands, used.lines))}
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        proj && (
+                          <button
+                            type="button"
+                            className="btn"
+                            title={SETUP_LINES.env(proj.dir)}
+                            onClick={() => set('commands', withSetupLine(draft.commands, SETUP_LINES.env(proj.dir)))}
+                          >
+                            Use {splitPath(proj.dir).name}
+                          </button>
+                        )
+                      )}
+                    </PathCard>
+                    <small className="muted path-card-note">
+                      {used
+                        ? `Your ${session ? 'setup lines' : 'commands'} put it first on PATH (the line is in the box above).`
+                        : proj
+                          ? `Your project ${tilde(proj.project, home)} uses ${splitPath(proj.dir).name}; Use adds one visible line.`
+                          : 'Add one with + Conda environment, or choose one for this folder in Projects.'}
+                    </small>
+                  </>
+                );
+              })()}
+            {draft.runner === 'bash' && (
+              <small className="muted path-card-note">
+                A shell script sets up its own environment (e.g. <code>conda activate</code> in the script)
+                {projectEnv.env.kind === 'env' ? `; your project uses ${splitPath(projectEnv.env.dir).name}` : ''}.
+              </small>
+            )}
+            {draft.runner === 'python' && (
+              <>
+                <PathCard
+                  icon="layers"
+                  label="Python environment"
+                  title={draft.pythonEnv.trim() ? tilde(draft.pythonEnv.trim(), home) : ''}
+                  empty="None: python3 of the GPU node"
+                  home={home}
+                >
+                  {draft.pythonEnv.trim() && (
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        projectEnv.decline();
+                        set('pythonEnv', '');
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button type="button" className="btn" onClick={() => setPicking('env')}>
+                    Choose
+                  </button>
+                </PathCard>
+                <ProjectEnvNote
+                  env={projectEnv.env}
+                  fromProject={projectEnv.fromProject(draft.pythonEnv)}
+                  home={home}
+                />
+                <FieldError issues={issues} field="pythonEnv" />
+              </>
+            )}
+          </section>
+
+          <GpuPicker
+            snapshot={snapshot}
+            partition={partition}
+            gres={gres}
+            draft={draft}
+            maxGpus={maxGpus}
+            learned={learned}
+            issues={issues}
+            patch={patch}
+            prefix="f"
+            avoid={avoid}
+          />
+
+          <details className="card fold-section" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>
+            <summary>More options</summary>
+            {!typedRunner(draft.runner) && (
+              <Field
+                label="Arguments (optional, one per line)"
+                field="programArgs"
+                issues={issues}
+                help="Passed literally; nothing is interpreted by a shell."
               >
-                <option value="python">Python</option>
-                <option value="bash">Bash script</option>
-              </select>
-            </Field>
-            <Field label="Script" field="program" issues={issues} help="Relative to the working directory, or absolute">
-              <input
-                id="f-program"
-                value={draft.program}
-                onChange={(e) => set('program', e.target.value)}
-                autoCapitalize="off"
-                spellCheck={false}
-                className="mono"
-              />
-            </Field>
-          </div>
-          <Field
-            label="Python environment (optional)"
-            field="pythonEnv"
-            issues={issues}
-            help={`A virtualenv directory, e.g. ${home}/projects/icf-env`}
-          >
-            <input
-              id="f-pythonEnv"
-              value={draft.pythonEnv}
-              onChange={(e) => set('pythonEnv', e.target.value)}
-              autoCapitalize="off"
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
-          <Field
-            label="Arguments (optional, one per line)"
-            field="programArgs"
-            issues={issues}
-            help="Passed literally; nothing is interpreted by a shell."
-          >
-            <textarea
-              id="f-programArgs"
-              rows={3}
-              value={draft.args}
-              onChange={(e) => set('args', e.target.value)}
-              spellCheck={false}
-              className="mono"
-            />
-          </Field>
-          <MailOption draft={draft} issues={issues} set={set} id="f-mailUser" />
-          <details>
-            <summary>Advanced</summary>
+                <textarea
+                  id="f-programArgs"
+                  rows={3}
+                  value={draft.args}
+                  onChange={(e) => set('args', e.target.value)}
+                  spellCheck={false}
+                  className="mono"
+                />
+              </Field>
+            )}
             <Field
               label="Setup file to source first (optional)"
               field="setupSource"
@@ -417,8 +518,13 @@ export function RequestGpuView({
               />
             </Field>
           </details>
-          <div className="actions">
+          <div className="actions submit-bar">
+            <span className="muted small">
+              {draft.gpuCount} × {gpuName} · {formatDuration(draft.hours * 3600 + draft.minutes * 60, '')} ·{' '}
+              {draft.cpus} CPUs · {draft.memoryGb} GB RAM
+            </span>
             <button type="submit" className="btn primary" disabled={busy || !gres}>
+              <Icon name="play" />
               {busy ? 'Checking…' : 'Review script'}
             </button>
           </div>
@@ -430,8 +536,17 @@ export function RequestGpuView({
             This is byte-for-byte what will be sent to <code>sbatch</code> (checksum <code>{preview.checksum}</code>).
             Logs: <code>{preview.stdoutPattern}</code>, <code>{preview.stderrPattern}</code>.
           </p>
+          <p className="muted small script-legend">
+            <span className="line-app">Highlighted</span> lines are added by the app from your settings (environment,
+            setup file, the run line); <span className="line-yours">marked</span> lines are the ones you typed.
+          </p>
           <pre className="code script" aria-label="Batch script">
-            {preview.script}
+            {annotateScript(preview.script, typedRunner(draft.runner) ? draft.commands : '').map((l, i) => (
+              <span key={i} className={`line-${l.kind}`}>
+                {l.line}
+                {'\n'}
+              </span>
+            ))}
           </pre>
           {preview.warnings.map((w, i) => (
             <Notice key={i} tone="warn">
@@ -460,7 +575,7 @@ export function RequestGpuView({
               onClick={() => setConfirming(true)}
               disabled={busy || status.demo || (preview.acknowledgements.length > 0 && !ack)}
             >
-              Submit job…
+              Submit job
             </button>
           </div>
         </section>

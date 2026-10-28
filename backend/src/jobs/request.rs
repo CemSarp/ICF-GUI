@@ -2,7 +2,9 @@
 //!
 //! Injection policy: every value that reaches a `#SBATCH` line or the job body is either
 //! (a) restricted to a charset without whitespace/quotes/shell metacharacters, or
-//! (b) a program argument, which is single-quoted with `'` escaped. Remote paths are checked
+//! (b) a program argument, which is single-quoted with `'` escaped. The one exception is
+//! `Runner::Commands`: the user's own shell lines, placed verbatim in the body they review before
+//! submitting (ADR-034); they never reach a `#SBATCH` line or the login node's shell. Remote paths are checked
 //! again on ICF (existence, symlink resolution under $HOME) right before `sbatch` runs.
 
 use super::store::PartitionRecord;
@@ -19,7 +21,17 @@ pub const MIN_TIME_SECS: u64 = 60;
 pub enum Runner {
     Python,
     Bash,
+    /// The user's own shell lines (`commands`), run in the working directory like a terminal there.
+    Commands,
+    /// A held GPU session (ADR-038): `commands` are setup lines run once, then the job runs the
+    /// command blocks sent with `session_send`, until it has been idle for `session_idle_minutes`.
+    Session,
 }
+
+pub const SESSION_IDLE_MIN: u32 = 5;
+pub const SESSION_IDLE_MAX: u32 = 240;
+
+pub const MAX_COMMANDS_BYTES: usize = 16 * 1024;
 
 /// Exactly what the wizard sends. Unknown fields are rejected.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -36,11 +48,12 @@ pub struct JobRequest {
     /// Absolute remote directory under the user's home; also where logs go.
     pub working_dir: String,
     pub runner: Runner,
-    /// Path relative to `working_dir`, or absolute under home.
+    /// Path relative to `working_dir`, or absolute under home. Empty for `Runner::Commands`.
+    #[serde(default)]
     pub program: String,
     #[serde(default)]
     pub program_args: Vec<String>,
-    /// Optional virtualenv directory (activated with `source <dir>/bin/activate`).
+    /// Optional venv or conda environment directory; Python jobs run its `bin/python` (Python runner only).
     #[serde(default)]
     pub python_env: Option<String>,
     /// Optional file to `source` first (e.g. a CUDA toolchain rc).
@@ -49,6 +62,33 @@ pub struct JobRequest {
     /// SLURM e-mails this address when the job ends or fails (`--mail-type=END,FAIL`).
     #[serde(default)]
     pub mail_user: Option<String>,
+    /// Shell lines for `Runner::Commands` (newline-separated); setup lines for `Runner::Session`.
+    #[serde(default)]
+    pub commands: Option<String>,
+    /// `Runner::Session` only: the session ends after this many minutes without a command block.
+    #[serde(default)]
+    pub session_idle_minutes: Option<u32>,
+    /// Nodes SLURM must not use (`--exclude`), e.g. one that fails every job.
+    #[serde(default)]
+    pub exclude_nodes: Vec<String>,
+}
+
+pub const MAX_EXCLUDE: usize = 16;
+
+/// A node name as SLURM prints it (`damnii11`, `landonia03`), never a range or list.
+pub fn valid_node_name(n: &str) -> bool {
+    (1..=64).contains(&n.len())
+        && n.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && n.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+/// `#SBATCH --exclude=a,b` for nodes to avoid ('' when none).
+pub fn exclude_line(nodes: &[String]) -> String {
+    if nodes.is_empty() {
+        String::new()
+    } else {
+        format!("#SBATCH --exclude={}\n", nodes.join(","))
+    }
 }
 
 impl JobRequest {
@@ -176,6 +216,9 @@ pub fn validate(r: &JobRequest, cx: &Context) -> Validation {
 /// which bring their own program/path checks.
 pub fn validate_resources(r: &JobRequest, cx: &Context, v: &mut Validation) {
     let (e, w) = (&mut v.errors, &mut v.warnings);
+    if r.exclude_nodes.len() > MAX_EXCLUDE || !r.exclude_nodes.iter().all(|n| valid_node_name(n)) {
+        e.push(issue("excludeNodes", format!("Avoid at most {MAX_EXCLUDE} nodes, each a plain node name such as damnii11.")));
+    }
 
     // Partition and policy.
     let part = cx.snapshot.partitions.iter().find(|p| p.name == r.partition);
@@ -282,25 +325,32 @@ pub fn validate_resources(r: &JobRequest, cx: &Context, v: &mut Validation) {
 }
 
 fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
-    let (e, w) = (&mut v.errors, &mut v.warnings);
     match check_abs_path(&r.working_dir) {
-        Err(m) => e.push(issue("workingDir", format!("Working directory {m}."))),
-        Ok(()) if !under(&r.working_dir, cx.home) => e.push(issue("workingDir", format!("Working directory must be inside your home ({}).", cx.home))),
+        Err(m) => v.errors.push(issue("workingDir", format!("Working directory {m}."))),
+        Ok(()) if !under(&r.working_dir, cx.home) => v.errors.push(issue("workingDir", format!("Working directory must be inside your home ({}).", cx.home))),
         Ok(()) => {}
     }
-    let prog_ok = if r.program.starts_with('/') { check_abs_path(&r.program) } else { check_rel_path(&r.program) };
-    match prog_ok {
-        Err(m) => e.push(issue("program", format!("Program {m}."))),
-        Ok(()) if !under(&r.program_path(), cx.home) => e.push(issue("program", "Program must be inside your home directory.")),
-        Ok(()) => {
-            if r.runner == Runner::Python && !r.program.ends_with(".py") {
-                w.push(issue("program", "Python runner selected but the program does not end in .py."));
-            }
-            if r.runner == Runner::Bash && r.program.ends_with(".py") {
-                w.push(issue("program", "Bash runner selected for a .py file."));
+    if r.runner == Runner::Commands {
+        validate_commands(r, v);
+    } else if r.runner == Runner::Session {
+        validate_session(r, v);
+    } else {
+        let (e, w) = (&mut v.errors, &mut v.warnings);
+        let prog_ok = if r.program.starts_with('/') { check_abs_path(&r.program) } else { check_rel_path(&r.program) };
+        match prog_ok {
+            Err(m) => e.push(issue("program", format!("Program {m}."))),
+            Ok(()) if !under(&r.program_path(), cx.home) => e.push(issue("program", "Program must be inside your home directory.")),
+            Ok(()) => {
+                if r.runner == Runner::Python && !r.program.ends_with(".py") {
+                    w.push(issue("program", "Python runner selected but the program does not end in .py."));
+                }
+                if r.runner == Runner::Bash && r.program.ends_with(".py") {
+                    w.push(issue("program", "Bash runner selected for a .py file."));
+                }
             }
         }
     }
+    let e = &mut v.errors;
     if r.program_args.len() > MAX_ARGS {
         e.push(issue("programArgs", format!("At most {MAX_ARGS} arguments.")));
     }
@@ -311,6 +361,9 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
         }
     }
     if let Some(env) = r.python_env.as_deref().filter(|s| !s.is_empty()) {
+        if r.runner != Runner::Python {
+            e.push(issue("pythonEnv", "A Python environment applies only to Python script jobs; activate one in your commands or script instead."));
+        }
         match check_abs_path(env) {
             Err(m) => e.push(issue("pythonEnv", format!("Python environment {m}."))),
             Ok(()) if !under(env, cx.home) => e.push(issue("pythonEnv", "Python environment must be inside your home directory.")),
@@ -328,6 +381,81 @@ fn validate_program(r: &JobRequest, cx: &Context, v: &mut Validation) {
     }
 }
 
+/// A GPU session: setup lines optional (bounded, plain text), an idle limit, no program.
+fn validate_session(r: &JobRequest, v: &mut Validation) {
+    let c = r.commands.as_deref().unwrap_or("");
+    if !plain_commands(c) {
+        v.errors.push(issue("commands", "Setup lines must be plain text, at most 16 KB."));
+    }
+    if !r.program.is_empty() || !r.program_args.is_empty() {
+        v.errors.push(issue("commands", "A GPU session runs the blocks you send: leave the script and its arguments empty."));
+    }
+    match r.session_idle_minutes {
+        Some(m) if (SESSION_IDLE_MIN..=SESSION_IDLE_MAX).contains(&m) => {}
+        _ => v.errors.push(issue(
+            "sessionIdleMinutes",
+            format!("End the session after {SESSION_IDLE_MIN}–{SESSION_IDLE_MAX} idle minutes, so a forgotten one releases the GPU."),
+        )),
+    }
+}
+
+/// Bounded plain text for shell lines (also each block sent to a session).
+pub fn plain_commands(c: &str) -> bool {
+    c.len() <= MAX_COMMANDS_BYTES && !c.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+}
+
+/// Terminal commands: present, bounded, plain text, no program or arguments alongside.
+fn validate_commands(r: &JobRequest, v: &mut Validation) {
+    let c = r.commands.as_deref().unwrap_or("");
+    if c.trim().is_empty() {
+        v.errors.push(issue("commands", "Enter at least one command."));
+        return;
+    }
+    if c.len() > MAX_COMMANDS_BYTES {
+        v.errors.push(issue("commands", "Commands are limited to 16 KB; put longer work in a script file."));
+    }
+    if c.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
+        v.errors.push(issue("commands", "Commands must be plain text (no control characters or Windows line endings)."));
+    }
+    if !r.program.is_empty() || !r.program_args.is_empty() {
+        v.errors.push(issue("commands", "Terminal commands run on their own: leave the script and its arguments empty."));
+    }
+    if c.contains("$0") {
+        v.warnings.push(issue(
+            "commands",
+            "`$0` is SLURM's private copy of the batch script, not a file in your project, so `$(dirname \"$0\")` is not your folder. The commands already start in the working directory.",
+        ));
+    }
+    if c.lines().any(|l| l.trim_start().starts_with("#SBATCH")) {
+        v.warnings.push(issue("commands", "`#SBATCH` lines among the commands are ignored by SLURM; use the form's fields instead."));
+    }
+}
+
+/// Where every app-submitted job keeps `slurm-<id>.out/.err`: an `icfcc-run` folder in the folder it runs in.
+pub fn log_dir(wd: &str) -> String {
+    format!("{}/icfcc-run", wd.trim_end_matches('/'))
+}
+
+/// SLURM opens the log files on the GPU node before the script runs, and a folder made moments
+/// earlier on the login node may not be visible there yet: job 3691386 failed with `0:53` and no
+/// log. So SLURM writes into the job's folder (always there), and the script's first step moves both
+/// files into `icfcc-run`; SLURM keeps writing to them, since moving an open file does not close it.
+/// If the move fails, the logs stay in the job's folder and the job runs anyway.
+pub fn log_lines(wd: &str) -> String {
+    let wd = wd.trim_end_matches('/');
+    format!("#SBATCH --output={wd}/slurm-%j.out\n#SBATCH --error={wd}/slurm-%j.err\n")
+}
+
+/// The script's first step (see `log_lines`).
+pub fn move_logs(wd: &str) -> String {
+    let wd = wd.trim_end_matches('/');
+    format!(
+        "mkdir -p -- {l} 2>/dev/null && mv -f -- {w}/slurm-\"$SLURM_JOB_ID\".out {w}/slurm-\"$SLURM_JOB_ID\".err {l}/ 2>/dev/null || true\n",
+        l = shell_quote(&log_dir(wd)),
+        w = shell_quote(wd)
+    )
+}
+
 /// The exact batch script sent to `sbatch` on stdin. `tag` lets an uncertain submission be found again.
 pub fn render_script(r: &JobRequest, tag: &str) -> String {
     let wd = &r.working_dir;
@@ -340,23 +468,37 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
     s += &format!("#SBATCH --mem={}M\n", r.memory_mib);
     s += &format!("#SBATCH --time={}\n", format_time_limit(r.time_limit_seconds));
     s += &format!("#SBATCH --chdir={wd}\n");
-    s += &format!("#SBATCH --output={wd}/slurm-%j.out\n");
-    s += &format!("#SBATCH --error={wd}/slurm-%j.err\n");
+    s += &log_lines(wd);
+    s += &exclude_line(&r.exclude_nodes);
     s += &format!("#SBATCH --comment=icfcc-{tag}\n");
     s += &mail_lines(r.mail_user.as_deref());
     s += "# Generated by ICF Control Center. Long-running work runs here on the compute node, not on the login node.\n";
+    s += &move_logs(wd);
     s += "set -e\n";
     s += "echo \"[icf-control-center] job ${SLURM_JOB_ID} on $(hostname) started $(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n";
     if let Some(src) = r.setup_source.as_deref().filter(|x| !x.is_empty()) {
         s += &format!("source {}\n", shell_quote(src));
     }
-    if let Some(env) = r.python_env.as_deref().filter(|x| !x.is_empty()) {
-        s += &format!("source {}\n", shell_quote(&format!("{env}/bin/activate")));
+    // The environment's own interpreter, not `bin/activate`: conda environments have no activate
+    // script, venvs and conda both have `bin/python`. Its `bin` goes first on PATH for pip & co.
+    let env = r.python_env.as_deref().filter(|x| !x.is_empty()).map(|e| e.trim_end_matches('/'));
+    if let Some(e) = env {
+        s += &format!("export PATH={}:\"$PATH\"\n", shell_quote(&format!("{e}/bin")));
     }
-    let exe = match (r.runner, r.python_env.as_deref().is_some_and(|x| !x.is_empty())) {
-        (Runner::Python, true) => "python",
-        (Runner::Python, false) => "python3",
-        (Runner::Bash, _) => "bash",
+    if r.runner == Runner::Session {
+        s += &session_body(r);
+        return s;
+    }
+    if r.runner == Runner::Commands {
+        s += &format!("# Your commands, exactly as typed. They start in {wd}; the job stops at the first failing command.\n");
+        s += r.commands.as_deref().unwrap_or("").trim_end();
+        s.push('\n');
+        return s;
+    }
+    let exe = match (r.runner, env) {
+        (Runner::Python, Some(e)) => shell_quote(&format!("{e}/bin/python")),
+        (Runner::Python, None) => "python3".into(),
+        (Runner::Bash, _) | (Runner::Commands, _) | (Runner::Session, _) => "bash".into(),
     };
     s += &format!("exec {exe} {}", shell_quote(&r.program_path()));
     for a in &r.program_args {
@@ -364,6 +506,46 @@ pub fn render_script(r: &JobRequest, tag: &str) -> String {
         s += &shell_quote(a);
     }
     s.push('\n');
+    s
+}
+
+/// Where a session's blocks are dropped (`inbox/<13-digit ms>.sh`) and kept once run (`done/`).
+pub fn session_dir(wd: &str, job_id: &str) -> String {
+    format!("{}/session-{job_id}", log_dir(wd))
+}
+
+/// Setup lines once, then a fixed loop: the oldest block in the inbox runs in a subshell in the
+/// working directory (stopping at its first failing command), framed by `@@icfcc-block` markers in
+/// the job log; after `idle` minutes without a block the job ends and the GPU is released.
+fn session_body(r: &JobRequest) -> String {
+    let idle = r.session_idle_minutes.unwrap_or(SESSION_IDLE_MIN);
+    let mut s = String::new();
+    let setup = r.commands.as_deref().unwrap_or("").trim_end();
+    if !setup.is_empty() {
+        s += "# Your setup lines, exactly as typed; they run once and stay in effect for every block.\n";
+        s += setup;
+        s.push('\n');
+    }
+    s += &format!("# GPU session: runs the command blocks you send from the app; ends after {idle} idle minutes.\n");
+    s += &format!("WD={}\nS={}/session-\"$SLURM_JOB_ID\"\n", shell_quote(&r.working_dir), shell_quote(&log_dir(&r.working_dir)));
+    s += &format!("IDLE={}\n", u64::from(idle) * 60);
+    s += r#"mkdir -p -- "$S/inbox" "$S/done"
+set +e
+idle=0
+echo "@@icfcc-session ready on $(hostname)"
+while [ "$idle" -lt "$IDLE" ]; do
+  f=$(ls -1 -- "$S/inbox" 2>/dev/null | grep -E '^[0-9]{13}\.sh$' | sort | head -n 1)
+  if [ -z "$f" ]; then sleep 5; idle=$((idle + 5)); continue; fi
+  idle=0
+  n=${f%.sh}
+  echo "@@icfcc-block $n start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  ( cd -- "$WD" && set -e && . "$S/inbox/$f" )
+  rc=$?
+  mv -f -- "$S/inbox/$f" "$S/done/$f"
+  echo "@@icfcc-block $n end rc=$rc"
+done
+echo "@@icfcc-session ended: no commands for $((IDLE / 60)) minutes, the GPU is released"
+"#;
     s
 }
 

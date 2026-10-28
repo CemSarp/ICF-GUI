@@ -21,6 +21,16 @@ export function usePersistentState<T>(key: string, initial: T) {
   return [v, setV] as const;
 }
 
+/** Drops saved values so their screens start from defaults next time they open. */
+export function forget(...keys: string[]) {
+  for (const key of keys)
+    try {
+      localStorage.removeItem(`icfcc.${key}`);
+    } catch {
+      /* storage unavailable: nothing was saved */
+    }
+}
+
 /** Wall clock that re-renders every `ms` (for countdowns such as the sign-in cooldown). */
 export function useNow(ms: number) {
   const [now, setNow] = useState(() => Date.now());

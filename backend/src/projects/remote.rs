@@ -110,7 +110,8 @@ pub fn path_error(what: &str) -> AppError {
         "backup_exists" | "backup_failed" => AppError::invalid("Could not create a backup of the existing settings file, so nothing was written."),
         "home" => AppError::new(ErrorCode::InvalidPath, "Your remote home directory could not be resolved."),
         "gone" => AppError::invalid("It no longer exists on ICF (already deleted or renamed). Refresh the folder."),
-        "kind_changed" => AppError::invalid("It changed on ICF since the folder was listed. Nothing was deleted; refresh and try again."),
+        "kind_changed" => AppError::invalid("It changed on ICF since the folder was listed. Nothing was changed; refresh and try again."),
+        "no_unzip" => AppError::invalid("ICF has no unzip command, so .zip files cannot be unpacked there. Use a .tar.gz instead."),
         "partial" => AppError::new(
             ErrorCode::SlurmPermission,
             "Some items inside could not be deleted (no permission). The rest was deleted; refresh to see what is left.",
@@ -192,6 +193,32 @@ pub fn valid_entry_name(n: &str) -> bool {
     !n.is_empty() && n.len() <= 255 && n != "." && n != ".." && !n.contains('/') && !n.chars().any(char::is_control)
 }
 
+/// The app's own job logs (`slurm-<id>.out/.err`) directly in an `icfcc-run` folder: real files only
+/// (never links), counted in total and those last changed more than `days` days ago. With `delete`,
+/// those old ones are removed and nothing else; a running job keeps writing to its log, so it is
+/// never old. Prints `@@ok <files> <bytes> <old files> <old bytes>` (before deleting) or `@@err`.
+pub fn logs_script(dir: &str, days: u32, delete: bool) -> String {
+    let mut s = String::from(if delete { "# icfcc:logs-clean\n" } else { "# icfcc:logs\n" });
+    s += HOME_GUARD;
+    s += &format!("p={}\nm={}\nx={}\n", q(dir), u64::from(days) * 1440, u8::from(delete));
+    s += r#"[ -d "$p" ] || { printf '@@ok 0 0 0 0\n'; exit 0; }
+r=$(cd -P -- "$p" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+case "$r" in */icfcc-run) ;; *) printf '@@err outside\n'; exit 0;; esac
+n=0 b=0 on=0 ob=0
+for f in "$r"/slurm-*.out "$r"/slurm-*.err; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  z=$(wc -c < "$f" 2>/dev/null | tr -d ' ') || continue
+  n=$((n + 1)); b=$((b + z))
+  [ -n "$(find "$f" -prune -mmin +"$m" 2>/dev/null)" ] || continue
+  on=$((on + 1)); ob=$((ob + z))
+  [ "$x" = 1 ] && rm -f -- "$f"
+done
+printf '@@ok %s %s %s %s\n' "$n" "$b" "$on" "$ob"
+"#;
+    s
+}
+
 /// Deletes one entry of `dir` that a listing showed as `kind`: a file or a link (never its target)
 /// with `rm -f`, a folder with everything in it via `rm -rf` (which does not follow links). If the
 /// entry is gone or is no longer that kind, nothing is deleted.
@@ -219,6 +246,102 @@ if [ -e "$t" ] || [ -L "$t" ]; then printf '@@err partial\n'; exit 0; fi
 printf '@@ok %s\n' "$t"
 "#;
     s
+}
+
+/// Renames one entry of `dir` that a listing showed as `kind`, in place (never over an existing
+/// name, never into another folder). Links are renamed, not what they point to.
+pub fn rename_script(dir: &str, name: &str, kind: EntryKind, new_name: &str) -> String {
+    let k = match kind {
+        EntryKind::Dir => "d",
+        EntryKind::File => "f",
+        _ => "l",
+    };
+    let mut s = String::from("# icfcc:rename\n");
+    s += HOME_GUARD;
+    s += &format!("p={}\nn={}\nk={k}\nm={}\n", q(dir), q(name), q(new_name));
+    s += r#"r=$(cd -P -- "$p" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+t="$r/$n"
+if [ ! -e "$t" ] && [ ! -L "$t" ]; then printf '@@err gone\n'; exit 0; fi
+case "$k" in
+d) [ -d "$t" ] && [ ! -L "$t" ] ;;
+f) [ -f "$t" ] && [ ! -L "$t" ] ;;
+*) [ -L "$t" ] ;;
+esac || { printf '@@err kind_changed\n'; exit 0; }
+[ -w "$r" ] || { printf '@@err unwritable\n'; exit 0; }
+if [ -e "$r/$m" ] || [ -L "$r/$m" ]; then printf '@@err exists\n'; exit 0; fi
+mv -n -- "$t" "$r/$m" 2>/dev/null
+if [ -e "$t" ] || [ -L "$t" ]; then printf '@@err failed\n'; exit 0; fi
+printf '@@ok %s\n' "$r/$m"
+"#;
+    s
+}
+
+/// Archive names Unpack accepts, and whether the archive is a zip (otherwise `tar` detects the
+/// compression itself).
+const ARCHIVES: &[(&str, bool)] =
+    &[(".tar.gz", false), (".tgz", false), (".tar.bz2", false), (".tbz2", false), (".tar.xz", false), (".txz", false), (".tar", false), (".zip", true)];
+
+/// The folder name an archive unpacks into when it has no single top folder (its name without
+/// the archive suffix), and whether it is a zip. `None` for names that are not archives.
+pub fn unpack_target(name: &str) -> Option<(String, bool)> {
+    let lower = name.to_ascii_lowercase();
+    let (suffix, zip) = ARCHIVES.iter().find(|(s, _)| lower.ends_with(s))?;
+    let stem = &name[..name.len() - suffix.len()];
+    valid_entry_name(stem).then(|| (stem.to_string(), *zip))
+}
+
+/// Unpacks one archive of `dir` next to it; the archive is kept. It is extracted into a hidden
+/// folder first; then an archive holding exactly one folder (what Transfers' "pack a folder"
+/// makes) gives that folder, anything else gets a folder named after the archive. Nothing
+/// existing is overwritten: if the name is taken, the extracted copy is removed again. `tar` and
+/// `unzip` drop leading `/` and refuse `..` in member names, so members stay inside.
+pub fn unpack_script(dir: &str, name: &str, stem: &str, zip: bool) -> String {
+    let mut s = String::from("# icfcc:unpack\n");
+    s += HOME_GUARD;
+    s += &format!("p={}\nn={}\nd={}\nz={}\n", q(dir), q(name), q(stem), u8::from(zip));
+    s += r#"r=$(cd -P -- "$p" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+a="$r/$n"
+if [ ! -e "$a" ] && [ ! -L "$a" ]; then printf '@@err gone\n'; exit 0; fi
+[ -f "$a" ] && [ ! -L "$a" ] || { printf '@@err kind_changed\n'; exit 0; }
+[ -w "$r" ] || { printf '@@err unwritable\n'; exit 0; }
+if [ "$z" = 1 ] && ! command -v unzip >/dev/null 2>&1; then printf '@@err no_unzip\n'; exit 0; fi
+w=$(mktemp -d "$r/.icfcc-unpack.XXXXXX") || { printf '@@err failed\n'; exit 0; }
+if [ "$z" = 1 ]; then e=$(unzip -q -- "$a" -d "$w" 2>&1 >/dev/null); else e=$(tar -xf "$a" -C "$w" 2>&1 >/dev/null); fi
+if [ $? -ne 0 ]; then
+  rm -rf -- "$w"
+  printf '@@why %s\n' "$(printf '%s\n' "$e" | tail -n 1)"
+  printf '@@err unpack_failed\n'; exit 0
+fi
+c=0
+for x in "$w"/* "$w"/.[!.]* "$w"/..?*; do
+  if [ -e "$x" ] || [ -L "$x" ]; then c=$((c+1)); one=$x; fi
+done
+if [ "$c" = 1 ] && [ -d "$one" ] && [ ! -L "$one" ]; then
+  b=${one##*/}
+  if [ ! -e "$r/$b" ] && [ ! -L "$r/$b" ] && mv -- "$one" "$r/$b" 2>/dev/null; then
+    rmdir -- "$w"; printf '@@ok %s\n' "$r/$b"; exit 0
+  fi
+fi
+if [ -e "$r/$d" ] || [ -L "$r/$d" ]; then rm -rf -- "$w"; printf '@@err exists\n'; exit 0; fi
+mv -- "$w" "$r/$d" 2>/dev/null || { rm -rf -- "$w"; printf '@@err failed\n'; exit 0; }
+chmod -- "$(umask -S)" "$r/$d" 2>/dev/null
+printf '@@ok %s\n' "$r/$d"
+"#;
+    s
+}
+
+/// `@@ok <folder>` of an unpack, or why `tar`/`unzip` refused the archive.
+pub fn parse_unpack(out: &str) -> AppResult<String> {
+    if out.lines().any(|l| l == "@@err unpack_failed") {
+        let why = header(out, "@@why").map(|w| sanitize_text(w, 200)).filter(|w| !w.is_empty());
+        return Err(AppError::invalid(format!(
+            "The archive could not be unpacked{}. Nothing was left behind.",
+            why.map(|w| format!(": {w}")).unwrap_or_default()
+        )));
+    }
+    parse_ok(out)
 }
 
 pub fn parse_ok(out: &str) -> AppResult<String> {

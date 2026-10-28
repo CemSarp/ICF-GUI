@@ -4,9 +4,12 @@ import { api, errorMessage } from '../api';
 import type { ConnectionStatus, Entry } from '../../types';
 import { isDir, joinPath, NEW_FILE_TYPES, parentOf, type NewFileType } from './paths';
 
+export type EntryOp = 'delete' | 'rename' | 'unpack';
+
 /**
  * One folder at a time inside the remote home (bounded listing; never recursive), with back/forward
- * history, a typed path, creating one folder or file, and deleting one entry after confirmation.
+ * history, a typed path, creating one folder or file, and deleting, renaming or unpacking one entry
+ * after confirmation.
  * Navigation is re-validated by the backend and re-resolved on ICF, so symlinks cannot leave home.
  */
 export function useRemoteBrowser({
@@ -28,7 +31,14 @@ export function useRemoteBrowser({
   const [newName, setNewName] = useState('');
   const [mkdirError, setMkdirError] = useState<string | null>(null);
   const [newFile, setNewFile] = useState<{ name: string; type: NewFileType; error: string | null } | null>(null);
-  const [toDelete, setToDelete] = useState<{ entry: Entry; error: string | null; busy: boolean } | null>(null);
+  /** The entry a Delete, Rename or Unpack sheet is open for; `name` is the new name being typed. */
+  const [act, setAct] = useState<{
+    op: EntryOp;
+    entry: Entry;
+    name: string;
+    error: string | null;
+    busy: boolean;
+  } | null>(null);
   const qc = useQueryClient();
   const current = history[pos] ?? null;
   const key = ['browse', current, status.connectedAt];
@@ -78,17 +88,25 @@ export function useRemoteBrowser({
     }
   };
 
-  /** Deletes the entry chosen with Delete (after the user confirmed it), then refreshes. */
-  const deleteEntry = async () => {
-    if (!listing || !toDelete) return;
-    setToDelete({ ...toDelete, busy: true, error: null });
+  /** Runs the confirmed sheet's operation, then refreshes; a renamed or unpacked folder is opened. */
+  const runAct = async () => {
+    if (!listing || !act) return;
+    setAct({ ...act, busy: true, error: null });
+    const { op, entry } = act;
     try {
-      await api.filesDelete(listing.path, toDelete.entry.name, toDelete.entry.kind);
-      setToDelete(null);
+      const made =
+        op === 'delete'
+          ? await api.filesDelete(listing.path, entry.name, entry.kind)
+          : op === 'rename'
+            ? await api.filesRename(listing.path, entry.name, entry.kind, act.name.trim())
+            : await api.filesUnpack(listing.path, entry.name);
+      setAct(null);
+      void qc.invalidateQueries({ queryKey: key });
+      if (op === 'unpack') go(made);
     } catch (e) {
-      setToDelete({ ...toDelete, busy: false, error: errorMessage(e) });
+      setAct({ ...act, busy: false, error: errorMessage(e) });
+      void qc.invalidateQueries({ queryKey: key });
     }
-    void qc.invalidateQueries({ queryKey: key });
   };
 
   const entries = (listing?.entries ?? []).filter(
@@ -122,9 +140,10 @@ export function useRemoteBrowser({
     newFile,
     setNewFile,
     createFile,
-    toDelete,
-    askDelete: (entry: Entry) => setToDelete({ entry, error: null, busy: false }),
-    cancelDelete: () => setToDelete(null),
-    deleteEntry,
+    act,
+    ask: (op: EntryOp, entry: Entry) => setAct({ op, entry, name: entry.name, error: null, busy: false }),
+    setActName: (name: string) => act && setAct({ ...act, name, error: null }),
+    cancelAct: () => setAct(null),
+    runAct,
   };
 }

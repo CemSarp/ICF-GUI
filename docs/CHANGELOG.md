@@ -1,5 +1,112 @@
 # Changelog
 
+## [0.5.1] — 2026-10-28 · New job, GPU sessions, Rename and Unpack
+
+### Added
+- **Avoid nodes** under GPU and resources (SLURM `--exclude`), for every job type: a node that fails
+  every job can be skipped while still asking for its GPU type. The list is kept on this Mac until
+  you remove a node, and is always shown in New job. A job that SLURM stopped before it ran
+  (a signal after ~0 s, no log, e.g. `0:53` on `damnii11`) names its node and offers *Avoid it in new
+  jobs*.
+- **Lines to look at** above a job's log: test `FAIL`s, `error:` lines, tracebacks, CUDA errors and
+  session blocks that ended with a non-zero code, each once, with their line number.
+- **Review marks the app's lines**: in a script job's review, lines the app adds from your settings
+  (environment, setup file, the run line) are highlighted, and the lines you typed are marked.
+- **GPU session** (ADR-038), a new job type: holds one GPU, runs optional setup lines once, then
+  runs each command block you send from the job's page (**Send**, ⌘↩) in the same folder, without
+  queueing again. Output and each block's exit code are in the job log. It ends by itself after the
+  idle minutes you choose (default 30), at its time limit, or when cancelled. New command
+  `session_send` (job-mutations capability).
+- **Job logs in Projects**: *Check* counts the `slurm-<id>.out/.err` files in the project's
+  `icfcc-run` folder and how many are older than a chosen number of days; *Delete old logs* removes
+  only those, after confirmation (never links, other files or newer logs). New commands
+  `logs_summary` (read) and `logs_clean` (file-mutations capability).
+- **Recent commands** under the Commands box: the last eight blocks submitted, offered back with *Use*.
+- **Edit and run again** on a job's details (script jobs) and on finished training runs: New job
+  opens filled in exactly as that job was reviewed. Script-job receipts now keep the reviewed request.
+- **Start screen** (the first screen): the next step with one button, a checklist of GPU milestones
+  with your progress, the GPUs most free right now, and where your code runs. Worked out from data
+  already on your Mac; no extra ICF requests.
+- **Run buttons in Projects**: *Run* on a `.py`, `.ipynb`, `.sh`, `.sbatch`, `.cu` or C/C++ file and *Run on a
+  GPU…* for the folder open New job ready to go.
+- **Course batch files**: picking or running a `.sbatch` file takes over its `#SBATCH` partition, GPU,
+  CPUs, memory, time and job name, and its commands; what is not taken over is listed.
+- **Setup lines for Commands**: + CUDA 12.8, + Conda environment, + Show the GPU.
+- **Terminal commands in Script job.** *Run with → Terminal commands* runs the lines you type in the
+  working directory on the GPU node, without writing a script file. **Choose a file…** picks e.g. a
+  `.cu` or `.py` file on ICF, sets the working directory to its folder and suggests a command. The
+  lines appear verbatim in the reviewed batch script (ADR-034).
+- **Browse… for paths in Script job**: pick the working directory and the script on ICF instead of
+  typing them.
+- **Rename** on every file, folder and link in Projects and Notebooks: renames in place, never over
+  an existing name (a link is renamed, not what it points to).
+- **Unpack** on archives (`.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.zip`): unpacks next to
+  the archive on ICF, after a confirmation. A folder packed by Transfers comes back under its own
+  name; anything else gets a folder named after the archive. The archive is kept, nothing existing is
+  overwritten, and a failed unpack leaves nothing behind (ADR-033).
+
+### Changed
+- **New jobs ask for 1 hour** by default instead of 4 (short jobs tend to start sooner).
+- **New job starts empty** each time it opens (also after a restart), unless you load a preset;
+  switching answers inside it still keeps what you entered.
+- **The Python environment comes from the folder's project** (ADR-037): picking a file in a project
+  you opened fills in that project's environment (and, for workflows, its CUDA toolchain), labelled
+  *From your project …*. Commands and GPU session show the environment their lines use, with *Use <project env>* and
+  *Remove*; Shell script names the project's. Without a project nothing is filled.
+- **Four job types on New job**: the GPU test is no longer a tile; it is a check of an environment,
+  started from Projects → Python environment → *Run the GPU smoke test*.
+- **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,
+  training, GPU sessions) keeps `slurm-<job id>.out` and `.err` in an `icfcc-run` folder inside the
+  folder it runs in. SLURM opens them in the folder itself and the job's first step moves them into
+  `icfcc-run` (SLURM keeps writing to them); if that fails they stay in the folder. Pointing SLURM
+  straight at a folder made moments before failed on ICF (job 3691386, `0:53`, no log), because the
+  GPU node did not see it yet. Logs are read under either name. Runs submitted earlier still read
+  their logs from where they were written.
+- **Presets keep the job type and the commands**: a preset remembers what was chosen under *What do
+  you want to run?*, the Commands lines or a GPU session's setup lines and idle minutes. Choosing it
+  switches to that job type (and to the other form if needed). Older presets keep the open job type.
+- **Clearer failure text**: a job stopped by a signal (SLURM's `exit:signal`, e.g. `0:53`) no longer
+  says "the program exited with an error".
+- **Python environment only for Python script**: a saved environment no longer adds a hidden
+  `source …/bin/activate` line to Commands or Shell script jobs; the backend refuses one sent with
+  them. Training workflows likewise send hidden settings (resume, checkpoints, the GPU test's
+  datasets) as their defaults, and the backend refuses them for kinds that do not use them.
+- **Conda environments work for Python script jobs**: the job runs `<env>/bin/python` (with
+  `<env>/bin` first on `PATH`) instead of sourcing `bin/activate`, which conda environments lack.
+- **New job: choose, don't type.** What to run is five tiles; the file is chosen on ICF and its
+  folder is where the job runs (click a folder above in the path to run from there). Partition and
+  GPU type are tiles with live free counts; GPUs, CPUs and RAM have − / +; time limits are one click.
+  Job name (named after the file until you edit it), CPUs, RAM and e-mail are always visible, and both
+  kinds of job use the same GPU section. A `.ipynb` picked as a Python script, or run from Projects,
+  runs as a Notebook. The submit button stays at the bottom of the window with a summary (ADR-036).
+- **Results go next to the code** (`runs/` in the script's folder); the *Results folder* field is
+  gone. Checkpoints are a three-way choice; the resume checkpoint and Python environment are chosen
+  as folders.
+- Buttons no longer end in "…"; a chosen script or notebook has **Remove**; the run-type tiles and
+  the GPU section are more compact; the Commands tile says it also runs `.cu` and C/C++ files; the
+  submit bar stands out from the page; picker *Cancel* is coloured; Projects' *Run* lines up with
+  the other row buttons.
+- **Presets for every kind of job**, now with **Save changes**, **Rename…** and **Delete…**.
+- **Cluster → Overview**: one card per partition with a ring of its free GPUs, its GPU types and
+  *New job here* / *See nodes*; *GPUs by type* is gone. Allocated GPUs are yellow.
+- Plainer wording on Transfers (how to get a packed folder back) and on the project page's VS Code
+  note; the commands box grows with its content.
+- **New job is one form.** It asks *What do you want to run?* (Python script, Shell script, Commands,
+  Notebook, GPU test; Python can be *Managed training*). Arguments and setup files are under *More
+  options*; a training run's datasets and checkpoints are in their own folded sections. Each section
+  opens by itself when one of its fields has a problem, and switching answers keeps what was
+  entered. Nothing was removed.
+- **One Cluster screen instead of Overview, Partitions and GPU Nodes.** Its *Overview* tab has the
+  fleet numbers and the partition cards above. Its *Nodes* tab is the node table. A screen remembered from before opens in the right tab.
+- **Runs is now a tab of My Jobs.** My Jobs has *All jobs* (every job of yours on ICF) and
+  *Training runs* (this app's workflows with stage, failure type, metrics, checkpoints and results).
+  A job that is a training run links to it from the job list. Runs left the sidebar.
+
+### Internal
+- `files_rename` and `files_unpack` (file-mutations capability), fixed scripts tested against a
+  sandbox home, including archive members named `../x` or `/x`.
+- `JobRequest` gains `runner: "commands"` and `commands`; no script-file check for that runner.
+
 ## [0.5.0] — 2026-10-27 · Notebooks
 
 ### Added

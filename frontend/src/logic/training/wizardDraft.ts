@@ -15,7 +15,6 @@ export interface Draft {
   hfPath: string;
   hfArchive: string;
   hfOffline: boolean;
-  resultsRoot: string;
   checkpointMode: CheckpointMode;
   checkpointSyncMinutes: number;
   resumeFrom: string;
@@ -38,6 +37,8 @@ export interface Draft {
 export interface WizardInit {
   projectDir?: string;
   kind?: WorkflowKind;
+  /** The script or notebook, relative to `projectDir`. */
+  entry?: string;
   interpreter?: string | null;
   toolchainId?: string | null;
   config?: WorkflowConfig;
@@ -45,9 +46,9 @@ export interface WizardInit {
 
 export const DEFAULT_DRAFT: Draft = {
   kind: 'train',
-  jobName: 'train',
+  jobName: 'job',
   projectDir: '',
-  entry: 'train.py',
+  entry: '',
   args: '',
   interpreter: '',
   toolchainId: '',
@@ -57,7 +58,6 @@ export const DEFAULT_DRAFT: Draft = {
   hfPath: '',
   hfArchive: '',
   hfOffline: false,
-  resultsRoot: '',
   checkpointMode: 'scratch_sync',
   checkpointSyncMinutes: 30,
   resumeFrom: '',
@@ -69,7 +69,7 @@ export const DEFAULT_DRAFT: Draft = {
   gpuCount: 1,
   cpus: 4,
   memoryGb: 16,
-  hours: 4,
+  hours: 1, // course work is mostly short; short jobs also tend to start sooner
   minutes: 0,
   checkModules: '',
   mail: false,
@@ -96,7 +96,8 @@ export function expandHome(p: string, home: string): string {
 }
 
 /** Paths go to Rust absolute: `home` expands `~/…` (empty = no expansion). */
-export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
+export function toConfig(form: Draft, toolchains: ToolchainProfile[], home = ''): WorkflowConfig {
+  const d = visibleOnly(form);
   const tc = toolchains.find((t) => t.id === d.toolchainId);
   const abs = (p: string) => expandHome(p, home);
   const project = abs(d.projectDir).replace(/\/+$/, '');
@@ -104,8 +105,8 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
     kind: d.kind,
     jobName: d.jobName.trim(),
     projectDir: project,
-    entry: d.kind === 'gpu_smoke_test' ? '' : abs(d.entry),
-    args: d.kind === 'train' ? lines(d.args) : [],
+    entry: abs(d.entry),
+    args: lines(d.args),
     interpreter: abs(d.interpreter),
     toolchain: tc ? tc.spec : { kind: 'none' },
     datasets: d.datasets.filter((x) => x.archive.trim()).map((x) => ({ archive: abs(x.archive), into: x.into.trim() })),
@@ -116,7 +117,8 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
         : d.hfMode === 'staged'
           ? { mode: 'staged', archive: abs(d.hfArchive), offline: d.hfOffline }
           : { mode: d.hfMode },
-    resultsRoot: abs(d.resultsRoot).replace(/\/+$/, '') || `${project}/runs`,
+    // Results go next to the code: <the file's folder>/runs/<job name>-<job id>.
+    resultsRoot: `${project}/runs`,
     checkpointMode: d.checkpointMode,
     checkpointSyncMinutes: d.checkpointSyncMinutes,
     resumeFrom: abs(d.resumeFrom) || null,
@@ -138,6 +140,37 @@ export function toConfig(d: Draft, toolchains: ToolchainProfile[], home = ''): W
   };
 }
 
+/**
+ * What is sent is what the form shows: settings hidden for this kind (kept in the draft for
+ * switching back) go out as their defaults. Checkpoints are training-only; the GPU test also has
+ * no datasets, scratch or Hugging Face settings.
+ */
+export function visibleOnly(d: Draft): Draft {
+  const D = DEFAULT_DRAFT;
+  const train = d.kind === 'train';
+  const smoke = d.kind === 'gpu_smoke_test';
+  return {
+    ...d,
+    ...(train
+      ? {}
+      : {
+          args: D.args,
+          checkpointMode: D.checkpointMode,
+          checkpointSyncMinutes: D.checkpointSyncMinutes,
+          resumeFrom: D.resumeFrom,
+        }),
+    ...(smoke
+      ? {
+          entry: D.entry,
+          datasets: D.datasets,
+          scratchRoot: D.scratchRoot,
+          expectedOutputGib: D.expectedOutputGib,
+          hfMode: D.hfMode,
+        }
+      : {}),
+  };
+}
+
 export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): Draft {
   const tc = toolchains.find((t) => JSON.stringify(t.spec) === JSON.stringify(c.toolchain));
   return {
@@ -145,7 +178,7 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
     kind: c.kind,
     jobName: c.jobName,
     projectDir: c.projectDir,
-    entry: c.entry || DEFAULT_DRAFT.entry,
+    entry: c.entry,
     args: c.args.join('\n'),
     interpreter: c.interpreter,
     toolchainId: tc?.id ?? '',
@@ -155,7 +188,6 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
     hfPath: c.hfCache.mode === 'home' ? c.hfCache.path : '',
     hfArchive: c.hfCache.mode === 'staged' ? c.hfCache.archive : '',
     hfOffline: c.hfCache.mode === 'staged' ? c.hfCache.offline : false,
-    resultsRoot: c.resultsRoot,
     checkpointMode: c.checkpointMode,
     checkpointSyncMinutes: c.checkpointSyncMinutes,
     resumeFrom: c.resumeFrom ?? '',
@@ -174,6 +206,22 @@ export function fromConfig(c: WorkflowConfig, toolchains: ToolchainProfile[]): D
   };
 }
 
+/** The GPU test's job name, shown and editable on the form. */
+export const SMOKE_NAME = 'gpu-test';
+
+/** A GPU test is small and short. */
+export const SMOKE_DEFAULTS = {
+  datasets: [],
+  hours: 0,
+  minutes: 10,
+  cpus: 2,
+  memoryGb: 8,
+  gpuCount: 1,
+  signalGraceSeconds: 120,
+  checkpointMode: 'none' as const,
+  expectedOutputGib: 0,
+};
+
 /** The draft a new wizard starts from: a resumed config, a project/smoke-test request, or the saved draft. */
 export function initialDraft(stored: Draft, init: WizardInit | null, toolchains: ToolchainProfile[]): Draft {
   const base = { ...DEFAULT_DRAFT, ...stored };
@@ -183,23 +231,11 @@ export function initialDraft(stored: Draft, init: WizardInit | null, toolchains:
     ...base,
     projectDir: init.projectDir ?? base.projectDir,
     kind: init.kind ?? (base.kind === 'gpu_smoke_test' ? 'train' : base.kind),
-    jobName: init.kind === 'gpu_smoke_test' ? 'gpu-smoke' : base.jobName,
+    entry: init.entry ?? (init.projectDir && init.projectDir !== base.projectDir ? '' : base.entry),
+    jobName: init.kind === 'gpu_smoke_test' ? SMOKE_NAME : base.jobName,
     interpreter: init.interpreter ?? base.interpreter,
     toolchainId: init.toolchainId ?? base.toolchainId,
-    resultsRoot: init.projectDir && init.projectDir !== base.projectDir ? '' : base.resultsRoot,
-    ...(init.kind === 'gpu_smoke_test'
-      ? {
-          datasets: [],
-          hours: 0,
-          minutes: 10,
-          cpus: 2,
-          memoryGb: 8,
-          gpuCount: 1,
-          signalGraceSeconds: 120,
-          checkpointMode: 'none' as const,
-          expectedOutputGib: 0,
-        }
-      : {}),
+    ...(init.kind === 'gpu_smoke_test' ? SMOKE_DEFAULTS : {}),
   };
 }
 
