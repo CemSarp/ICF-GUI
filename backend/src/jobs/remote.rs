@@ -45,10 +45,11 @@ pub fn heredoc_safe(body: &str, delimiter: &str) -> bool {
 /// Pre-checks paths on ICF (exist, resolve under $HOME), then runs `sbatch --parsable` exactly once.
 pub fn submit_script(r: &JobRequest, job_script: &str, tag: &str) -> String {
     let mut s = String::from("# icfcc:submit\numask 077\n");
-    s += PATH_HELPERS;
+    s += &precheck_helpers();
     s += "command -v sbatch >/dev/null 2>&1 || { printf '@@err nosbatch\\n'; exit 0; }\n";
     s += &format!("need_dir {} workingDir\n", q(&r.working_dir));
     s += &format!("[ -w {} ] || {{ printf '@@err unwritable workingDir\\n'; exit 0; }}\n", q(&r.working_dir));
+    s += &format!("make_dir {} logDir\n", q(&super::request::log_dir(&r.working_dir)));
     if r.runner != super::request::Runner::Commands {
         s += &format!("need_file {} program home\n", q(&r.program_path()));
     }
@@ -127,6 +128,7 @@ pub(crate) fn precheck_message(what: &str) -> (ErrorCode, String) {
         "hfHome" => "Hugging Face cache directory",
         "resume" => "checkpoint to resume from",
         "resultsRoot" => "results directory",
+        "logDir" => "icfcc-run log folder",
         "notebook" => "notebook",
         "file" => "file",
         _ => "path",

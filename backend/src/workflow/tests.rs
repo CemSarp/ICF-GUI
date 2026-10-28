@@ -64,6 +64,7 @@ fn valid_config_plans_prechecks_and_the_durability_warning() {
         checks,
         vec![
             Precheck::Dir("/home/demo/proj".into(), "project"),
+            Precheck::MakeDir("/home/demo/proj/icfcc-run".into(), "logDir"),
             Precheck::File("/home/demo/proj/train.py".into(), "entry"),
             Precheck::Exec("/home/demo/env/bin/python".into(), "interpreter"),
             Precheck::File("/home/demo/data/ds.tar.gz".into(), "dataset"),
@@ -162,7 +163,7 @@ fn rendered_script_quotes_every_user_value() {
         "#SBATCH --gres=gpu:nvidia_rtx_a6000:1",
         "#SBATCH --signal=B:USR1@300",
         "#SBATCH --comment=icfcc-t1",
-        "#SBATCH --output=/home/demo/proj/runs/slurm-%j.out",
+        "#SBATCH --output=/home/demo/proj/icfcc-run/slurm-%j.out",
         "#SBATCH --chdir=/home/demo/proj",
     ] {
         assert!(s.lines().any(|x| x == l), "{l}");
@@ -798,7 +799,13 @@ fn run_store_survives_restart_and_scopes_identities() {
         last_checked_at: None,
         finalized: false,
         dismissed: false,
+        log_dir: None,
     };
+    // A run from before 0.5.1 keeps reading its logs from the results folder; a new one from icfcc-run.
+    let old = run("t0", "default", "s1");
+    assert_eq!(old.log_path("out").unwrap(), format!("{}/slurm-4242.out", old.config.results_root));
+    let new = store::WorkflowRun { log_dir: Some(format!("{HOME}/proj/icfcc-run")), ..old };
+    assert_eq!(new.log_path("err").unwrap(), format!("{HOME}/proj/icfcc-run/slurm-4242.err"));
     s.upsert(run("t1", "default", "s1")).unwrap();
     s.upsert(run("t2", "other", "s2")).unwrap();
     let reloaded = store::RunStore::load(&dir);

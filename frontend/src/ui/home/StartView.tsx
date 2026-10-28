@@ -197,7 +197,7 @@ export function StartView({
           <li>
             <strong>GPU node</strong>
             <span className="muted small">
-              Your job runs here once SLURM gives it a GPU. Output goes to slurm-&lt;job id&gt;.out in your folder.
+              Your job runs here once SLURM gives it a GPU. Output goes to icfcc-run/slurm-&lt;job id&gt;.out in your folder.
             </span>
           </li>
         </ol>

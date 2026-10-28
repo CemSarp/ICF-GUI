@@ -59,8 +59,9 @@ pub fn render(c: &WorkflowConfig, tag: &str) -> String {
     s += &format!("#SBATCH --mem={}M\n", r.memory_mib);
     s += &format!("#SBATCH --time={}\n", format_time_limit(r.time_limit_seconds));
     s += &format!("#SBATCH --chdir={}\n", c.project_dir);
-    s += &format!("#SBATCH --output={results}/slurm-%j.out\n");
-    s += &format!("#SBATCH --error={results}/slurm-%j.err\n");
+    let logs = crate::jobs::request::log_dir(&c.project_dir);
+    s += &format!("#SBATCH --output={logs}/slurm-%j.out\n");
+    s += &format!("#SBATCH --error={logs}/slurm-%j.err\n");
     s += &format!("#SBATCH --signal=B:USR1@{}\n", c.signal_grace_seconds);
     s += &format!("#SBATCH --comment=icfcc-{tag}\n");
     s += &crate::jobs::request::mail_lines(c.mail_user.as_deref());

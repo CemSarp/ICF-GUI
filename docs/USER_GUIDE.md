@@ -40,7 +40,7 @@ starting a kernel are remembered when you do them. Nothing extra is asked of ICF
    **Run** button; **Run on a GPU** at the top uses the folder itself.
 2. **Run** on a course batch file such as `run_asr.sbatch` opens New job with its partition, GPU,
    CPUs, memory, time and commands taken over, running in that folder. Its `#SBATCH --output` is not
-   used (the output is `slurm-<job id>.out`), and `cd "$SLURM_SUBMIT_DIR"` is dropped because the job
+   used (the output is `icfcc-run/slurm-<job id>.out` in the folder), and `cd "$SLURM_SUBMIT_DIR"` is dropped because the job
    already starts in the folder.
 3. Or choose **Commands** and type what the instructions say (`make`, `make test1`,
    `./run.sh --cuda task1`). **+ CUDA 12.8**, **+ Conda environment** and **+ Show the GPU** add the

@@ -4,7 +4,7 @@
 
 use super::parse::{resolve_log_path, valid_job_id, JobRow, JobState, LogChunk};
 use super::remote::{self, CancelOutcome, Detail, JobsList, SubmitOutcome};
-use super::request::{checksum, format_time_limit, render_script, validate, Context, Issue, JobRequest};
+use super::request::{checksum, format_time_limit, log_dir, render_script, validate, Context, Issue, JobRequest};
 use super::store::{JobReceipt, ReceiptStatus};
 use crate::commands::{note_remote_error, AppState, ConnState};
 use crate::errors::{AppError, AppResult, ErrorCode};
@@ -138,8 +138,8 @@ pub async fn jobs_preview(state: State<'_, AppState>, request: JobRequest) -> Ap
         acknowledgements: v.acknowledgements,
         snapshot_at: Some(snap.fetched_at.clone()),
         time_limit: format_time_limit(request.time_limit_seconds),
-        stdout_pattern: format!("{}/slurm-%j.out", request.working_dir),
-        stderr_pattern: format!("{}/slurm-%j.err", request.working_dir),
+        stdout_pattern: format!("{}/slurm-%j.out", log_dir(&request.working_dir)),
+        stderr_pattern: format!("{}/slurm-%j.err", log_dir(&request.working_dir)),
         home: c.home,
     })
 }
@@ -201,8 +201,8 @@ pub async fn jobs_submit(
         None => validate(&p.request, &cx),
     };
     let (stdout_pattern, stderr_pattern) = match &p.workflow {
-        Some(w) => (format!("{}/slurm-%j.out", w.config.results_root), format!("{}/slurm-%j.err", w.config.results_root)),
-        None => (format!("{}/slurm-%j.out", p.request.working_dir), format!("{}/slurm-%j.err", p.request.working_dir)),
+        Some(w) => (format!("{}/slurm-%j.out", log_dir(&w.config.project_dir)), format!("{}/slurm-%j.err", log_dir(&w.config.project_dir))),
+        None => (format!("{}/slurm-%j.out", log_dir(&p.request.working_dir)), format!("{}/slurm-%j.err", log_dir(&p.request.working_dir))),
     };
     let mut receipt = JobReceipt {
         tag: p.tag.clone(),

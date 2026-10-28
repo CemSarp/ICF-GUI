@@ -113,7 +113,7 @@ pub async fn workflow_preview(state: State<'_, AppState>, config: WorkflowConfig
         snapshot_at: Some(snap.fetched_at.clone()),
         time_limit: format_time_limit(config.resources.time_limit_seconds),
         run_dir_pattern: format!("{}/{}-<jobid>", config.results_root, config.job_name),
-        log_pattern: format!("{}/slurm-<jobid>.out", config.results_root),
+        log_pattern: format!("{}/slurm-<jobid>.out", crate::jobs::request::log_dir(&config.project_dir)),
         scratch_pattern: scratch,
         prechecks: checks.iter().map(describe).collect(),
     })
@@ -140,6 +140,7 @@ pub fn record_submission(state: &AppState, p: &StoredPreview, pending: &Pending,
         last_checked_at: None,
         finalized: false,
         dismissed: false,
+        log_dir: Some(crate::jobs::request::log_dir(&pending.config.project_dir)),
     });
     run.submission = receipt.status;
     run.submission_message = receipt.message.clone();

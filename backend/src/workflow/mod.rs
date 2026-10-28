@@ -268,6 +268,7 @@ pub fn plan(c: &WorkflowConfig, cx: &Context) -> (Validation, Vec<Precheck>) {
 
     if path_in_home("projectDir", "Project directory", &c.project_dir, &mut v.errors) {
         checks.push(Precheck::Dir(c.project_dir.clone(), "project"));
+        checks.push(Precheck::MakeDir(crate::jobs::request::log_dir(&c.project_dir), "logDir"));
     }
     match c.kind {
         WorkflowKind::GpuSmokeTest => {}

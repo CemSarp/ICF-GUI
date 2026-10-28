@@ -25,6 +25,12 @@
   overwritten, and a failed unpack leaves nothing behind (ADR-033).
 
 ### Changed
+- **SLURM logs go to `icfcc-run/`**: every job submitted from the app (script jobs, notebooks,
+  training, the GPU test) writes `slurm-<job id>.out` and `.err` into an `icfcc-run` folder inside
+  the folder it runs in. The folder is created before `sbatch` (inside your home only). Runs submitted
+  earlier still read their logs from where they were written.
+- **Python environment only for Python script**: a saved environment no longer adds a hidden
+  `source …/bin/activate` line to Commands or Shell script jobs.
 - **New job: choose, don't type.** What to run is five tiles; the file is chosen on ICF and its
   folder is where the job runs (click a folder above in the path to run from there). Partition and
   GPU type are tiles with live free counts; GPUs, CPUs and RAM have − / +; time limits are one click.
