@@ -6,7 +6,7 @@ import type { ConnectionStatus, JobRequest, PreviewResponse } from '../src/types
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
-import { commandsFor, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
+import { commandsFor, rememberCommands, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
 import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
 import { describeProjectEnv, envDirOf, projectFor } from '../src/logic/jobs/projectEnv';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
@@ -605,6 +605,42 @@ describe('New job starts empty', () => {
     expect(screen.getByLabelText('Job name')).toHaveValue('job');
     await userEvent.click(screen.getByLabelText('Commands'));
     expect(screen.getByLabelText('Commands to run')).toHaveValue('');
+  });
+});
+
+describe('Recent commands', () => {
+  it('offers submitted Commands blocks back, newest first, without filling them in', async () => {
+    backend.reset(connectedLive, {
+      jobs_preview: () => okPreview(),
+      jobs_submit: () => ({
+        outcome: 'accepted',
+        jobId: '4242',
+        cluster: null,
+        receipt: { ...receipt, status: 'accepted', jobId: '4242' },
+      }),
+    });
+    await openWizard();
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.queryByText(/Recent commands/)).toBeNull();
+    await userEvent.type(screen.getByLabelText('Commands to run'), 'conda activate mls-asr{Enter}make test1');
+    const dialog = await reviewAndConfirm();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit to SLURM' }));
+    expect(await screen.findByText('Job 4242')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    await userEvent.click(screen.getByLabelText('Commands'));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue(''); // New job still opens empty
+    await userEvent.click(screen.getByText('Recent commands (1)'));
+    await userEvent.click(screen.getByRole('button', { name: 'Use: make test1' }));
+    expect(screen.getByLabelText('Commands to run')).toHaveValue('conda activate mls-asr\nmake test1');
+  });
+
+  it('keeps each block once, newest first, at most eight', () => {
+    let l: string[] = [];
+    for (const c of ['a', 'b', 'a', '  ', ...'cdefghij']) l = rememberCommands(l, c);
+    expect(l).toEqual(['j', 'i', 'h', 'g', 'f', 'e', 'd', 'c']);
+    expect(rememberCommands(['b', 'a'], 'a')).toEqual(['a', 'b']);
   });
 });
 

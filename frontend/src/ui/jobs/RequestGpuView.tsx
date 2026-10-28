@@ -39,6 +39,7 @@ export function RequestGpuView({
     fileAbs,
     runFrom,
     projectEnv,
+    recentCommands,
     presets,
     partition,
     gres,
@@ -285,6 +286,29 @@ export function RequestGpuView({
                         </ul>
                       )}
                     </Notice>
+                  )}
+                  {recentCommands.length > 0 && (
+                    <details className="recent-commands">
+                      <summary>Recent commands ({recentCommands.length})</summary>
+                      <ul>
+                        {recentCommands.map((c) => (
+                          <li key={c}>
+                            <code className="mono" title={c}>
+                              {c.split('\n').slice(-1)[0]}
+                              {c.includes('\n') && <span className="muted"> · {c.split('\n').length} lines</span>}
+                            </code>
+                            <button
+                              type="button"
+                              className="btn small-btn"
+                              aria-label={`Use: ${c.split('\n').slice(-1)[0]}`}
+                              onClick={() => set('commands', c)}
+                            >
+                              Use
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   )}
                   <textarea
                     id="f-commands"

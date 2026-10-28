@@ -2514,3 +2514,32 @@ input[type='checkbox'][role='switch']:focus-visible {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 }
+
+/* Recent commands under the Commands box: last line of each block, newest first. */
+.recent-commands {
+  margin-bottom: var(--s2);
+}
+.recent-commands summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+.recent-commands ul {
+  list-style: none;
+  margin: var(--s1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s1);
+}
+.recent-commands li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.recent-commands code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

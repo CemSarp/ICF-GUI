@@ -66,6 +66,14 @@ export interface Draft {
 
 const shellWord = (s: string) => (/^[\w.+@=,/-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
+const RECENT_MAX = 8;
+
+/** Commands blocks submitted from this Mac, newest first, each once (kept on this Mac only). */
+export function rememberCommands(list: string[], commands: string): string[] {
+  const c = commands.trim();
+  return c ? [c, ...list.filter((x) => x !== c)].slice(0, RECENT_MAX) : list;
+}
+
 /** A starting command for a chosen file, by its type (the user edits it before reviewing). */
 export function commandsFor(name: string): string {
   const f = shellWord(name);
@@ -207,6 +215,8 @@ export function useRequestGpu(
   const maxGpus = maxGpusFor(snapshot, partition, gres);
 
   const wd = resolveWorkingDir(draft.workingDir, home);
+  // Not cleared when New job opens: these are what the user ran, offered back, never filled in.
+  const [recentCommands, setRecentCommands] = usePersistentState<string[]>('job.recentCommands', []);
   const projectEnv = useProjectEnv(status, draft.workingDir.trim() ? wd : '', home, draft.pythonEnv, (e) =>
     patch({ pythonEnv: e.dir }),
   );
@@ -337,6 +347,8 @@ export function useRequestGpu(
     try {
       const r = await api.jobsSubmit(preview.previewId, ack, crypto.randomUUID());
       setResult(r);
+      if (r.outcome === 'accepted' && effective.runner === 'commands')
+        setRecentCommands(rememberCommands(recentCommands, effective.commands));
       setPreview(null);
       void qc.invalidateQueries({ queryKey: jobsKey(status) });
     } catch (err) {
@@ -413,6 +425,7 @@ export function useRequestGpu(
     fileAbs,
     runFrom,
     projectEnv,
+    recentCommands,
     presets,
     partition,
     gpuTypes,
