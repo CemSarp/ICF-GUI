@@ -193,6 +193,32 @@ pub fn valid_entry_name(n: &str) -> bool {
     !n.is_empty() && n.len() <= 255 && n != "." && n != ".." && !n.contains('/') && !n.chars().any(char::is_control)
 }
 
+/// The app's own job logs (`slurm-<id>.out/.err`) directly in an `icfcc-run` folder: real files only
+/// (never links), counted in total and those last changed more than `days` days ago. With `delete`,
+/// those old ones are removed and nothing else; a running job keeps writing to its log, so it is
+/// never old. Prints `@@ok <files> <bytes> <old files> <old bytes>` (before deleting) or `@@err`.
+pub fn logs_script(dir: &str, days: u32, delete: bool) -> String {
+    let mut s = String::from(if delete { "# icfcc:logs-clean\n" } else { "# icfcc:logs\n" });
+    s += HOME_GUARD;
+    s += &format!("p={}\nm={}\nx={}\n", q(dir), u64::from(days) * 1440, u8::from(delete));
+    s += r#"[ -d "$p" ] || { printf '@@ok 0 0 0 0\n'; exit 0; }
+r=$(cd -P -- "$p" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+case "$r" in */icfcc-run) ;; *) printf '@@err outside\n'; exit 0;; esac
+n=0 b=0 on=0 ob=0
+for f in "$r"/slurm-*.out "$r"/slurm-*.err; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  z=$(wc -c < "$f" 2>/dev/null | tr -d ' ') || continue
+  n=$((n + 1)); b=$((b + z))
+  [ -n "$(find "$f" -prune -mmin +"$m" 2>/dev/null)" ] || continue
+  on=$((on + 1)); ob=$((ob + z))
+  [ "$x" = 1 ] && rm -f -- "$f"
+done
+printf '@@ok %s %s %s %s\n' "$n" "$b" "$on" "$ob"
+"#;
+    s
+}
+
 /// Deletes one entry of `dir` that a listing showed as `kind`: a file or a link (never its target)
 /// with `rm -f`, a folder with everything in it via `rm -rf` (which does not follow links). If the
 /// entry is gone or is no longer that kind, nothing is deleted.

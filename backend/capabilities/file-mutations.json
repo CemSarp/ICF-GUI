@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "file-mutations",
-  "description": "V3 commands that write files: create one folder in the remote home, replace .vscode/settings.json after a reviewed preview (with backup), turn VS Code connection sharing on/off (an app-managed ssh config plus one reviewed, backed-up key in VS Code's local settings.json; never ~/.ssh/config), create a new file (never overwriting) or save a file from the in-app editor only if it is unchanged on ICF since it was opened, upload/download/resume a file through sftp (verified, never overwriting), discard the app's own partial transfer files, delete one listed file, link or folder (with everything in it) after confirmation, rename one listed entry in place (never over an existing name), and unpack one archive next to itself (archive kept, nothing overwritten).",
+  "description": "V3 commands that write files: create one folder in the remote home, replace .vscode/settings.json after a reviewed preview (with backup), turn VS Code connection sharing on/off (an app-managed ssh config plus one reviewed, backed-up key in VS Code's local settings.json; never ~/.ssh/config), create a new file (never overwriting) or save a file from the in-app editor only if it is unchanged on ICF since it was opened, upload/download/resume a file through sftp (verified, never overwriting), discard the app's own partial transfer files, delete one listed file, link or folder (with everything in it) after confirmation, rename one listed entry in place (never over an existing name), unpack one archive next to itself (archive kept, nothing overwritten), and delete the app's own job logs (slurm-<id>.out/.err files, never links) older than a chosen number of days in one icfcc-run folder after confirmation.",
   "windows": [
     "main"
   ],
@@ -18,6 +18,7 @@
     "allow-files-create",
     "allow-files-delete",
     "allow-files-rename",
-    "allow-files-unpack"
+    "allow-files-unpack",
+    "allow-logs-clean"
   ]
 }

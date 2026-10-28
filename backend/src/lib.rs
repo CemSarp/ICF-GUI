@@ -75,6 +75,8 @@ pub fn run() {
             projects::commands::files_create,
             projects::commands::files_delete,
             projects::commands::files_rename,
+            projects::commands::logs_summary,
+            projects::commands::logs_clean,
             projects::commands::files_unpack,
             projects::commands::python_discover,
             projects::commands::python_check_imports,

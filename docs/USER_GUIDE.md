@@ -204,6 +204,13 @@ with unsaved edits asks first.
 
 **Limits.** Files over 2 MB (20 MB for notebooks), binary files and symbolic links are not opened.
 
+### Job logs
+
+Jobs write `slurm-<job id>.out` and `.err` into an `icfcc-run` folder in the folder they run in.
+On a project's page, **Job logs → Check** counts them (nothing is read until you press it).
+**Delete N old logs** removes only those last changed more than the chosen number of days ago, after
+you confirm; other files, links and newer logs (including running jobs') stay.
+
 ### Python environment
 
 On a project's page the **VS Code** and **Python environment** cards start folded to one line that

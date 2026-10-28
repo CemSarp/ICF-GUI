@@ -352,3 +352,52 @@ const UNPACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20 * 
 
 /// Large notebooks over a slow link need longer than the usual 15 s command budget.
 const FILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Job logs in one `icfcc-run` folder: how many, and how many are older than `days`.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LogsSummary {
+    pub files: u64,
+    pub bytes: u64,
+    pub old_files: u64,
+    pub old_bytes: u64,
+}
+
+pub fn parse_logs(out: &str) -> AppResult<LogsSummary> {
+    let ok = remote::parse_ok(out)?;
+    let n: Vec<u64> = ok.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+    match n[..] {
+        [files, bytes, old_files, old_bytes] => Ok(LogsSummary { files, bytes, old_files, old_bytes }),
+        _ => Err(AppError::new(ErrorCode::SlurmError, "The log folder summary could not be read.")),
+    }
+}
+
+pub(crate) fn check_logs_args(dir: &str, days: u32) -> AppResult<()> {
+    check_abs_path(dir).map_err(|m| AppError::invalid(format!("Log folder {m}.")))?;
+    if !dir.trim_end_matches('/').ends_with("/icfcc-run") {
+        return Err(AppError::invalid("Only the app's own icfcc-run log folders can be cleaned up."));
+    }
+    if !(1..=365).contains(&days) {
+        return Err(AppError::invalid("Choose between 1 and 365 days."));
+    }
+    Ok(())
+}
+
+/// Read-only: counts the job logs in an `icfcc-run` folder.
+#[tauri::command]
+pub async fn logs_summary(state: State<'_, AppState>, dir: String, days: u32) -> AppResult<LogsSummary> {
+    check_logs_args(&dir, days)?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "reading job logs")?;
+    parse_logs(&session.run(&remote::logs_script(&dir, days, false), COMMAND_TIMEOUT, 16 * 1024).await?)
+}
+
+/// Deletes the job logs in an `icfcc-run` folder last changed more than `days` days ago (explicit,
+/// confirmed user action). Returns the counts from before deleting; `old_files` were removed.
+#[tauri::command]
+pub async fn logs_clean(state: State<'_, AppState>, dir: String, days: u32) -> AppResult<LogsSummary> {
+    check_logs_args(&dir, days)?;
+    let c = ctx(&state).await?;
+    let session = live(&c, "deleting job logs")?;
+    parse_logs(&session.run(&remote::logs_script(&dir, days, true), FILE_TIMEOUT, 16 * 1024).await?)
+}

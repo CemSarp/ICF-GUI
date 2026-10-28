@@ -3,6 +3,11 @@
 ## [0.5.1] — 2026-10-27 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Job logs in Projects**: *Check* counts the `slurm-<id>.out/.err` files in the project's
+  `icfcc-run` folder and how many are older than a chosen number of days; *Delete old logs* removes
+  only those, after confirmation (never links, other files or newer logs). New commands
+  `logs_summary` (read) and `logs_clean` (file-mutations capability).
+- **Recent commands** under the Commands box: the last eight blocks submitted, offered back with *Use*.
 - **Edit and run again** on a job's details (script jobs) and on finished training runs: New job
   opens filled in exactly as that job was reviewed. Script-job receipts now keep the reviewed request.
 - **Start screen** (the first screen): the next step with one button, a checklist of GPU milestones

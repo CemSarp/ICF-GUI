@@ -62,6 +62,7 @@
     "allow-workflow-reconcile",
     "allow-workflow-list-files",
     "allow-workflow-metrics",
+    "allow-logs-summary",
     "allow-files-read",
     "allow-vscode-share-status",
     "allow-vscode-share-preview",

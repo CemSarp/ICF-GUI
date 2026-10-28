@@ -26,6 +26,8 @@ fn whoami() -> String {
 
 /// GNU `find DIR -mindepth 1 -maxdepth 1 -printf '%y\t%Y\t%s\t%T@\t%m\t%u\t%f\0'` stand-in.
 const FIND_STUB: &str = r#"import os, pwd, stat, sys
+if "-mmin" in sys.argv:  # age checks (log cleanup): the system find has them on macOS and Linux
+    os.execv("/usr/bin/find", ["find"] + sys.argv[1:])
 root = sys.argv[1]
 def y(m):
     return "d" if stat.S_ISDIR(m) else "f" if stat.S_ISREG(m) else "l" if stat.S_ISLNK(m) else "p"
@@ -679,5 +681,62 @@ fn unpack_extracts_next_to_the_archive_and_never_overwrites_or_escapes() {
     assert_eq!(unpack_target("set.zip"), Some(("set".into(), true)));
     for no in ["notes.txt", ".tar.gz", "model.gz", "x.tar.gz.part"] {
         assert_eq!(unpack_target(no), None, "{no}");
+    }
+}
+
+#[test]
+fn log_cleanup_counts_and_deletes_only_old_job_logs_in_icfcc_run() {
+    use super::commands::parse_logs;
+    let s = Sandbox::new();
+    let logs = s.home().join("projects/semeval/icfcc-run");
+    std::fs::create_dir_all(&logs).unwrap();
+    let dir = logs.display().to_string();
+    let old = |name: &str| {
+        let f = logs.join(name);
+        std::fs::write(&f, "0123456789").unwrap();
+        assert!(Command::new("/usr/bin/touch").arg("-t").arg("202601010000").arg(&f).status().unwrap().success());
+    };
+    old("slurm-1.out");
+    old("slurm-1.err");
+    old("notes.txt"); // not a job log
+    std::fs::write(logs.join("slurm-2.out"), "new").unwrap(); // a recent (or running) job
+    std::fs::write(s.root.join("elsewhere/slurm-9.out"), "x").unwrap();
+    std::os::unix::fs::symlink(s.root.join("elsewhere/slurm-9.out"), logs.join("slurm-9.out")).unwrap();
+
+    let sum = parse_logs(&s.run(&logs_script(&dir, 30, false))).unwrap();
+    assert_eq!((sum.files, sum.bytes, sum.old_files, sum.old_bytes), (3, 23, 2, 20), "links and other files are not counted");
+    assert!(logs.join("slurm-1.out").exists(), "the summary deletes nothing");
+
+    let done = parse_logs(&s.run(&logs_script(&dir, 30, true))).unwrap();
+    assert_eq!(done.old_files, 2);
+    assert!(!logs.join("slurm-1.out").exists() && !logs.join("slurm-1.err").exists());
+    assert!(logs.join("slurm-2.out").exists() && logs.join("notes.txt").exists());
+    assert!(s.root.join("elsewhere/slurm-9.out").exists(), "a link's target is never touched");
+
+    // Only an icfcc-run folder inside home, also through a symlinked folder.
+    let other = s.home().join("projects/semeval").display().to_string();
+    assert!(parse_logs(&s.run(&logs_script(&other, 30, true))).is_err());
+    std::fs::create_dir_all(s.root.join("elsewhere/icfcc-run")).unwrap();
+    std::os::unix::fs::symlink(s.root.join("elsewhere/icfcc-run"), s.home().join("icfcc-run")).unwrap();
+    let escaped = s.home().join("icfcc-run").display().to_string();
+    assert!(parse_logs(&s.run(&logs_script(&escaped, 30, false))).unwrap_err().message.contains("outside"));
+    // No folder yet: nothing to clean.
+    let none = s.home().join("nope/icfcc-run").display().to_string();
+    assert_eq!(parse_logs(&s.run(&logs_script(&none, 30, false))).unwrap().files, 0);
+}
+
+#[test]
+fn log_cleanup_accepts_only_icfcc_run_folders_and_sane_ages() {
+    use super::commands::check_logs_args;
+    assert!(check_logs_args("/home/s1/p/icfcc-run", 30).is_ok());
+    for (d, n) in [
+        ("/home/s1/p", 30),
+        ("/home/s1/p/runs", 30),
+        ("p/icfcc-run", 30),
+        ("/home/s1/../x/icfcc-run", 30),
+        ("/home/s1/p/icfcc-run", 0),
+        ("/home/s1/p/icfcc-run", 366),
+    ] {
+        assert!(check_logs_args(d, n).is_err(), "{d} {n}");
     }
 }

@@ -545,3 +545,31 @@ describe('Workflows send only what the form shows', () => {
     expect(smoke.resumeFrom).toBeNull();
   });
 });
+
+describe('Job logs in Projects', () => {
+  it('counts icfcc-run logs on request and deletes old ones only after confirmation', async () => {
+    backend.reset(connectedLive, {
+      logs_summary: () => ({ files: 6, bytes: 3000, oldFiles: 4, oldBytes: 2000 }),
+      logs_clean: () => ({ files: 6, bytes: 3000, oldFiles: 4, oldBytes: 2000 }),
+    });
+    await openProject(); // renders the app
+    expect(backend.count('logs_summary')).toBe(0); // nothing is read until asked
+    await expand('Job logs');
+    await userEvent.click(screen.getByRole('button', { name: 'Check' }));
+    expect(await screen.findByText(/6 files .*; 4 last changed more than 30 days ago/)).toBeInTheDocument();
+    expect(backend.calls.find((c) => c.cmd === 'logs_summary')?.args).toEqual({
+      dir: `${v3.PROJECT}/icfcc-run`,
+      days: 30,
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Delete 4 old logs' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete old job logs?' });
+    expect(backend.count('logs_clean')).toBe(0);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete logs' }));
+    expect(await screen.findByText('Deleted 4 old logs.')).toBeInTheDocument();
+    expect(backend.calls.find((c) => c.cmd === 'logs_clean')?.args).toEqual({
+      dir: `${v3.PROJECT}/icfcc-run`,
+      days: 30,
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});

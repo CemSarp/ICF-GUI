@@ -1,6 +1,17 @@
-import { BackButton, Badge, CollapsibleCard, Dialog, EmptyState, Icon, Notice, Row } from '../components/ui';
+import {
+  BackButton,
+  Badge,
+  CollapsibleCard,
+  Dialog,
+  EmptyState,
+  Icon,
+  Notice,
+  NumberInput,
+  Row,
+} from '../components/ui';
 import { errorMessage } from '../../logic/api';
-import { formatTime } from '../../logic/format';
+import { bytes, formatTime } from '../../logic/format';
+import { useJobLogs } from '../../logic/projects/jobLogs';
 import { homePrefix, useEnvPanel } from '../../logic/projects/env';
 import { useProjectDetail, useProjects } from '../../logic/projects/useProjects';
 import { useVsCodeShare, useVsCodeStatus } from '../../logic/projects/vscode';
@@ -166,6 +177,7 @@ function ProjectDetail({
           })
         }
       />
+      <JobLogsPanel folder={project.path} />
       <RemoteBrowser
         status={status}
         start={project.path}
@@ -351,6 +363,77 @@ function statusBadge(i: Interpreter) {
         </Badge>
       );
   }
+}
+
+/** The project's icfcc-run job logs: counted on request, old ones deleted after confirmation. */
+function JobLogsPanel({ folder }: { folder: string }) {
+  const { dir, days, setDays, summary, cleaned, busy, error, check, clean, confirm, setConfirm } = useJobLogs(folder);
+  const old = summary && summary.oldFiles > 0;
+  return (
+    <CollapsibleCard
+      id="joblogs"
+      title="Job logs"
+      summary={
+        summary ? (
+          <span className="muted small">
+            {summary.files} log {summary.files === 1 ? 'file' : 'files'} · {bytes(summary.bytes)}
+          </span>
+        ) : (
+          <span className="muted small">icfcc-run</span>
+        )
+      }
+    >
+      <p className="muted small">
+        Jobs started in this folder write <code>slurm-&lt;job id&gt;.out</code> and <code>.err</code> to{' '}
+        <code>{dir}</code>. Jobs in subfolders have their own icfcc-run.
+      </p>
+      <div className="input-row">
+        <label htmlFor="logs-days">Older than</label>
+        <NumberInput id="logs-days" min={1} max={365} value={days} onChange={setDays} />
+        <span className="muted">days</span>
+        <button type="button" className="btn" onClick={() => void check()} disabled={busy}>
+          {busy && !confirm ? 'Checking…' : 'Check'}
+        </button>
+        {old && (
+          <button type="button" className="btn danger" onClick={() => setConfirm(true)} disabled={busy}>
+            Delete {summary.oldFiles} old {summary.oldFiles === 1 ? 'log' : 'logs'}
+          </button>
+        )}
+      </div>
+      {summary && (
+        <p className="small">
+          {summary.files === 0
+            ? 'No job logs here.'
+            : `${summary.files} ${summary.files === 1 ? 'file' : 'files'} (${bytes(summary.bytes)}); ${
+                summary.oldFiles
+              } last changed more than ${summary.days} days ago (${bytes(summary.oldBytes)}).`}
+        </p>
+      )}
+      {cleaned !== null && (
+        <Notice tone="ok">
+          Deleted {cleaned} old {cleaned === 1 ? 'log' : 'logs'}.
+        </Notice>
+      )}
+      {error && <Notice tone="bad">{error}</Notice>}
+      {confirm && summary && (
+        <Dialog title="Delete old job logs?" onClose={() => !busy && setConfirm(false)}>
+          <p>
+            This deletes {summary.oldFiles} <code>slurm-*.out</code>/<code>.err</code>{' '}
+            {summary.oldFiles === 1 ? 'file' : 'files'} in <code>{dir}</code> last changed more than {summary.days} days
+            ago. Other files, links and newer logs stay. This cannot be undone.
+          </p>
+          <div className="actions">
+            <button className="btn" onClick={() => setConfirm(false)} disabled={busy} data-autofocus>
+              Keep them
+            </button>
+            <button className="btn danger" disabled={busy} onClick={() => void clean()}>
+              {busy ? 'Deleting…' : 'Delete logs'}
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </CollapsibleCard>
+  );
 }
 
 function EnvPanel({

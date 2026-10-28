@@ -452,6 +452,14 @@ export interface ProjectRecord {
   gresType: string | null;
 }
 
+/** Job logs in one icfcc-run folder; `old*` are those last changed more than the chosen days ago. */
+export interface LogsSummary {
+  files: number;
+  bytes: number;
+  oldFiles: number;
+  oldBytes: number;
+}
+
 export interface ProjectPrefs {
   interpreter: string | null;
   toolchainId: string | null;
