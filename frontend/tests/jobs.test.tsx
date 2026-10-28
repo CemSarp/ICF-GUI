@@ -6,7 +6,7 @@ import type { JobRequest, PreviewResponse } from '../src/types';
 import { backend, connectedDemo, connectedLive, jobRow } from './mockBackend';
 import { renderApp } from './render';
 import { newestFirst } from '../src/logic/jobs/myJobs';
-import { commandsFor, resolveWorkingDir } from '../src/logic/jobs/jobRequest';
+import { commandsFor, resolveWorkingDir, toRequest } from '../src/logic/jobs/jobRequest';
 import { autoJobName, crumbs, replaceableName, splitPath, timePresets } from '../src/logic/jobs/newJob';
 import { parseSbatch, parseTime } from '../src/logic/jobs/sbatchImport';
 import * as v3 from './v3Fixtures';
@@ -532,6 +532,35 @@ describe('Script job: pick files on ICF, or run terminal commands', () => {
     ]);
     expect(timePresets(3600).map((t) => t.label)).toEqual(['10 min', '30 min', '1 h']);
     expect(timePresets(null)).toHaveLength(8);
+  });
+});
+
+describe('Python environment only for Python jobs', () => {
+  it('does not send a hidden saved environment with Commands or Shell script', () => {
+    const d = {
+      partition: 'Teaching',
+      gres: '',
+      gpuCount: 1,
+      cpus: 2,
+      memoryGb: 16,
+      hours: 1,
+      minutes: 0,
+      jobName: 'hw1',
+      workingDir: '/home/u/hw1',
+      runner: 'commands' as const,
+      program: '',
+      commands: 'make test1',
+      args: '',
+      pythonEnv: '/home/u/projects/icf-env',
+      setupSource: '',
+      mail: false,
+      mailUser: '',
+    };
+    expect(toRequest(d, '/home/u').pythonEnv).toBeNull();
+    expect(toRequest({ ...d, runner: 'bash', program: 'run.sh' }, '/home/u').pythonEnv).toBeNull();
+    expect(toRequest({ ...d, runner: 'python', program: 'x.py' }, '/home/u').pythonEnv).toBe(
+      '/home/u/projects/icf-env',
+    );
   });
 });
 

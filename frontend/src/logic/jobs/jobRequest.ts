@@ -104,7 +104,7 @@ export function toRequest(d: Draft, home: string): JobRequest {
             .split('\n')
             .map((a) => a.trim())
             .filter(Boolean),
-    pythonEnv: d.pythonEnv.trim() || null,
+    pythonEnv: (d.runner === 'python' && d.pythonEnv.trim()) || null, // the field shows only for Python
     setupSource: d.setupSource.trim() || null,
     mailUser: d.mail ? d.mailUser.trim() : null,
     commands: d.runner === 'commands' ? d.commands.replace(/\r\n?/g, '\n') : null,
