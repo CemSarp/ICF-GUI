@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { errorMessage } from '../../logic/api';
 import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
-import { isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
+import { failedBeforeRunning, isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
+import { useAvoidNodes } from '../../logic/jobs/avoidNodes';
 import { useSessionSend } from '../../logic/jobs/session';
 import type { CancelOutcome, ConnectionStatus, JobRequest } from '../../types';
 import { LogViewer } from './LogViewer';
@@ -117,6 +118,7 @@ export function JobDetailView({
   onRunAgain: (r: JobRequest) => void;
 }) {
   const { q, d, j, hint, cancelResult, onCancelResult } = useJobDetail(jobId, status);
+  const avoid = useAvoidNodes();
   const [confirm, setConfirm] = useState(false);
   const s = j ? JOB_STATE[j.state] : null;
 
@@ -191,7 +193,22 @@ export function JobDetailView({
                 {j.source} at {formatTime(d?.fetchedAt)}
               </dd>
             </dl>
-            {hint && <Notice tone="warn">{hint}</Notice>}
+            {hint && (
+              <Notice tone="warn">
+                {hint}
+                {j && failedBeforeRunning(j) && j.nodes && /^[A-Za-z0-9._-]+$/.test(j.nodes) && (
+                  <div className="actions start">
+                    {avoid.nodes.includes(j.nodes) ? (
+                      <span className="muted small">New jobs avoid {j.nodes}.</span>
+                    ) : (
+                      <button className="btn" onClick={() => avoid.add(j.nodes!)}>
+                        Avoid {j.nodes} in new jobs
+                      </button>
+                    )}
+                  </div>
+                )}
+              </Notice>
+            )}
             {d?.receipt && (
               <p className="muted small">
                 Submitted from this Mac at {formatTime(d.receipt.submittedAt)} · script checksum{' '}

@@ -1087,3 +1087,52 @@ describe('Failure hints read SLURM exit codes', () => {
     expect(f('1:0')).toBe('The program exited with an error (exit code 1). Check the standard error log.');
   });
 });
+
+describe('Avoid nodes', () => {
+  it('a job SLURM stopped before it ran offers to avoid its node, and new jobs then exclude it', async () => {
+    backend.reset(connectedLive, {
+      jobs_get_detail: () => ({
+        job: jobRow({ state: 'failed', stateRaw: 'FAILED', exitCode: '0:53', elapsed: '00:00:00', nodes: 'damnii11' }),
+        fields: [],
+        stdoutPath: null,
+        stderrPath: null,
+        stderrMerged: false,
+        logPathNote: null,
+        cancelToken: null,
+        receipt: null,
+        fetchedAt: '2026-10-28T20:00:00Z',
+      }),
+      jobs_preview: () => okPreview(),
+    });
+    renderApp();
+    await userEvent.click(await screen.findByRole('button', { name: 'My Jobs' }));
+    await userEvent.click(await screen.findByRole('button', { name: '4242' }));
+    expect(await screen.findByText(/node damnii11 could not start jobs/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Avoid damnii11 in new jobs' }));
+    expect(screen.getByText('New jobs avoid damnii11.')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New job' }));
+    await screen.findByRole('heading', { name: 'New job' });
+    expect(screen.getByRole('button', { name: 'Stop avoiding damnii11' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect((backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request as JobRequest).excludeNodes).toEqual([
+      'damnii11',
+    ]);
+  });
+
+  it('is typed or removed in the form; only plain node names are accepted', async () => {
+    backend.reset(connectedLive, { jobs_preview: () => okPreview() });
+    await openWizard();
+    const box = screen.getByLabelText('Avoid nodes');
+    await userEvent.type(box, 'damnii10 damnii11');
+    expect(screen.getByRole('button', { name: 'Avoid' })).toBeDisabled();
+    await userEvent.clear(box);
+    await userEvent.type(box, 'landonia03{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Stop avoiding landonia03' }));
+    expect(screen.getByText('None: SLURM may use any node.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review script' }));
+    await waitFor(() => expect(backend.count('jobs_preview')).toBe(1));
+    expect(backend.calls.find((c) => c.cmd === 'jobs_preview')!.args.request).not.toHaveProperty('excludeNodes');
+  });
+});

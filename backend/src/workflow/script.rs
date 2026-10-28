@@ -60,6 +60,7 @@ pub fn render(c: &WorkflowConfig, tag: &str) -> String {
     s += &format!("#SBATCH --time={}\n", format_time_limit(r.time_limit_seconds));
     s += &format!("#SBATCH --chdir={}\n", c.project_dir);
     s += &crate::jobs::request::log_lines(&c.project_dir);
+    s += &crate::jobs::request::exclude_line(&r.exclude_nodes);
     s += &format!("#SBATCH --signal=B:USR1@{}\n", c.signal_grace_seconds);
     s += &format!("#SBATCH --comment=icfcc-{tag}\n");
     s += &crate::jobs::request::mail_lines(c.mail_user.as_deref());

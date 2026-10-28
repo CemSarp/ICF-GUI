@@ -25,6 +25,7 @@ import {
   type JobMode,
   type RunChoice,
 } from './newJob';
+import { useAvoidNodes } from './avoidNodes';
 import { handOver, usePresets } from './presets';
 import { useProjectEnv } from './projectEnv';
 import { jobsKey } from './useJobs';
@@ -129,7 +130,7 @@ export function fromRequest(r: JobRequest): Draft {
   };
 }
 
-export function toRequest(d: Draft, home: string): JobRequest {
+export function toRequest(d: Draft, home: string, avoid: string[] = []): JobRequest {
   return {
     partition: d.partition,
     gresType: d.gres === 'gpu' ? null : d.gres.replace(/^gpu:/, ''),
@@ -152,6 +153,7 @@ export function toRequest(d: Draft, home: string): JobRequest {
     mailUser: d.mail ? d.mailUser.trim() : null,
     commands: typedRunner(d.runner) ? d.commands.replace(/\r\n?/g, '\n') : null,
     ...(d.runner === 'session' ? { sessionIdleMinutes: d.sessionIdle } : {}),
+    ...(avoid.length ? { excludeNodes: avoid } : {}),
   };
 }
 
@@ -231,6 +233,7 @@ export function useRequestGpu(
   const wd = resolveWorkingDir(draft.workingDir, home);
   // Not cleared when New job opens: these are what the user ran, offered back, never filled in.
   const [recentCommands, setRecentCommands] = usePersistentState<string[]>('job.recentCommands', []);
+  const avoid = useAvoidNodes();
   const projectEnv = useProjectEnv(status, draft.workingDir.trim() ? wd : '', home, draft.pythonEnv, (e) =>
     patch({ pythonEnv: e.dir }),
   );
@@ -342,7 +345,7 @@ export function useRequestGpu(
     setError(null);
     setAck(false);
     try {
-      const p = await api.jobsPreview(toRequest(effective, home));
+      const p = await api.jobsPreview(toRequest(effective, home, avoid.nodes));
       setIssues(p.errors);
       setPreview(p.errors.length ? null : p);
       if (p.errors.length) setError(`${p.errors.length} problem(s) need fixing before the script can be reviewed.`);
@@ -456,6 +459,7 @@ export function useRequestGpu(
     runFrom,
     projectEnv,
     recentCommands,
+    avoid,
     presets,
     partition,
     gpuTypes,

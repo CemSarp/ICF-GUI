@@ -135,6 +135,14 @@ its first failing command; the log shows `@@icfcc-block <id> end rc=<exit code>`
 reaches its time limit, or you press **Cancel job**. It is not a terminal: programs that wait for
 input will not get any.
 
+### Avoiding a broken node
+
+If jobs fail at once with no log (My Jobs says SLURM stopped the job before it could run), the node
+is usually at fault: a broken node frees up again instantly, so it keeps attracting jobs. Press
+**Avoid <node> in new jobs** on that job, or type the node under **GPU and resources → Avoid nodes**.
+New jobs of every type then carry `#SBATCH --exclude=<node>` (shown in the review) until you remove
+it with ×. Tell Informatics support about the node too.
+
 ## My Jobs
 
 My Jobs has two tabs. **All jobs** shows every job of yours on ICF, however it was submitted (this

@@ -28,6 +28,7 @@ fn req() -> JobRequest {
         mail_user: None,
         commands: None,
         session_idle_minutes: None,
+        exclude_nodes: vec![],
     }
 }
 
@@ -897,4 +898,19 @@ fn logs_open_in_the_folder_then_move_into_icfcc_run_and_keep_being_written() {
     );
     std::fs::write(wd.join("slurm-6.out"), "stayed\n").unwrap(); // a move that did not happen
     assert!(matches!(read(&logs.join("slurm-6.out")), LogResult::Chunk { ref text, .. } if text == "stayed\n"));
+}
+
+#[test]
+fn avoided_nodes_become_one_exclude_line_and_only_plain_names_pass() {
+    let mut r = req();
+    assert!(!render_script(&r, "t").contains("--exclude"), "none by default");
+    r.exclude_nodes = vec!["damnii11".into(), "landonia03".into()];
+    assert!(render_script(&r, "t").contains("\n#SBATCH --exclude=damnii11,landonia03\n"));
+    assert!(!fields(&check(&r)).contains(&"excludeNodes".to_string()));
+    for bad in ["damnii[10-11]", "a,b", "-x", "a b", "$(x)", ""] {
+        r.exclude_nodes = vec![bad.into()];
+        assert!(fields(&check(&r)).contains(&"excludeNodes".to_string()), "{bad}");
+    }
+    r.exclude_nodes = (0..17).map(|i| format!("n{i}")).collect();
+    assert!(fields(&check(&r)).contains(&"excludeNodes".to_string()));
 }

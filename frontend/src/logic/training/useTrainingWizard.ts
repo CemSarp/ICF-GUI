@@ -14,6 +14,7 @@ import {
   type JobMode,
   type RunChoice,
 } from '../jobs/newJob';
+import { useAvoidNodes } from '../jobs/avoidNodes';
 import { handOver, usePresets } from '../jobs/presets';
 import { useProjectEnv } from '../jobs/projectEnv';
 import type {
@@ -114,6 +115,7 @@ export function useTrainingWizard(
   const home = status.capabilities?.home ?? '';
   const project = expandHome(effective.projectDir, home).replace(/\/+$/, '');
   // ADR-037: the project's interpreter and toolchain, when the form has none yet.
+  const avoid = useAvoidNodes();
   const projectEnv = useProjectEnv(status, project, home, effective.interpreter, (e) =>
     patch({ interpreter: e.interpreter, ...(e.toolchainId ? { toolchainId: e.toolchainId } : {}) }),
   );
@@ -124,7 +126,10 @@ export function useTrainingWizard(
     setError(null);
     setAck(false);
     try {
-      const p = await api.workflowPreview(toConfig(effective, tcList, home));
+      const c = toConfig(effective, tcList, home);
+      const p = await api.workflowPreview(
+        avoid.nodes.length ? { ...c, resources: { ...c.resources, excludeNodes: avoid.nodes } } : c,
+      );
       setIssues(p.errors);
       if (p.errors.length) {
         setPreview(null);
@@ -287,6 +292,7 @@ export function useTrainingWizard(
     set,
     patch,
     projectEnv,
+    avoid,
     choice,
     choose,
     pickEntry,

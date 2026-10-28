@@ -3,6 +3,11 @@
 ## [0.5.1] — 2026-10-28 · Fewer screens, Rename and Unpack
 
 ### Added
+- **Avoid nodes** under GPU and resources (SLURM `--exclude`), for every job type: a node that fails
+  every job can be skipped while still asking for its GPU type. The list is kept on this Mac until
+  you remove a node, and is always shown in New job. A job that SLURM stopped before it ran
+  (a signal after ~0 s, no log, e.g. `0:53` on `damnii11`) names its node and offers *Avoid it in new
+  jobs*.
 - **Lines to look at** above a job's log: test `FAIL`s, `error:` lines, tracebacks, CUDA errors and
   session blocks that ended with a non-zero code, each once, with their line number.
 - **Review marks the app's lines**: in a script job's review, lines the app adds from your settings

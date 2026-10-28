@@ -43,6 +43,9 @@ pub struct Resources {
     pub cpus: u32,
     pub memory_mib: u64,
     pub time_limit_seconds: u64,
+    /// Nodes SLURM must not use (`--exclude`).
+    #[serde(default)]
+    pub exclude_nodes: Vec<String>,
 }
 
 /// Environment bootstrap run in the job before the interpreter.
@@ -243,6 +246,7 @@ impl WorkflowConfig {
             mail_user: self.mail_user.clone(),
             commands: None,
             session_idle_minutes: None,
+            exclude_nodes: r.exclude_nodes.clone(),
         }
     }
 

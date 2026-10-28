@@ -5,6 +5,7 @@ import { partitionGpus } from '../../logic/cluster/overview';
 import { formatDuration, formatTime, nominalVram } from '../../logic/format';
 import { crumbs, tilde, timePresets } from '../../logic/jobs/newJob';
 import type { ProjectEnv } from '../../logic/jobs/projectEnv';
+import { validNode } from '../../logic/jobs/avoidNodes';
 import type { usePresets } from '../../logic/jobs/presets';
 import type { ClusterSnapshot, Issue, Partition } from '../../types';
 import { GpuBar } from '../cluster/GpuBar';
@@ -203,6 +204,7 @@ export function GpuPicker({
   issues,
   patch,
   prefix,
+  avoid,
 }: {
   snapshot: ClusterSnapshot;
   partition: Partition;
@@ -214,6 +216,8 @@ export function GpuPicker({
   issues: Issue[];
   patch: (p: Partial<Resources>) => void;
   prefix: string;
+  /** Nodes every new job avoids (shared by all job types). */
+  avoid: { nodes: string[]; add: (n: string) => void; remove: (n: string) => void };
 }) {
   const times = timePresets(partition.maxTimeSeconds);
   return (
@@ -361,12 +365,70 @@ export function GpuPicker({
       {draft.gpuCount > 1 && (
         <p className="muted small">More GPUs usually means a longer wait in the queue. Make sure your code uses all.</p>
       )}
+      <AvoidNodes avoid={avoid} issues={issues} id={`${prefix}-avoid`} />
       <MailOption draft={draft} issues={issues} patch={patch} id={`${prefix}-mailUser`} />
     </section>
   );
 }
 
 /** SLURM's own e-mail when the job ends or fails; it arrives even while this app is closed. */
+/** "Avoid nodes": SLURM's --exclude, shown in every job type while anything is avoided. */
+function AvoidNodes({
+  avoid,
+  issues,
+  id,
+}: {
+  avoid: { nodes: string[]; add: (n: string) => void; remove: (n: string) => void };
+  issues: Issue[];
+  id: string;
+}) {
+  const [name, setName] = useState('');
+  const add = () => {
+    avoid.add(name);
+    setName('');
+  };
+  return (
+    <div className={`field avoid-nodes${issues.some((i) => i.field === 'excludeNodes') ? ' invalid' : ''}`}>
+      <label htmlFor={id}>Avoid nodes</label>
+      <div className="chips">
+        {avoid.nodes.length === 0 && <span className="muted small">None: SLURM may use any node.</span>}
+        {avoid.nodes.map((n) => (
+          <span key={n} className="chip mono">
+            {n}
+            <button type="button" className="chip-x" aria-label={`Stop avoiding ${n}`} onClick={() => avoid.remove(n)}>
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="input-row">
+        <input
+          id={id}
+          className="mono"
+          placeholder="Node name, e.g. damnii11"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <button type="button" className="btn" onClick={add} disabled={!validNode(name.trim())}>
+          Avoid
+        </button>
+      </div>
+      <small className="muted">
+        For a node that fails every job (e.g. instantly, with no log). Kept for all new jobs on this Mac until removed.
+      </small>
+      <FieldError issues={issues} field="excludeNodes" />
+    </div>
+  );
+}
+
 function MailOption({
   draft,
   issues,

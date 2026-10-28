@@ -26,6 +26,7 @@ fn req(home: &str) -> KernelRequest {
             cpus: 4,
             memory_mib: 8192,
             time_limit_seconds: 3600,
+            exclude_nodes: vec![],
         },
     }
 }

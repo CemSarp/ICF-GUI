@@ -94,6 +94,7 @@ export function TrainingWizard({
     set,
     patch,
     projectEnv,
+    avoid,
     choice,
     choose,
     pickEntry,
@@ -386,6 +387,7 @@ export function TrainingWizard({
             issues={issues}
             patch={patch}
             prefix="w"
+            avoid={avoid}
           />
 
           {draft.kind === 'train' && (

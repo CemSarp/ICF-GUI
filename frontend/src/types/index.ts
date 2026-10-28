@@ -293,6 +293,8 @@ export interface JobRequest {
   commands: string | null;
   /** Runner `session` only: it ends after this many minutes without a command block (5–240). */
   sessionIdleMinutes?: number | null;
+  /** Nodes SLURM must not use (`--exclude`). */
+  excludeNodes?: string[];
 }
 
 export interface Issue {
@@ -629,6 +631,8 @@ export interface WorkflowConfig {
     cpus: number;
     memoryMib: number;
     timeLimitSeconds: number;
+    /** Nodes SLURM must not use (`--exclude`). */
+    excludeNodes?: string[];
   };
   /** SLURM e-mails this address when the job ends or fails. */
   mailUser: string | null;

@@ -41,6 +41,7 @@ export function RequestGpuView({
     runFrom,
     projectEnv,
     recentCommands,
+    avoid,
     presets,
     partition,
     gres,
@@ -440,6 +441,7 @@ export function RequestGpuView({
             issues={issues}
             patch={patch}
             prefix="f"
+            avoid={avoid}
           />
 
           <details className="card fold-section" open={issues.some((i) => MORE_FIELDS.includes(i.field ?? ''))}>

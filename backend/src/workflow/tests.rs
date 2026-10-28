@@ -41,6 +41,7 @@ fn cfg(home: &str) -> WorkflowConfig {
             cpus: 4,
             memory_mib: 16384,
             time_limit_seconds: 4 * 3600,
+            exclude_nodes: vec![],
         },
         mail_user: None,
     }
@@ -881,4 +882,13 @@ fn workflow_submission_prechecks_create_results_root_safely_then_sbatch_once() {
     c.datasets[0].archive = format!("{}/data/missing.tar.gz", n.h());
     let (_, checks) = plan(&c, &Context { home: &n.h(), snapshot: &demo_snapshot(0), learned: PartitionRecord::Accepted });
     assert!(sh(&crate::jobs::remote::submit_script_with(&checks, &render(&c, "ef56"), "ef56")).contains("@@err missing dataset"));
+}
+
+#[test]
+fn workflows_avoid_nodes_too() {
+    let mut c = cfg(HOME);
+    c.resources.exclude_nodes = vec!["damnii11".into()];
+    assert!(script::render(&c, "t1").lines().any(|l| l == "#SBATCH --exclude=damnii11"));
+    c.resources.exclude_nodes = vec!["bad name".into()];
+    assert!(fields(&check(&c).0).contains(&"excludeNodes".to_string()));
 }
