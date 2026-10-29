@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.5.0-blue)
+![version](https://img.shields.io/badge/version-0.5.1-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -23,7 +23,29 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 New in 0.5
+## 🆕 New in 0.5.1
+
+- 🧭 **A calmer New job.** Pick what to run from tiles (Python script, Shell script, Commands,
+  Notebook, GPU session), choose the file on ICF, and click a partition and GPU type with live free
+  counts. It starts empty each time, asks for 1 hour by default, and presets now keep the job type and
+  commands. → [Requesting a GPU](docs/USER_GUIDE.md#requesting-a-gpu-batch-jobs)
+- 🖥️ **GPU sessions.** Hold one GPU and send command blocks to it from the job's page (⌘↩), in the
+  same folder, without queueing again. It ends after the idle minutes you choose.
+  → [GPU sessions](docs/USER_GUIDE.md#gpu-sessions)
+- ⌨️ **Terminal commands and course batch files.** Run the lines you type (e.g. `nvcc` and a `.cu`
+  file) without writing a script, or pick a course `.sbatch` file and its settings are taken over.
+- 🐍 **Your project's environment, automatically.** Picking a file in a project fills in that
+  project's Python environment; conda environments work for Python script jobs.
+- 🚫 **Avoid nodes.** Skip a node that fails every job (SLURM `--exclude`). A job stopped before it
+  ran names its node and offers to avoid it. → [Avoiding a broken node](docs/USER_GUIDE.md#avoiding-a-broken-node)
+- 🔁 **Edit and run again**, **recent commands**, and **lines to look at** above a job's log
+  (failures, errors, tracebacks).
+- 📁 **Tidy logs.** SLURM logs go to an `icfcc-run` folder next to your code, and Projects can delete
+  old ones. **Rename** and **Unpack** (`.tar.gz`, `.zip`, …) work on files in Projects and Notebooks.
+- 🏠 **A Start screen**, one **Cluster** screen (Overview and Nodes tabs), and **Training runs** as a
+  tab of My Jobs.
+
+## New in 0.5
 
 - 📓 **Notebooks on a GPU** *(experimental)*. A Notebooks tab that reads like JupyterLab: run cells
   one at a time on an Interactive-partition GPU with variables kept between cells, and see tables,
@@ -60,16 +82,17 @@ worked. **ICF Control Center puts all of that in one window.**
 |---|---|
 | 📊 **See the cluster** | Every partition and GPU node, with **free / used / down** GPUs per type (RTX 2080 Ti, A6000, H200, MIG slices…), refreshed once a minute. |
 | 🚀 **New job** | A short form: pick a partition and GPU type, CPUs, RAM, time and your script. The app writes the `sbatch` script for you and shows it **before** anything is sent. |
-| 📋 **My Jobs** | Your queued, running and finished jobs, with why a job is waiting, exit codes and hints (timeout, out of memory…). |
-| 📜 **Live logs** | Read your job's output and errors in the app, and follow them while it runs. |
+| 📋 **My Jobs** | Your queued, running and finished jobs, with why a job is waiting, exit codes and hints (timeout, out of memory, a broken node…). **Edit and run again** reopens New job exactly as a job was reviewed. |
+| 🖥️ **GPU sessions** | Hold one GPU and send command blocks to it from the app, without queueing again for each one. |
+| 📜 **Live logs** | Read your job's output and errors in the app, follow them while it runs, and jump to the lines worth looking at. Logs are kept in an `icfcc-run` folder next to your code. |
 | 🛑 **Cancel safely** | Cancel your own jobs, with a confirmation. Other people's jobs can't be touched. |
-| 🗂️ **Projects** | Browse your ICF home, create folders and files, and keep your recent projects one click away. |
+| 🗂️ **Projects** | Browse your ICF home, create, rename and unpack files and folders, run a file on a GPU, clean up old job logs, and keep your recent projects one click away. |
 | ✏️ **Edit on ICF** | Code editor with syntax colours, search and ⌘S. Saves are checked, so they never silently overwrite someone else's change. **Run on GPU** runs a Python, CUDA, C++ or C file on a GPU node and shows its output. |
 | 📓 **Notebooks** *(experimental)* | Jupyter notebooks as a real notebook page: run cells one at a time on an Interactive-partition GPU, see tables, plots and errors as they arrive, Jupyter keys, full screen. Python, CUDA, C++ and C cells. No notebook server, port or token. |
 | 🧑‍💻 **VS Code** | Open a project in VS Code over Remote - SSH, optionally signed in through the app so it never asks for passwords. Pick the remote Python interpreter and CUDA toolchain. |
 | ⇅ **Transfers** | Upload datasets and download results over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
 | 🏋️ **Training workflows** | One reviewed job that stages data to the GPU node's fast local disk, trains, saves checkpoints, copies results back and cleans up. |
-| 📈 **Runs** | Follow each run's stage, node, GPU, metrics, checkpoints, results and failures — even after restarting the app. |
+| 📈 **Training runs** | Follow each run's stage, node, GPU, metrics, checkpoints, results and failures — even after restarting the app. |
 | 🔐 **Safe by design** | Uses your Mac's own `ssh`. Passwords never touch disk unless you opt in to the macOS Keychain. Nothing is ever submitted without your explicit click. |
 
 ## 🖼️ A quick tour
@@ -156,7 +179,7 @@ flowchart LR
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
 3. **Look around.** **Cluster** shows each partition with its free GPUs; its *Nodes* tab lists every node.
-4. **Start a job.** Open **New job**, click what you want to run (e.g. **Python script**), then
+4. **Start a job.** Open **New job**, click what you want to run (e.g. **Python script** or **Commands**), then
    **Choose script** on ICF: the job runs in that file's folder. Click a partition (normally
    **Teaching**) and a GPU type, a time limit, and adjust CPUs and RAM with − / +.
 5. **Review and submit.** The app shows the exact batch script. Tick the notices, click
@@ -167,7 +190,7 @@ flowchart LR
    environment and check it with a GPU smoke test.
 8. **Train with your data.** Upload a dataset archive in **Transfers**, then **New job → Training
    workflow**: the job copies the archive to the GPU node's local scratch disk, trains, syncs
-   checkpoints to `/home` and copies results back. Follow it in **Runs**.
+   checkpoints to `/home` and copies results back. Follow it in **My Jobs → Training runs**.
 
 <br clear="right">
 
