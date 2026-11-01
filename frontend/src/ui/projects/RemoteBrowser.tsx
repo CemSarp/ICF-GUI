@@ -68,8 +68,13 @@ export function RemoteBrowser({
   allowDelete?: boolean;
   onSelectDir?: (path: string, listing: Listing) => void;
   selectDirLabel?: string;
-  /** Per-file action button (e.g. Select, Download). */
-  fileAction?: { label: string; run: (path: string, e: Entry) => void; enabled?: (e: Entry) => boolean };
+  /** Per-file action button (e.g. Select, Download); `dirs` also shows it on real (not linked) folders. */
+  fileAction?: {
+    label: string;
+    run: (path: string, e: Entry) => void;
+    enabled?: (e: Entry) => boolean;
+    dirs?: boolean;
+  };
   fileFilter?: (e: Entry) => boolean;
   /** Opens a text file in the in-app editor; only regular files the editor supports. */
   onOpenFile?: (path: string) => void;
@@ -299,14 +304,17 @@ export function RemoteBrowser({
                           Edit
                         </button>
                       )}
-                      {fileAction && !isDir(e) && !e.unsupported && (fileAction.enabled?.(e) ?? true) && (
-                        <button
-                          className="btn small-btn"
-                          onClick={() => fileAction.run(joinPath(listing.path, e.name), e)}
-                        >
-                          {fileAction.label}
-                        </button>
-                      )}
+                      {fileAction &&
+                        (isDir(e) ? fileAction.dirs && e.kind === 'dir' : true) &&
+                        !e.unsupported &&
+                        (fileAction.enabled?.(e) ?? true) && (
+                          <button
+                            className="btn small-btn"
+                            onClick={() => fileAction.run(joinPath(listing.path, e.name), e)}
+                          >
+                            {fileAction.label}
+                          </button>
+                        )}
                       {canChange(e) && isArchive(e) && (
                         <button
                           className="btn small-btn"

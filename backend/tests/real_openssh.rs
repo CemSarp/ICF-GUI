@@ -234,6 +234,7 @@ async fn real_sftp_transfers_over_the_master_verify_resume_and_never_overwrite()
         created_at: String::new(),
         updated_at: String::new(),
         delete_local_after: false,
+        folder: false,
     };
     let (_ctx, mut crx) = watch::channel(false);
 

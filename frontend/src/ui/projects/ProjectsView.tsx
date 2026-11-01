@@ -186,7 +186,7 @@ function ProjectDetail({
         title="Project files"
         onSelectDir={(p) => nav.onUpload(p)}
         selectDirLabel="Upload here"
-        fileAction={{ label: 'Download', run: (p) => void download(p) }}
+        fileAction={{ label: 'Download', run: (p) => void download(p), dirs: true }}
         onOpenFile={nav.onEditFile}
         onRunFile={(p) => nav.onRun(p, false)}
       />

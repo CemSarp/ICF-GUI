@@ -27,7 +27,7 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
     retry,
     discard,
   } = useTransfers(status, uploadDir);
-  const [choosing, setChoosing] = useState<'upload-dir' | 'download' | null>(null);
+  const [choosing, setChoosing] = useState<'upload-dir' | 'download' | 'download-dir' | null>(null);
 
   if (status.demo) {
     return (
@@ -109,12 +109,19 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
       <section className="card" aria-labelledby="down-title">
         <h2 id="down-title">Download from ICF</h2>
         <p className="muted small">
-          Choose a file in your ICF home, then where to save it. The download is verified with SHA-256 before it
-          replaces anything (macOS asks before replacing an existing file).
+          Choose a file or folder in your ICF home, then where to save it. The download is verified with SHA-256 before
+          it replaces anything (macOS asks before replacing an existing file). A folder is packed into one{' '}
+          <code>.tar.gz</code> on ICF, downloaded, and unpacked on this Mac; it never replaces an existing folder and
+          both archives are deleted afterwards.
         </p>
-        <button className="btn" onClick={() => setChoosing('download')}>
-          Choose a file on ICF
-        </button>
+        <div className="actions start">
+          <button className="btn" onClick={() => setChoosing('download')}>
+            Choose a file on ICF
+          </button>
+          <button className="btn" onClick={() => setChoosing('download-dir')}>
+            Choose a folder on ICF
+          </button>
+        </div>
       </section>
 
       <section className="card" aria-labelledby="queue-title">
@@ -155,6 +162,19 @@ export function TransfersView({ status, uploadDir }: { status: ConnectionStatus;
           start={uploadDir}
           kind="file"
           title="Download which file?"
+          onPick={(p) => {
+            setChoosing(null);
+            download(p);
+          }}
+          onClose={() => setChoosing(null)}
+        />
+      )}
+      {choosing === 'download-dir' && (
+        <PickRemote
+          status={status}
+          start={uploadDir}
+          kind="dir"
+          title="Download which folder?"
           onPick={(p) => {
             setChoosing(null);
             download(p);

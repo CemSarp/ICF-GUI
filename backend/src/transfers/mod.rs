@@ -84,6 +84,9 @@ pub struct Transfer {
     /// The local file is an archive this app built; delete it after a verified upload.
     #[serde(default)]
     pub delete_local_after: bool,
+    /// Download of a folder: packed on ICF, downloaded as one verified archive, unpacked on the Mac.
+    #[serde(default)]
+    pub folder: bool,
 }
 
 impl Transfer {
@@ -272,6 +275,107 @@ if [ -f "$p" ] && [ ! -L "$p" ]; then rm -f -- "$p"; fi
 printf '@@ok\n'
 "#;
     s
+}
+
+/// Pack a folder inside home into `$H/.icfcc-archives/<id>.tar.gz` for download (reused if a
+/// previous attempt finished packing). Written to a temp name first, so the archive is complete.
+pub fn pack_script(folder: &str, id: &str) -> String {
+    let mut s = format!("# icfcc:xfer-pack\n{GUARD}f={}\nid={}\n", q(folder), q(id));
+    s += r#"r=$(cd -P -- "$f" 2>/dev/null && pwd -P) || { printf '@@err missing\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+[ "$r" = "$f" ] || { printf '@@err moved\n'; exit 0; }
+d="$H/.icfcc-archives"
+[ -L "$d" ] && { printf '@@err symlink\n'; exit 0; }
+mkdir -p -m 700 -- "$d" 2>/dev/null || { printf '@@err unwritable\n'; exit 0; }
+a="$d/$id.tar.gz"
+if [ -f "$a" ] && [ ! -L "$a" ]; then printf '@@ok %s\n' "$a"; exit 0; fi
+p=$(mktemp "$d/.$id.XXXXXX") || { printf '@@err unwritable\n'; exit 0; }
+e=$(nice -n 10 tar -czf "$p" -C "${r%/*}/" -- "${r##*/}" 2>&1 >/dev/null)
+# GNU tar exits 1 when a file changed while it was read; the archive is still complete.
+if [ $? -gt 1 ]; then
+  rm -f -- "$p"
+  printf '@@why %s\n' "$(printf '%s\n' "$e" | tail -n 1)"
+  printf '@@err pack_failed\n'; exit 0
+fi
+mv -f -- "$p" "$a" || { rm -f -- "$p"; printf '@@err failed\n'; exit 0; }
+printf '@@ok %s\n' "$a"
+"#;
+    s
+}
+
+/// Remove the app's own download archive of transfer `id` (and any half-packed temp file).
+pub fn drop_pack_script(id: &str) -> String {
+    let mut s = format!("# icfcc:xfer-pack-drop\n{GUARD}id={}\n", q(id));
+    s += r#"d="$H/.icfcc-archives"
+[ -d "$d" ] && [ ! -L "$d" ] || { printf '@@ok\n'; exit 0; }
+rm -f -- "$d/$id.tar.gz" "$d/.$id".*
+rmdir -- "$d" 2>/dev/null
+printf '@@ok\n'
+"#;
+    s
+}
+
+fn parse_pack(out: &str) -> AppResult<String> {
+    if out.lines().any(|l| l == "@@err pack_failed") {
+        let why = field(out, "@@why").map(|w| sanitize_text(w, 200)).filter(|w| !w.is_empty());
+        return Err(AppError::invalid(format!(
+            "Packing the folder on ICF failed{}. Nothing was left behind.",
+            why.map(|w| format!(": {w}")).unwrap_or_default()
+        )));
+    }
+    if out.lines().any(|l| l == "@@err moved") {
+        return Err(AppError::new(ErrorCode::InvalidPath, "The remote folder resolves elsewhere (symlink); choose the real folder."));
+    }
+    remote_err(out)?;
+    field(out, "@@ok").map(str::to_string).ok_or_else(|| AppError::new(ErrorCode::SlurmError, "Packing did not confirm success."))
+}
+
+/// Packing a big folder on NFS can take many minutes; stays under the 30-minute idle disconnect.
+const PACK_TIMEOUT: Duration = Duration::from_secs(20 * 60);
+
+/// Unpack a verified folder archive into `dest` (which must not exist yet) via a hidden scratch
+/// folder next to it. macOS tar (libarchive) strips leading `/`, refuses `..` and does not
+/// extract through links, so members stay inside the scratch folder.
+async fn unpack_local(archive: &Path, dest: &Path, top: &str) -> AppResult<()> {
+    let exists = || AppError::invalid(format!("{} already exists on this Mac. Nothing was overwritten.", dest.display()));
+    if dest.symlink_metadata().is_ok() {
+        return Err(exists());
+    }
+    let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = dest.with_file_name(format!(".{name}.icfcc-unpack"));
+    if tmp.symlink_metadata().is_ok_and(|m| m.is_dir()) {
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().mode(0o700).create(&tmp).map_err(|_| AppError::new(ErrorCode::InvalidPath, "Cannot write in the chosen folder."))?;
+    }
+    let r = tokio::process::Command::new("/usr/bin/tar")
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .arg("-xzf")
+        .arg(archive)
+        .arg("-C")
+        .arg(&tmp)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .output()
+        .await;
+    let res = match r {
+        Ok(o) if o.status.success() => {
+            if dest.symlink_metadata().is_ok() {
+                Err(exists())
+            } else {
+                std::fs::rename(tmp.join(top), dest).map_err(|_| AppError::internal("Could not move the unpacked folder into place."))
+            }
+        }
+        Ok(o) => Err(AppError::internal(format!("Unpacking failed: {}", sanitize_text(&String::from_utf8_lossy(&o.stderr), 200)))),
+        Err(_) => Err(AppError::internal("Could not run /usr/bin/tar")),
+    };
+    let _ = std::fs::remove_dir_all(&tmp);
+    res
 }
 
 fn field<'a>(out: &'a str, key: &str) -> Option<&'a str> {
@@ -485,11 +589,29 @@ pub async fn upload(m: &Manager, session: &Session, limit: u32, t: &Transfer, ca
 /// One verified download (used by the queue; public for the opt-in real-sftp test).
 pub async fn download(m: &Manager, session: &Session, limit: u32, t: &Transfer, cancel: &mut watch::Receiver<bool>) -> AppResult<Option<String>> {
     m.phase(&t.id, Phase::Checking);
-    let r = crate::projects::remote::parse_resolved(&session.run(&crate::projects::remote::resolve_script(&t.remote_path), COMMAND_TIMEOUT, 16 * 1024).await?)?;
+    let src = if t.folder {
+        m.set(&t.id, false, |x| x.message = Some("Packing the folder on ICF…".into()));
+        // ponytail: a cancel stops waiting, not a tar already running on ICF; Discard removes its output.
+        let script = pack_script(&t.remote_path, &t.id);
+        let out = tokio::select! {
+            r = session.run(&script, PACK_TIMEOUT, 16 * 1024) => r,
+            _ = cancel.changed() => return Ok(None),
+        };
+        match out {
+            Err(e) if matches!(e.code, ErrorCode::SshTimeout) => return Err(AppError::new(
+                ErrorCode::SshTimeout,
+                "Packing took longer than 20 minutes, so the app stopped waiting. Download smaller subfolders, or pack it in a job and download the archive.",
+            )),
+            r => parse_pack(&r?)?,
+        }
+    } else {
+        t.remote_path.clone()
+    };
+    let r = crate::projects::remote::parse_resolved(&session.run(&crate::projects::remote::resolve_script(&src), COMMAND_TIMEOUT, 16 * 1024).await?)?;
     if !r.is_file {
-        return Err(AppError::new(ErrorCode::InvalidPath, "Only files can be downloaded; download an archive of a folder instead."));
+        return Err(AppError::new(ErrorCode::InvalidPath, "This is not a regular file anymore. Refresh and choose it again."));
     }
-    if r.path != t.remote_path {
+    if r.path != src {
         return Err(AppError::new(ErrorCode::InvalidPath, "The remote file resolves elsewhere (symlink); choose the real file."));
     }
     let size = r.size.unwrap_or(0);
@@ -522,7 +644,7 @@ pub async fn download(m: &Manager, session: &Session, limit: u32, t: &Transfer, 
     m.phase(&t.id, Phase::Transferring);
     m.set(&t.id, false, |x| x.done_bytes = have);
     let (_links, link) = LinkDir::new(&part)?;
-    let b = batch(Direction::Download, have > 0, &t.remote_path, &link.display().to_string())?;
+    let b = batch(Direction::Download, have > 0, &src, &link.display().to_string())?;
     let probe = || async {
         let n = std::fs::metadata(&part).ok()?.len();
         m.set(&t.id, false, |x| x.done_bytes = n);
@@ -533,7 +655,7 @@ pub async fn download(m: &Manager, session: &Session, limit: u32, t: &Transfer, 
     }
 
     m.phase(&t.id, Phase::Verifying);
-    let (rsize, rsha) = remote_sha(session, &t.remote_path, size).await?;
+    let (rsize, rsha) = remote_sha(session, &src, size).await?;
     let Some(lsha) = hash_local(m, &t.id, part.clone(), cancel).await? else { return Ok(None) };
     if std::fs::metadata(&part).map(|x| x.len()).unwrap_or(0) != rsize || lsha != rsha {
         let _ = std::fs::remove_file(&part);
@@ -544,6 +666,13 @@ pub async fn download(m: &Manager, session: &Session, limit: u32, t: &Transfer, 
     }
     m.set(&t.id, true, |x| x.sha256 = Some(lsha.clone()));
     m.phase(&t.id, Phase::Publishing);
+    if t.folder {
+        // The verified archive (local part and ICF copy) is kept until the folder is in place, so Retry can finish.
+        unpack_local(&part, &dest, &t.name).await?;
+        let _ = std::fs::remove_file(&part);
+        let _ = session.run(&drop_pack_script(&t.id), COMMAND_TIMEOUT, 4096).await;
+        return Ok(Some(format!("Downloaded, verified (SHA-256 {}…) and unpacked.", &lsha[..12])));
+    }
     // The save panel already asked before replacing an existing file.
     std::fs::rename(&part, &dest).map_err(|_| AppError::new(ErrorCode::InvalidPath, "Could not move the verified file into place."))?;
     Ok(Some(format!("Downloaded and verified (SHA-256 {}…).", &lsha[..12])))
@@ -814,37 +943,47 @@ pub async fn transfers_upload(app: AppHandle, state: State<'_, AppState>, token:
         created_at: now_iso(),
         updated_at: now_iso(),
         delete_local_after,
+        folder: false,
     };
     state.transfers.store.lock().unwrap().upsert(t.clone())?;
     spawn(app, t.id.clone());
     Ok(t)
 }
 
-/// Pick where to save, then queue a download of one remote file inside home.
+/// Pick where to save, then queue a download of one remote file or folder inside home.
 #[tauri::command]
 pub async fn transfers_download(app: AppHandle, state: State<'_, AppState>, remote_path: String) -> AppResult<Option<Transfer>> {
     let c = ctx(&state).await?;
-    if c.session.is_none() {
+    let Some(session) = c.session.clone() else {
         return Err(AppError::invalid("Demo mode: transfers are disabled. Connect to ICF."));
-    }
+    };
     check_abs_path(&remote_path).map_err(|_| {
         AppError::new(
             ErrorCode::InvalidPath,
-            "This file's path contains spaces or special characters, which sftp batch mode cannot pass safely. Rename it on ICF or download it with VS Code.",
+            "This path contains spaces or special characters, which sftp batch mode cannot pass safely. Rename it on ICF or download it with VS Code.",
         )
     })?;
     if !under(&remote_path, &c.home) {
-        return Err(AppError::new(ErrorCode::InvalidPath, "Downloads are limited to files inside your home directory."));
+        return Err(AppError::new(ErrorCode::InvalidPath, "Downloads are limited to files and folders inside your home directory."));
     }
+    let r = crate::projects::remote::parse_resolved(&session.run(&crate::projects::remote::resolve_script(&remote_path), COMMAND_TIMEOUT, 16 * 1024).await?)?;
+    if !r.is_file && !r.is_dir {
+        return Err(AppError::new(ErrorCode::InvalidPath, "Only files and folders can be downloaded."));
+    }
+    let folder = r.is_dir;
     let name = remote_path.rsplit('/').next().unwrap_or("download").to_string();
     let (tx, rx) = tokio::sync::oneshot::channel();
     {
         use tauri_plugin_dialog::DialogExt;
-        app.dialog().file().set_title("Save the file from ICF as").set_file_name(&name).save_file(move |p| {
+        let title = if folder { "Save the folder from ICF as" } else { "Save the file from ICF as" };
+        app.dialog().file().set_title(title).set_file_name(&name).save_file(move |p| {
             let _ = tx.send(p);
         });
     }
     let Some(dest) = rx.await.ok().flatten().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    if folder && dest.symlink_metadata().is_ok() {
+        return Err(AppError::invalid(format!("{} already exists on this Mac. Folders are never replaced; choose another name.", dest.display())));
+    }
     let t = Transfer {
         id: random_hex(8),
         profile_id: c.profile_id,
@@ -861,6 +1000,7 @@ pub async fn transfers_download(app: AppHandle, state: State<'_, AppState>, remo
         created_at: now_iso(),
         updated_at: now_iso(),
         delete_local_after: false,
+        folder,
     };
     state.transfers.store.lock().unwrap().upsert(t.clone())?;
     spawn(app, t.id.clone());
@@ -916,6 +1056,9 @@ pub async fn transfers_discard(state: State<'_, AppState>, id: String) -> AppRes
                 let p = t.local_part();
                 if std::fs::symlink_metadata(&p).is_ok_and(|m| m.is_file()) {
                     let _ = std::fs::remove_file(p);
+                }
+                if let (true, Some(s)) = (t.folder, &c.session) {
+                    remote_err(&s.run(&drop_pack_script(&t.id), COMMAND_TIMEOUT, 4096).await?)?;
                 }
             }
         }
