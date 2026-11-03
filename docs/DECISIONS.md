@@ -422,7 +422,39 @@ each batch job waits in the queue again; `srun --pty bash` avoids that but needs
   16 KB, from this Mac's receipt only, accepted on ICF only while `squeue` says the job is RUNNING
   for the user; written beside the inbox and moved in, through a quoted heredoc with a random
   delimiter (the content is never expanded on the login node). Never retried automatically.
-- Not done: a pseudo-terminal (interactive programs, prompts), several sessions sharing one GPU.
+- Not done: a pseudo-terminal (interactive programs, prompts; the head node now has one, ADR-039), several sessions sharing one GPU.
+
+## ADR-039 — A head node terminal (amends "no general-purpose shell in the UI")
+*Status: accepted (0.6.0), requested by the owner: env setup and one-off commands on the head node
+needed a separate terminal window and a second login.* Amends spec §2.1 ("never open a general-purpose
+SSH shell in the UI"), AGENTS.md rules 5 and 6 and docs/SECURITY.md for this one surface.
+- **What.** A Terminal screen shows the user's own login shell on the login node (xterm.js), beside a
+  command library. Nothing the user types is interpreted, templated or validated by the app: it is a
+  shell, so it can do whatever the account can. That is the deliberate exception.
+- **How.** `terminal_open` spawns the local `/usr/bin/ssh -tt -e none -- <alias>` (no remote command)
+  with the existing ControlPath and `BatchMode=yes`, so it reuses the authenticated master and can
+  never prompt or log in again. The child runs on a local PTY (`libc::openpty`, no new crate);
+  command-line `-tt` overrides the pinned `RequestTTY no` (checked against a real sshd). `-e none`
+  stops a typed `~.` from ending the session. Output reaches the page on a Tauri `Channel` (base64,
+  since a read can split a UTF-8 character); typing goes back through `terminal_write` (≤ 64 KiB).
+  `ClearAllForwardings yes`, `ForwardAgent no` and the host-key rules are unchanged.
+- **Boundaries kept.** The four commands are in their own capability (`terminal-mutations.json`);
+  the library never sends Enter, never runs anything itself, and holds only fixed one-line text; no
+  other screen can type into the shell. Demo mode has no terminal. Nothing from the terminal is logged
+  or persisted by the app; only the user's own saved library commands are (UI preferences, this Mac).
+- **Lifetime.** One terminal at a time. It stays alive while the user visits other screens (the view
+  is kept mounted) and a reload re-attaches to it with the last 256 KiB of output replayed. It ends
+  when the shell exits, on Disconnect or quit (`close_session`/`RunEvent::Exit`; the local ssh is
+  killed, which hangs up the remote shell), or if the connection drops (ssh status 255). The idle
+  disconnect waits while it is open.
+- **Rendering and CSP.** xterm 6's DOM renderer injects `<style>` elements, blocked by
+  `style-src 'self'`; the WebGL renderer draws to canvas, so the CSP is unchanged. The console may log
+  blocked inline-style attempts from xterm's own scrollbar and cell-size styles; they are cosmetic.
+  Without WebGL the DOM renderer shows unstyled text.
+- **Drivers.** The library's GPU entries only inspect (`nvidia-smi`, `nvcc --version`): drivers are
+  administered by ICF and cannot be updated from a student account, so no driver-update command ships.
+- **Not done:** several terminals or tabs, running a library command in one click, remembering the
+  working directory across sessions, scripting the terminal (by design).
 
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).

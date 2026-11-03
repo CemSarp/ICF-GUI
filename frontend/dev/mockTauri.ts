@@ -90,6 +90,8 @@ const kernelChannel = (ch: { id: number }) => {
   let index = 0;
   return (message: unknown) => callbacks.get(ch.id)?.({ index: index++, message });
 };
+let termSend: ((text: string) => void) | null = null;
+let termExit: ((code: number) => void) | null = null;
 const fakeKernelRun = (id: string, code: string) => {
   const send = kernelSend;
   if (!send) return;
@@ -429,6 +431,23 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
       );
     return null;
   },
+  // Preview terminal: a fake prompt that echoes typing; never runs anything.
+  terminal_open: (a) => {
+    const send = kernelChannel(a.events as { id: number });
+    termSend = (text: string) =>
+      send({ event: 'data', data: btoa(String.fromCharCode(...new TextEncoder().encode(text))) });
+    const exit = (code: number) => send({ event: 'exit', code });
+    termExit = exit;
+    setTimeout(() => termSend?.('Preview shell (nothing is executed).\r\n$ '), 100);
+    return { terminalId: 't1', reattached: false };
+  },
+  terminal_write: (a) => {
+    const d = a.data as string;
+    termSend?.(d === '\r' ? '\r\n$ ' : d === '\x7f' ? '\b \b' : d);
+    return null;
+  },
+  terminal_resize: () => null,
+  terminal_close: () => (termExit?.(0), null),
   workflow_refresh: () => v3.runs(),
   workflow_runs: () => v3.runs().runs,
   workflow_list_files: (a) => v3.listing(`${v3.PROJECT}/runs/train-4242/${a.which}`),

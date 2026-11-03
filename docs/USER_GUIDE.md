@@ -408,6 +408,27 @@ screen, like an editor's zen mode.
 
 The keyboard button in the toolbar lists them too.
 
+## Terminal
+
+**Terminal** (sidebar) opens a shell on the ICF head node, using the connection the app already has:
+no second window and no second login. Use it for setting up environments (`conda create`,
+`pip install`), moving files, `squeue` and other short commands. Prompts, Ctrl-C, colours and
+resizing work. It keeps running while you visit other screens, and ends when you type `exit`, press
+**Disconnect**, or quit; **New session** starts another.
+
+It is your own account's shell, so it can do anything your account can, including deleting files.
+Heavy work (training, long installs of big packages) belongs in a job, not on the head node.
+
+**Command library** (right side). Pick a category or search, then **Insert**: the command appears at
+the prompt without running. Change anything in `<brackets>` (an environment name, a folder), then press
+Enter. **Copy** copies it instead. Commands that delete are marked **Deletes**. Under **Save your own**
+you can keep a command of yours (it stays on this Mac, in **Mine**).
+
+- *GPU & drivers* only inspects (`nvidia-smi`, `nvcc --version`): NVIDIA drivers are managed by the
+  ICF admins and cannot be updated from your account. Ask them if you need a newer one.
+- The head node has no GPU, so `torch.cuda.is_available()` is `False` there; check it in a GPU job.
+- The terminal needs WebGL (every supported macOS has it).
+
 ## Refresh and load on ICF
 
 The app refreshes once a minute (configurable 45 s – 10 min in Settings) only while its window is

@@ -493,6 +493,12 @@ pub async fn connect(
     Ok(Connected { session, capabilities: caps, host_key_decisions: decisions, saved })
 }
 
+/// Arguments after the shared mux options: force a PTY, no remote command.
+pub(crate) fn terminal_args(mut mux: Vec<String>, alias: &str) -> Vec<String> {
+    mux.extend(["-tt".into(), "-e".into(), "none".into(), "--".into(), alias.into()]);
+    mux
+}
+
 impl Session {
     fn mux_args(&self) -> Vec<String> {
         let mut a = base_args(&self.cfg, &self.profile);
@@ -552,6 +558,20 @@ impl Session {
             return Err(AppError::new(ErrorCode::SshNetwork, "The SSH session closed before the kernel could start."));
         }
         Ok(child)
+    }
+
+    /// `ssh -tt` with no remote command (the user's login shell) over the existing master, for the
+    /// terminal (ADR-039). The caller attaches a PTY. `-e none` stops a typed `~.` from killing it.
+    pub async fn terminal_command(&self) -> AppResult<tokio::process::Command> {
+        if !self.is_alive().await {
+            return Err(AppError::new(ErrorCode::NotConnected, "The SSH session has ended. Connect again to resume."));
+        }
+        self.last_used_ms.store(crate::util::now_ms(), std::sync::atomic::Ordering::Relaxed);
+        let mut c = ssh_command(&self.ssh_bin);
+        c.args(terminal_args(self.mux_args(), &self.profile.ssh_alias));
+        // ssh_command pins LC_ALL=C; the remote shell should speak UTF-8 and know the terminal type.
+        c.env_remove("LC_ALL").env("LANG", "C.UTF-8").env("TERM", "xterm-256color");
+        Ok(c)
     }
 
     /// `sftp` over the existing master: same generated config, same ssh binary (`-S`), BatchMode,

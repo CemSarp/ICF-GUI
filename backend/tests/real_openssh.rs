@@ -174,6 +174,34 @@ async fn real_openssh_proxyjump_hostkeys_mux_and_teardown() {
         .output()
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&vs.stdout), "shared-ok", "{}", String::from_utf8_lossy(&vs.stderr));
+    // 3c. Head node terminal (ADR-039): `-tt` over the master gets a real remote tty despite the
+    // forced `RequestTTY no`, runs the login shell, and never prompts (BatchMode).
+    {
+        use base64::Engine;
+        use icf_control_center_lib::terminal::{Terminal, TerminalEvent};
+        let out = Arc::new(Mutex::new(String::new()));
+        let (o, ended) = (out.clone(), Arc::new(Mutex::new(None)));
+        let e = ended.clone();
+        let sink: icf_control_center_lib::terminal::Sink = Arc::new(move |ev| match ev {
+            TerminalEvent::Data { data } => {
+                o.lock().unwrap().push_str(&String::from_utf8_lossy(&base64::engine::general_purpose::STANDARD.decode(data).unwrap()))
+            }
+            TerminalEvent::Exit { code } => *e.lock().unwrap() = Some(code),
+        });
+        let t = Terminal::start(c.session.terminal_command().await.unwrap(), 90, 25, sink).unwrap();
+        t.write(b"[ -t 0 ] && echo istty-$((6*7)); stty size; exit 5\n").unwrap();
+        for _ in 0..200 {
+            if ended.lock().unwrap().is_some() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let out = out.lock().unwrap().clone();
+        assert!(out.contains("istty-42"), "remote side has a tty: {out:?}");
+        assert!(out.contains("25 90"), "window size reached the remote pty: {out:?}");
+        assert_eq!(*ended.lock().unwrap(), Some(Some(5)), "{out:?}");
+    }
+
     c.session.close().await;
     assert!(!c.session.is_alive().await, "master stopped on disconnect");
 

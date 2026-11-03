@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Badge, Dialog, EmptyState, Icon, Notice, type IconName } from './components/ui';
 import { Nodes } from './cluster/Nodes';
 import { NodeDetail } from './cluster/NodeDetail';
@@ -12,6 +12,7 @@ import { NewJobView } from './jobs/NewJobView';
 import { ProjectsView } from './projects/ProjectsView';
 import { SettingsView } from './settings/SettingsView';
 import { RunsView } from './training/RunsView';
+import { TerminalView } from './terminal/TerminalView';
 import { TransfersView } from './transfers/TransfersView';
 import { useAppShell, type View } from '../logic/app/useAppShell';
 import { APP_VERSION } from '../logic/app/version';
@@ -29,6 +30,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[]; bottom?: boolean }[] = [
     items: [
       { id: 'home', label: 'Start', icon: 'home' },
       { id: 'overview', label: 'Cluster', icon: 'overview' },
+      { id: 'terminal', label: 'Terminal', icon: 'terminal' },
     ],
   },
   {
@@ -140,6 +142,11 @@ export function App() {
     onCacheCleared,
   } = useAppShell();
   const mainRef = useRef<HTMLElement>(null);
+  // The terminal mounts on first visit and then stays (hidden) so leaving the screen keeps the
+  // shell; disconnecting drops it.
+  const [terminalOpened, setTerminalOpened] = useState(false);
+  const wantTerminal = live && (terminalOpened || view === 'terminal');
+  if (wantTerminal !== terminalOpened) setTerminalOpened(wantTerminal);
 
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
@@ -405,7 +412,7 @@ export function App() {
                 snapshot={snap.data}
                 onCacheCleared={onCacheCleared}
               />
-            ) : snap.loading ? (
+            ) : view === 'terminal' ? null : snap.loading ? (
               <div className="skeleton" aria-busy="true">
                 Loading cluster data…
               </div>
@@ -436,6 +443,11 @@ export function App() {
               </details>
             )}
           </div>
+          {terminalOpened && (
+            <div className="page terminal-keep" hidden={view !== 'terminal'}>
+              <TerminalView active={view === 'terminal'} />
+            </div>
+          )}
         </main>
       </div>
       {pendingLeave && (

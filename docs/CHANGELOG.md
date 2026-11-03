@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] — 2026-11-03 · Head node terminal and command library
+
+### Added
+- **Terminal** (ADR-039): an interactive login shell on the head node inside the app, over the existing
+  SSH connection (no second window or login). A real terminal: prompts such as `conda`'s `[y/n]`,
+  Ctrl-C, colours, resizing, scrollback. It stays open while you use other screens, survives a window
+  reload, keeps the connection from idling out, and ends on Disconnect or quit. One terminal at a time.
+  New commands `terminal_open`, `terminal_write`, `terminal_resize`, `terminal_close`
+  (`terminal-mutations` capability).
+- **Command library** next to the terminal: about 70 commands for environments, conda and pip,
+  PyTorch (CUDA 12.8), GPU and driver checks, files, Slurm, Git and system info, with search and
+  categories. *Insert* types the command without pressing Enter; commands that delete are marked.
+  You can save your own (kept on this Mac).
+- Dependency: xterm.js (`@xterm/xterm`, `addon-fit`, `addon-webgl`), bundled; the WebGL renderer is
+  used because xterm's DOM renderer injects `<style>` elements that the app's CSP does not allow.
+
 ## [0.5.1] — 2026-10-28 · New job, GPU sessions, Rename and Unpack
 
 ### Added

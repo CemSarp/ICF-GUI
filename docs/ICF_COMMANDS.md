@@ -157,9 +157,9 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 
 ## 3. IPC command reference
 
-74 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
+78 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
 **D** = `capabilities/default.json` (reads and local state), **J** = `job-mutations.json`, **F** = `file-mutations.json`,
-**K** = `kernel-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
+**K** = `kernel-mutations.json`, **T** = `terminal-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
 full-screen button; local only).
 **Runs** names the remote script (§4) or says *local* (no network at all).
 
@@ -257,6 +257,15 @@ full-screen button; local only).
 | `kernel_execute` | `kernelExecute` | **K** | one JSON line to the running driver (≤ 1 MiB of code) |
 | `kernel_interrupt` / `kernel_restart` | `kernelInterrupt` / `kernelRestart` | **K** | one JSON line to the driver |
 | `kernel_stop` | `kernelStop` | **K** | `stop` line + stdin EOF; if the job is still there after 10 s, `cancel` (§4.2) for its id; then the session is killed |
+
+### Head node terminal — `backend/src/terminal/commands.rs` (ADR-039)
+
+| Command | `api.` | Cap. | Runs |
+|---|---|---|---|
+| `terminal_open` | `terminalOpen` | **T** | `ssh … -tt -e none -- <alias>` on a local PTY over the master (§2.4 options, no remote command); opening again re-attaches and replays the last 256 KiB |
+| `terminal_write` | `terminalWrite` | **T** | the typed bytes (≤ 64 KiB) to the PTY; never interpreted |
+| `terminal_resize` | `terminalResize` | **T** | `TIOCSWINSZ` on the local PTY (ssh forwards the new size) |
+| `terminal_close` | `terminalClose` | **T** | kills the local ssh, which hangs up the remote shell |
 
 ---
 

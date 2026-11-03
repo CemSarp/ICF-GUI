@@ -820,3 +820,6 @@ export interface MetricsResponse {
   path: string;
   note: string | null;
 }
+
+/** Head node terminal (ADR-039): output is base64 because a read can end inside a UTF-8 character. */
+export type TerminalEvent = { event: 'data'; data: string } | { event: 'exit'; code: number | null };

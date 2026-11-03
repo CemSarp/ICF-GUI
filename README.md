@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.5.1-blue)
+![version](https://img.shields.io/badge/version-0.6.0-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -23,7 +23,16 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 New in 0.5.1
+## 🆕 New in 0.6.0
+
+- 💻 **Head node terminal.** A **Terminal** screen is a real shell on the ICF login node, over the
+  connection the app already has: no second window, no second login. Set up conda environments,
+  `pip install`, move files, check `squeue`; prompts, Ctrl-C and colours work.
+  → [Terminal](docs/USER_GUIDE.md#terminal)
+- 📚 **Command library** beside it: environments, conda and pip, PyTorch, GPU checks, files, Slurm and
+  Git. *Insert* types a command at the prompt (you edit the `<brackets>` and press Enter); save your own.
+
+## New in 0.5.1
 
 - 🧭 **A calmer New job.** Pick what to run from tiles (Python script, Shell script, Commands,
   Notebook, GPU session), choose the file on ICF, and click a partition and GPU type with live free

@@ -85,6 +85,11 @@ const COMMANDS: &[&str] = &[
     "logs_clean",
     "vscode_share_apply",
     "vscode_share_disable",
+    // Head node terminal (ADR-039) — granted only via capabilities/terminal-mutations.json
+    "terminal_open",
+    "terminal_write",
+    "terminal_resize",
+    "terminal_close",
 ];
 
 fn main() {
