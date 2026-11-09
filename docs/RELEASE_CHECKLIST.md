@@ -145,3 +145,6 @@
 - [ ] Handbook: sidebar and sign-in screen open it; search filters sections; **Save as Markdown…** writes
       the file through the macOS save panel; **Copy all** fills the clipboard
 - [ ] Live (owner): first Connect after starting the app succeeds (no 15 s identity-check timeout)
+- [x] Released from this Mac with `scripts/release.sh` (GitHub's macOS runners never picked the job up;
+      the release workflow was removed): downloaded zip passes `shasum -a 256 -c` and
+      `codesign --verify --deep --strict`, version 0.6.0
