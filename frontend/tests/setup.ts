@@ -45,6 +45,13 @@ Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
 Range.prototype.getBoundingClientRect ??= () => new DOMRect();
 document.execCommand ??= () => false;
 
+// jsdom has no ResizeObserver (the terminal watches its host element).
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 // Most suites start on the Cluster screen, as the app did before Start existed; start.test.tsx covers Start.
 beforeEach(() => localStorage.setItem('icfcc.view', JSON.stringify('overview')));
 

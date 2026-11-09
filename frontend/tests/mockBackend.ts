@@ -8,6 +8,7 @@ import type {
   KernelEvent,
   KernelRequest,
   SnapshotResponse,
+  TerminalEvent,
   WorkflowConfig,
 } from '../src/types';
 import * as v3 from './v3Fixtures';
@@ -79,6 +80,7 @@ export const jobRow = (o: Partial<JobRow>): JobRow => ({
 
 type Handler = (args: Record<string, unknown>) => unknown;
 type KernelChannel = { onmessage: (e: KernelEvent) => void };
+type TerminalChannel = { onmessage: (e: TerminalEvent) => void };
 
 /**
  * Fake kernel: `print("x")` lines print x, a last bare expression becomes an execute_result,
@@ -150,6 +152,8 @@ export const backend = {
   listeners: {} as Record<string, (e: { payload: unknown }) => void>,
   /** Event channel of the running fake kernel (tests can push their own events). */
   kernel: null as KernelChannel | null,
+  /** Event channel of the open fake terminal (tests push output and exit). */
+  terminal: null as TerminalChannel | null,
   emit(name: string, payload: unknown) {
     this.listeners[name]?.({ payload });
   },
@@ -160,6 +164,7 @@ export const backend = {
     this.calls = [];
     this.listeners = {};
     this.kernel = null;
+    this.terminal = null;
     let execCount = 0;
     const files: Record<string, string> = { ...v3.FILES }; // editor saves stay within one test
     let shared = false;
@@ -318,6 +323,14 @@ export const backend = {
           );
         return null;
       },
+      handbook_save: () => '/Users/me/Handbook.md',
+      terminal_open: (a) => {
+        this.terminal = a.events as TerminalChannel;
+        return { terminalId: 't1', reattached: false };
+      },
+      terminal_write: () => null,
+      terminal_resize: () => null,
+      terminal_close: () => null,
       workflow_refresh: () => v3.runs(),
       workflow_runs: () => v3.runs().runs,
       workflow_list_files: () => v3.listing(`${v3.PROJECT}/runs/train-4242/outputs`),

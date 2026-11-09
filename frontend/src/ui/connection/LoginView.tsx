@@ -15,7 +15,7 @@ Host icf
     ServerAliveInterval 60
     ServerAliveCountMax 3`;
 
-export function LoginView({ status }: { status: ConnectionStatus }) {
+export function LoginView({ status, onHandbook }: { status: ConnectionStatus; onHandbook?: () => void }) {
   const {
     profiles,
     profile,
@@ -221,7 +221,10 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
         )}
         {error && !locked && <Notice tone="bad">{error}</Notice>}
         {status.state === 'connecting' && (
-          <Notice tone="info">Authenticating… Prompts from SSH will appear in a dialog.</Notice>
+          <Notice tone="info">
+            Authenticating… Prompts from SSH will appear in a dialog. The first sign-in after a while can take up to a
+            minute while ICF starts your session.
+          </Notice>
         )}
 
         <div className="actions">
@@ -240,6 +243,14 @@ export function LoginView({ status }: { status: ConnectionStatus }) {
         </div>
         {profile?.lastSuccessAt && (
           <p className="muted small">Last successful connection: {formatTime(profile.lastSuccessAt)}</p>
+        )}
+        {onHandbook && (
+          <p className="muted small">
+            New here, or stuck?{' '}
+            <button type="button" className="link" onClick={onHandbook}>
+              Read the handbook
+            </button>
+          </p>
         )}
       </form>
 

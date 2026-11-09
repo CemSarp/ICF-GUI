@@ -16,6 +16,7 @@ const COMMANDS: &[&str] = &[
     "settings_get",
     "settings_set_poll_interval",
     "open_external",
+    "handbook_save",
     // V2 jobs (read/local)
     "jobs_preview",
     "jobs_list_mine",
@@ -85,6 +86,11 @@ const COMMANDS: &[&str] = &[
     "logs_clean",
     "vscode_share_apply",
     "vscode_share_disable",
+    // Head node terminal (ADR-039) — granted only via capabilities/terminal-mutations.json
+    "terminal_open",
+    "terminal_write",
+    "terminal_resize",
+    "terminal_close",
 ];
 
 fn main() {

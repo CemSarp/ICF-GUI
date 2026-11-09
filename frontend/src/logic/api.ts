@@ -11,6 +11,7 @@ import type {
   PresetJob,
   ImportResult,
   KernelEvent,
+  TerminalEvent,
   KernelPreview,
   KernelRequest,
   LaunchResult,
@@ -95,6 +96,8 @@ export const api = {
   jobsDismissReceipt: (tag: string) => invoke<null>('jobs_dismiss_receipt', { tag }),
   openExternal: (target: 'icf_status' | 'icf_tutorial' | 'vscode_remote_ssh') =>
     invoke<null>('open_external', { target }),
+  /** Saves the bundled handbook through a macOS save dialog; the saved path, or `null` if cancelled. */
+  handbookSave: () => invoke<string | null>('handbook_save'),
   // V3. Remote paths are validated and re-resolved in Rust/on ICF; local paths come only from
   // backend-owned native dialogs (the UI holds opaque tokens).
   projectsRecent: () => invoke<ProjectRecord[]>('projects_recent'),
@@ -168,6 +171,16 @@ export const api = {
   kernelRestart: (kernelId: string) => invoke<null>('kernel_restart', { kernelId }),
   /** `null` stops whatever kernel runs (e.g. one left by a reloaded page). */
   kernelStop: (kernelId: string | null) => invoke<null>('kernel_stop', { kernelId }),
+  /** Head node terminal: output arrives on a channel owned by the caller, until `exit`. Opening again re-attaches. */
+  terminalOpen: (cols: number, rows: number, onEvent: (e: TerminalEvent) => void) => {
+    const events = new Channel<TerminalEvent>();
+    events.onmessage = onEvent;
+    return invoke<{ terminalId: string; reattached: boolean }>('terminal_open', { cols, rows, events });
+  },
+  terminalWrite: (terminalId: string, data: string) => invoke<null>('terminal_write', { terminalId, data }),
+  terminalResize: (terminalId: string, cols: number, rows: number) =>
+    invoke<null>('terminal_resize', { terminalId, cols, rows }),
+  terminalClose: (terminalId: string) => invoke<null>('terminal_close', { terminalId }),
   /** Native full screen for the main window; outside Tauri (tests, preview) it does nothing. */
   setFullscreen: async (on: boolean) => {
     try {

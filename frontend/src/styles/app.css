@@ -494,7 +494,7 @@ input[type='radio'] {
   font-weight: 700;
   font-size: 14px;
   letter-spacing: -0.01em;
-  padding: 0 var(--s2) var(--s4);
+  padding: 0 var(--s2) var(--s2);
 }
 .logo {
   width: 26px;
@@ -549,6 +549,51 @@ input[type='radio'] {
 .nav-group.bottom {
   margin-top: auto;
 }
+.sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  margin: 0 0 var(--s3) 4px;
+  flex: none;
+  background: none;
+  border: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-control);
+  color: var(--muted);
+}
+.sidebar-toggle .icon {
+  transform: rotate(180deg);
+}
+.shell.collapsed .sidebar-toggle .icon {
+  transform: none;
+}
+.sidebar-toggle:hover {
+  color: var(--text);
+}
+.sidebar-toggle:focus:not(:focus-visible) {
+  outline: none;
+}
+.shell {
+  transition: grid-template-columns var(--dur-fast) var(--ease);
+}
+.shell.collapsed {
+  grid-template-columns: 56px 1fr;
+}
+.shell.collapsed .nav-label,
+.shell.collapsed .nav-heading {
+  display: none;
+}
+.shell.collapsed .nav {
+  justify-content: center;
+  padding: 0;
+}
+.shell.collapsed .brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+.shell.collapsed .nav-group + .nav-group {
+  margin-top: var(--s3);
+}
 .sidebar-foot {
   padding: var(--s3) 10px 0;
 }
@@ -596,14 +641,10 @@ input[type='radio'] {
   position: relative;
 }
 .page {
-  max-width: 1280px;
   animation: page-in var(--dur-slow) var(--ease-out);
 }
 .page-title {
   margin-bottom: var(--s5);
-}
-.page.wide {
-  max-width: 1120px;
 }
 /* Full screen (notebooks): the content takes the whole window, like an editor's zen mode. */
 .shell.focus {
@@ -619,7 +660,6 @@ input[type='radio'] {
   padding: var(--main-pad-top) var(--s5) 48px;
 }
 .shell.focus .page.wide {
-  max-width: 1400px;
   margin: 0 auto;
 }
 .settings {
@@ -2602,4 +2642,194 @@ input[type='checkbox'][role='switch']:focus-visible {
 }
 .avoid-nodes .chip-x:hover {
   color: var(--text);
+}
+
+/* Head node terminal (ADR-039): shell on the left, command library on the right. */
+.terminal-keep[hidden] {
+  display: none;
+}
+.term-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px var(--lib-w, 340px);
+  height: calc(100vh - 210px);
+  min-height: 420px;
+}
+.term-page.lib-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.term-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: 0;
+}
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 32px;
+}
+.term-host {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 4px 10px;
+  background: #10131a;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.term-hint {
+  margin: 0;
+}
+.term-lib {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.term-lib-title,
+.term-add h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.term-lib p {
+  margin: 0;
+}
+.term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.term-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s2);
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.term-cmd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+.term-cmd code {
+  font-size: 12px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.term-cmd-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.term-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.term-split {
+  cursor: col-resize;
+  touch-action: none;
+  display: flex;
+  justify-content: center;
+}
+.term-split::after {
+  content: '';
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--border-strong, var(--border));
+}
+.term-split:hover::after,
+.term-split:focus-visible::after,
+.term-split.dragging::after {
+  background: var(--accent, #0a84ff);
+}
+
+/* ---------- Handbook ---------- */
+.handbook-head {
+  display: grid;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.handbook-head .nb-markdown {
+  padding: 0;
+}
+.handbook-head .nb-markdown h1 {
+  display: none; /* the page title already says Handbook */
+}
+.handbook-search {
+  width: 100%;
+}
+.handbook-grid {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+.handbook-toc {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+}
+.handbook-toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.handbook-toc li + li {
+  margin-top: 2px;
+}
+.handbook-toc .link {
+  text-align: left;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.handbook-toc .link:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  text-decoration: none;
+  cursor: default;
+}
+.handbook-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a wide table or code block scrolls inside its card */
+  gap: var(--s4);
+  min-width: 0;
+}
+.handbook-section {
+  padding: var(--s4) var(--s5);
+  scroll-margin-top: var(--s3);
+}
+.handbook-section table {
+  display: block;
+  overflow-x: auto;
+}
+.handbook-standalone {
+  height: 100vh;
+  overflow: auto;
+}
+@media (max-width: 900px) {
+  .handbook-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .handbook-toc {
+    position: static;
+    max-height: none;
+  }
 }

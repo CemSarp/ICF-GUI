@@ -139,8 +139,8 @@ export function SettingsView({
       <section className="card" aria-labelledby="jupyter-title">
         <h2 id="jupyter-title">Jupyter</h2>
         <p>
-          <strong>Batch notebooks</strong> are supported: New job → Training workflow → "Notebook, batch execution" runs
-          a notebook top to bottom on a GPU node and saves the executed copy with the results.
+          <strong>Batch notebooks</strong> are supported: New job → Notebook runs a notebook top to bottom on a GPU node
+          and saves the executed copy with the results.
         </p>
         <p>
           <strong>Interactive kernels</strong> (experimental): open a notebook in the Notebooks tab and start a kernel

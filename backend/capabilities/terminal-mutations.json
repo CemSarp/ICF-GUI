@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "terminal-mutations",
+  "description": "Head node terminal (ADR-039): an interactive login shell on the login node over the app's existing SSH connection. Input is the user's own typing; the app never types for them. Closing it ends the shell.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-terminal-open",
+    "allow-terminal-write",
+    "allow-terminal-resize",
+    "allow-terminal-close"
+  ]
+}

@@ -79,6 +79,7 @@ fn partial_files_and_destinations() {
         created_at: String::new(),
         updated_at: String::new(),
         delete_local_after: false,
+        folder: false,
     };
     assert_eq!(t.remote_part(), "/home/s1/data/.set.tar.gz.icfcc-part");
     assert_eq!(t.local_part(), PathBuf::from("/Users/me/My Data/.set.tar.gz.icfcc-part"));
@@ -160,6 +161,33 @@ fn folder_packing_refuses_links_out_and_special_files() {
     assert!(!link_stays_inside(Path::new("/r"), Path::new("/r/l"), Path::new("../../x")));
 }
 
+#[tokio::test]
+async fn folder_downloads_pack_on_icf_and_unpack_without_overwriting() {
+    let s = Sandbox::new();
+    std::fs::create_dir_all(s.root.join("home/data/run1/ckpt")).unwrap();
+    std::fs::write(s.root.join("home/data/run1/ckpt/w.bin"), "weights").unwrap();
+    std::fs::write(s.root.join("home/data/run1/log.txt"), "ok").unwrap();
+    let folder = format!("{}/run1", s.data());
+    let a = parse_pack(&s.run(&pack_script(&folder, "ab12"))).unwrap();
+    assert_eq!(a, format!("{}/home/.icfcc-archives/ab12.tar.gz", s.root.display()));
+    assert!(parse_pack(&s.run(&pack_script(&folder, "ab12"))).is_ok(), "a finished archive is reused on retry");
+
+    let mac = s.root.join("mac");
+    std::fs::create_dir(&mac).unwrap();
+    unpack_local(Path::new(&a), &mac.join("got"), "run1").await.unwrap();
+    assert_eq!(std::fs::read_to_string(mac.join("got/ckpt/w.bin")).unwrap(), "weights");
+    assert!(!mac.join(".got.icfcc-unpack").exists(), "scratch folder removed");
+    assert!(unpack_local(Path::new(&a), &mac.join("got"), "run1").await.unwrap_err().message.contains("already exists"));
+
+    assert!(s.run(&drop_pack_script("ab12")).contains("@@ok"));
+    assert!(!s.root.join("home/.icfcc-archives").exists(), "archive and its empty folder removed");
+
+    std::os::unix::fs::symlink(s.root.join("elsewhere"), s.root.join("home/out")).unwrap();
+    assert!(parse_pack(&s.run(&pack_script(&format!("{}/home/out", s.root.display()), "x"))).is_err(), "never packs outside home");
+    std::os::unix::fs::symlink(s.root.join("home/data/run1"), s.root.join("home/link")).unwrap();
+    assert!(parse_pack(&s.run(&pack_script(&format!("{}/home/link", s.root.display()), "x"))).unwrap_err().message.contains("symlink"));
+}
+
 #[test]
 fn interrupted_transfers_are_marked_on_restart_and_scoped() {
     let dir = std::env::temp_dir().join(format!("icfcc-ts-{}", random_hex(4)));
@@ -180,6 +208,7 @@ fn interrupted_transfers_are_marked_on_restart_and_scoped() {
         created_at: String::new(),
         updated_at: String::new(),
         delete_local_after: false,
+        folder: false,
     };
     st.upsert(mk("a", "s1", Phase::Transferring)).unwrap();
     st.upsert(mk("b", "s1", Phase::Done)).unwrap();

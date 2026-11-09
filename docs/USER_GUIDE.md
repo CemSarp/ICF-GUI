@@ -1,5 +1,9 @@
 # User guide
 
+The [handbook](HANDBOOK.md) is the complete reference (every screen, setting and message, and the MLS
+course recipes); it is also inside the app (**Handbook** in the sidebar) and can be saved as Markdown for an
+AI assistant. This guide is the shorter walkthrough.
+
 ## Connecting
 
 **No SSH config needed.** If `icf` is not set up in your `~/.ssh/config`, the app connects through the
@@ -20,7 +24,8 @@ a jump host typed under *Advanced* always takes precedence.
    - **Verify host key** (first connection to each host): compare the fingerprint with one published by
      Informatics before clicking *I verified it*. If unsure, click *Reject and stop*.
    - **One-time codes / other questions**: answer manually; they are never saved.
-5. **Cancel** stops the attempt immediately. After 3 failed sign-ins the app pauses sign-in for 5
+5. The first sign-in after a while can take up to a minute: ICF starts your login session during the
+   first command. **Cancel** stops the attempt immediately. After 3 failed sign-ins the app pauses sign-in for 5
    minutes to protect your account from lockout.
 
 **Explore demo data** shows synthetic data (yellow *DEMO MODE* banner) without connecting.
@@ -408,6 +413,27 @@ screen, like an editor's zen mode.
 
 The keyboard button in the toolbar lists them too.
 
+## Terminal
+
+**Terminal** (sidebar) opens a shell on the ICF head node, using the connection the app already has:
+no second window and no second login. Use it for setting up environments (`conda create`,
+`pip install`), moving files, `squeue` and other short commands. Prompts, Ctrl-C, colours and
+resizing work. It keeps running while you visit other screens, and ends when you type `exit`, press
+**Disconnect**, or quit; **New session** starts another.
+
+It is your own account's shell, so it can do anything your account can, including deleting files.
+Heavy work (training, long installs of big packages) belongs in a job, not on the head node.
+
+**Command library** (right side). Pick a category or search, then **Insert**: the command appears at
+the prompt without running. Change anything in `<brackets>` (an environment name, a folder), then press
+Enter. **Copy** copies it instead. Commands that delete are marked **Deletes**. Under **Save your own**
+you can keep a command of yours (it stays on this Mac, in **Mine**).
+
+- *GPU & drivers* only inspects (`nvidia-smi`, `nvcc --version`): NVIDIA drivers are managed by the
+  ICF admins and cannot be updated from your account. Ask them if you need a newer one.
+- The head node has no GPU, so `torch.cuda.is_available()` is `False` there; check it in a GPU job.
+- The terminal needs WebGL (every supported macOS has it).
+
 ## Refresh and load on ICF
 
 The app refreshes once a minute (configurable 45 s – 10 min in Settings) only while its window is
@@ -425,6 +451,7 @@ connection closes.
 | Message | What to do |
 |---|---|
 | Host key has CHANGED | Do not continue. Ask Informatics support to confirm the new key, then edit `~/.ssh/known_hosts` yourself. |
+| Signed in, but ICF took more than 60 s to run its first command | ICF was slow to start your login. Connect again; the second try is usually fast. |
 | Authentication failed | Check UUN/password; if you use a saved password, Forget it and type it again. |
 | Host name could not be resolved / Network error | Check network/VPN and that `ssh icf` works in Terminal. |
 | The SLURM controller did not answer | Cluster-side issue; last good data stays visible; retries back off automatically. |

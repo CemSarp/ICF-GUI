@@ -303,6 +303,36 @@ async fn reconnect_with_remembered_passwords_uses_keychain_only_when_allowed() {
     assert_eq!(ui.seen.lock().unwrap().len(), 1);
 }
 
+/// macOS took 3–4 s per Keychain read on the first connect after launch (log, 2026-11-09). That
+/// wait is not ssh making no progress, so it must not use up the connect budget (3 s here).
+#[tokio::test]
+async fn slow_keychain_reads_do_not_count_against_the_connect_budget() {
+    struct Slow(Mem);
+    impl SecretStore for Slow {
+        fn get(&self, a: &str) -> Option<Zeroizing<String>> {
+            std::thread::sleep(Duration::from_secs(2));
+            self.0.get(a)
+        }
+        fn set(&self, a: &str, s: &str) -> icf_control_center_lib::errors::AppResult<()> {
+            self.0.set(a, s)
+        }
+        fn delete(&self, a: &str) -> icf_control_center_lib::errors::AppResult<()> {
+            self.0.delete(a)
+        }
+    }
+    let store = Slow(Mem::default());
+    store.set(&keychain_account("default", "s1", "student.ssh.inf.ed.ac.uk"), "gwpass").unwrap();
+    store.set(&keychain_account("default", "s1", "icf"), "destpass").unwrap();
+    let mut p = profile(AuthMode::Password);
+    p.saved_credentials = vec!["s1@student.ssh.inf.ed.ac.uk".into(), "s1@icf".into()];
+    let f = fixture(&[GW, DEST]);
+    let (_tx, rx) = watch::channel(false);
+    let c = connect(&f.env, req(p, FormSecrets::default(), false, true), &store, Arc::new(ScriptUi::default()), rx)
+        .await
+        .unwrap_or_else(|e| panic!("{:?}", e.error));
+    c.session.close().await;
+}
+
 #[tokio::test]
 async fn agent_mode_never_autofills_saved_passwords() {
     let store = Mem::default();

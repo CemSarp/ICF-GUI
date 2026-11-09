@@ -96,7 +96,7 @@ export function NotebooksView({
           with variables kept between cells. The app asks SLURM for the allocation with <code>srun</code>, talks to the
           kernel over its own SSH connection (no ports or tokens), and releases the GPU when you stop the kernel, leave
           the notebook, disconnect, after 30 minutes without running a cell, or at the time limit. For long or
-          unattended runs, use a batch notebook run (New job → Training workflow → Notebook).
+          unattended runs, use a batch notebook run (New job → Notebook).
         </p>
       </section>
     </div>

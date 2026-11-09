@@ -110,7 +110,8 @@ ssh -F <cfg> [-l <user>] [-J <jump>] \
   The socket accepts only a peer with the same UID that descends from the app's own ssh master and
   presents the nonce. Exit 1 means deny, and ssh then fails closed.
 - Host-key prompts are shown to you with the fingerprint. Only an explicit "yes" is sent.
-- The connection is "up" when the control socket appears. The 30 s budget excludes the time you spend answering prompts.
+- The connection is "up" when the control socket appears. The 30 s budget excludes the time you spend answering prompts
+  and the time macOS takes to read a saved password from the Keychain (seconds on the first read after launch).
 - Right after login, the identity probe runs (§4.1). If the remote user differs from the expected one, the app disconnects.
 - `ControlPersist` is deliberately off (ADR-003), so host-key-changed errors stay visible.
 
@@ -145,7 +146,8 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 | What | Timeout | Max stdout |
 |---|---|---|
 | local `ssh -G` / `-O check` / `-O exit` / `-V` | 5 s | 4–256 KiB |
-| identity probe, inventory, job list, most scripts (`COMMAND_TIMEOUT`) | 15 s | 2 MiB inventory/jobs/run status; 16–520 KiB others |
+| identity probe right after login (`PROBE_TIMEOUT`): the first command of a new login pays ICF's login start-up | 60 s | 256 KiB |
+| inventory, job list, most scripts (`COMMAND_TIMEOUT`) | 15 s | 2 MiB inventory/jobs/run status; 16–520 KiB others |
 | `sbatch` submission | 45 s (partial output kept to classify "uncertain") | 64 KiB |
 | file read / write for the editor | 90 s | base64 of 2 MiB text / 20 MiB `.ipynb` |
 | Python environment probe / import check | 60 s / 120 s | 64 KiB |
@@ -157,9 +159,9 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 
 ## 3. IPC command reference
 
-74 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
+85 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
 **D** = `capabilities/default.json` (reads and local state), **J** = `job-mutations.json`, **F** = `file-mutations.json`,
-**K** = `kernel-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
+**K** = `kernel-mutations.json`, **T** = `terminal-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
 full-screen button; local only).
 **Runs** names the remote script (§4) or says *local* (no network at all).
 
@@ -182,6 +184,7 @@ full-screen button; local only).
 | `cluster_clear_cache` | `clearCache` | D | local |
 | `settings_get` / `settings_set_poll_interval` | `settings` / `setPollInterval` | D | local (45–600 s) |
 | `open_external` | `openExternal` | D | local `/usr/bin/open <one of 3 fixed URLs>` |
+| `handbook_save` | `handbookSave` | D | native macOS save panel, then writes the handbook bundled in the app (`docs/HANDBOOK.md`, fixed text) to the chosen file; nothing remote |
 
 ### Jobs — `backend/src/jobs/commands.rs`
 
@@ -257,6 +260,15 @@ full-screen button; local only).
 | `kernel_execute` | `kernelExecute` | **K** | one JSON line to the running driver (≤ 1 MiB of code) |
 | `kernel_interrupt` / `kernel_restart` | `kernelInterrupt` / `kernelRestart` | **K** | one JSON line to the driver |
 | `kernel_stop` | `kernelStop` | **K** | `stop` line + stdin EOF; if the job is still there after 10 s, `cancel` (§4.2) for its id; then the session is killed |
+
+### Head node terminal — `backend/src/terminal/commands.rs` (ADR-039)
+
+| Command | `api.` | Cap. | Runs |
+|---|---|---|---|
+| `terminal_open` | `terminalOpen` | **T** | `ssh … -tt -e none -- <alias>` on a local PTY over the master (§2.4 options, no remote command); opening again re-attaches and replays the last 256 KiB |
+| `terminal_write` | `terminalWrite` | **T** | the typed bytes (≤ 64 KiB) to the PTY; never interpreted |
+| `terminal_resize` | `terminalResize` | **T** | `TIOCSWINSZ` on the local PTY (ssh forwards the new size) |
+| `terminal_close` | `terminalClose` | **T** | kills the local ssh, which hangs up the remote shell |
 
 ---
 

@@ -91,6 +91,9 @@ pub struct AppState {
     // ---- Interactive kernels (ADR-031) ----
     /// The one running kernel, if any; it keeps the connection open while it lives.
     pub kernel: Mutex<Option<Arc<crate::kernel::commands::Running>>>,
+    // ---- Head node terminal (ADR-039) ----
+    /// The one open terminal, if any; held across opening so two opens cannot both start a shell.
+    pub terminal: tokio::sync::Mutex<Option<Arc<crate::terminal::Terminal>>>,
 }
 
 impl AppState {
@@ -123,6 +126,7 @@ impl AppState {
             vscode_in_use: AtomicBool::new(false),
             share_previews: Default::default(),
             kernel: Default::default(),
+            terminal: Default::default(),
         }
     }
 
@@ -272,6 +276,7 @@ pub struct LoginRequest {
 /// Closes the app's SSH master and forgets per-identity state. Never touches SLURM batch jobs; the
 /// app's own interactive kernel allocation is stopped first (ADR-031).
 async fn close_session(state: &AppState) {
+    crate::terminal::commands::shutdown(state).await;
     crate::kernel::commands::shutdown(state, true).await;
     if let Some(s) = state.session.lock().await.take() {
         s.close().await;
@@ -412,8 +417,11 @@ fn spawn_idle_watch(app: AppHandle, session: std::sync::Weak<Session>) {
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             let Some(s) = session.upgrade() else { return };
             let state = app.state::<AppState>();
-            // VS Code (ADR-028) or a kernel (ADR-031) is working over this connection: keep it.
-            if s.idle_for() < session::IDLE_TIMEOUT || state.vscode_in_use.load(std::sync::atomic::Ordering::Relaxed) || crate::kernel::commands::active(&state)
+            // VS Code (ADR-028), a kernel (ADR-031) or the terminal (ADR-039) is working over this connection: keep it.
+            if s.idle_for() < session::IDLE_TIMEOUT
+                || state.vscode_in_use.load(std::sync::atomic::Ordering::Relaxed)
+                || crate::kernel::commands::active(&state)
+                || crate::terminal::commands::active(&state)
             {
                 continue;
             }
@@ -627,6 +635,24 @@ pub fn settings_set_poll_interval(state: State<AppState>, seconds: u64) -> AppRe
     store.data.settings.poll_interval_secs = seconds;
     store.save()?;
     Ok(store.data.settings.clone())
+}
+
+/// The handbook shipped with this build (the Handbook screen shows the same file).
+const HANDBOOK: &str = include_str!("../../docs/HANDBOOK.md");
+
+/// Saves the bundled handbook where the user chooses in a macOS save dialog (which asks before
+/// replacing a file). Local only and fixed content: nothing is sent anywhere. `None` = cancelled.
+#[tauri::command]
+pub async fn handbook_save(app: AppHandle) -> AppResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let name = format!("ICF-Control-Center-Handbook-{}.md", env!("CARGO_PKG_VERSION"));
+    app.dialog().file().set_title("Save the handbook as").set_file_name(&name).add_filter("Markdown", &["md"]).save_file(move |p| {
+        let _ = tx.send(p);
+    });
+    let Some(dest) = rx.await.ok().flatten().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    std::fs::write(&dest, HANDBOOK).map_err(|_| AppError::internal("Could not write the handbook file there."))?;
+    Ok(Some(dest.display().to_string()))
 }
 
 /// Opens one of a fixed set of documentation URLs in the default browser (user click only).

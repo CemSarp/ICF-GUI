@@ -75,6 +75,10 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   V1 commands plus event listen/unlisten. No shell, fs, http or opener plugin. CSP:
   `default-src 'self'`, no inline/remote scripts, `connect-src ipc:`; `freezePrototype`.
 - Remote commands are fixed scripts sent on stdin to `sh -s`; nothing from the UI is interpolated.
+  The one exception is the Terminal screen (ADR-039): an interactive login shell on the head node,
+  reached with `ssh -tt` over the existing master (BatchMode, no new login, forwarding still off).
+  What the user types is theirs and is not inspected; the library inserts text but never presses
+  Enter. Its four commands are in their own capability, and it is unavailable in demo mode.
 - Mux commands run with `BatchMode=yes` and without askpass/agent, so a dead session can never
   start a new login. A local `-O check` precedes each command.
 - Output caps (2 MiB inventory, 64 KiB stderr), 15 s command timeout, 30 s auth budget (time spent
