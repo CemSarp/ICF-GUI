@@ -306,7 +306,7 @@ Feedback and bug reports are welcome via [GitHub issues](https://github.com/CemS
 | [`frontend/`](frontend) | React + TypeScript UI (Vite). `src/ui/` components (rendering only), `src/logic/` hooks, IPC client and app logic, `tests/` Vitest suite, `dev/` browser preview with a mocked backend, `fixtures/` demo data the UI tests load |
 | [`backend/`](backend) | Rust/Tauri app: SSH, SLURM, jobs, transfers, workflows, editor, VS Code sharing. `src/` app logic, `tests/` integration tests, `capabilities/` IPC grants, `fixtures/` demo inventory, `icons/` |
 | [`docs/`](docs) | User guide, architecture, security, decisions, testing, changelog, screenshots, smoke-test examples |
-| [`.github/workflows/`](.github/workflows) | `ci.yml` (lint, typecheck, tests and the frontend build on every push and PR) and `release.yml` (macOS release build) |
+| [`.github/workflows/`](.github/workflows) | `ci.yml` (lint, typecheck, tests and the frontend build on every push and PR) (releases are built on a Mac with [`scripts/release.sh`](scripts/release.sh)) |
 
 Components never run commands or hold app logic: they render what `frontend/src/logic/` hooks return, those
 hooks call typed Tauri commands through `frontend/src/logic/api.ts`, and the backend runs every SSH and SLURM
@@ -362,9 +362,11 @@ stub `sbatch`/`squeue`/`scancel`.
 1. Bump the version in `frontend/package.json`, `backend/Cargo.toml` and `backend/tauri.conf.json`, and
    add a `## [x.y.z] — date · Title` section to [docs/CHANGELOG.md](docs/CHANGELOG.md).
 2. Merge to `main`, then tag it: `git tag vx.y.z && git push origin vx.y.z`.
-3. [`release.yml`](.github/workflows/release.yml) builds the app on a macOS runner, checks that the three
-   versions match the tag, ad-hoc signs and zips it, and creates a **draft** release with the zip, its
-   SHA-256 and the changelog section as notes. Review the draft on GitHub, then publish it.
+3. On your Mac, at the tag: `git checkout vx.y.z && scripts/release.sh`. [`scripts/release.sh`](scripts/release.sh)
+   checks that the three versions match the tag, builds the app, ad-hoc signs and verifies it, zips it with
+   its SHA-256, and publishes the GitHub release with the changelog section as notes (`--draft` to review
+   it on GitHub first). Releases are built locally because GitHub's Apple Silicon runners were too often
+   unavailable.
 
 The full checklist is in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
