@@ -16,6 +16,7 @@ const COMMANDS: &[&str] = &[
     "settings_get",
     "settings_set_poll_interval",
     "open_external",
+    "handbook_save",
     // V2 jobs (read/local)
     "jobs_preview",
     "jobs_list_mine",

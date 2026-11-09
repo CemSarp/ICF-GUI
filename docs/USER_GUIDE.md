@@ -1,5 +1,9 @@
 # User guide
 
+The [handbook](HANDBOOK.md) is the complete reference (every screen, setting and message, and the MLS
+course recipes); it is also inside the app (**Handbook** in the sidebar) and can be saved as Markdown for an
+AI assistant. This guide is the shorter walkthrough.
+
 ## Connecting
 
 **No SSH config needed.** If `icf` is not set up in your `~/.ssh/config`, the app connects through the
@@ -20,7 +24,8 @@ a jump host typed under *Advanced* always takes precedence.
    - **Verify host key** (first connection to each host): compare the fingerprint with one published by
      Informatics before clicking *I verified it*. If unsure, click *Reject and stop*.
    - **One-time codes / other questions**: answer manually; they are never saved.
-5. **Cancel** stops the attempt immediately. After 3 failed sign-ins the app pauses sign-in for 5
+5. The first sign-in after a while can take up to a minute: ICF starts your login session during the
+   first command. **Cancel** stops the attempt immediately. After 3 failed sign-ins the app pauses sign-in for 5
    minutes to protect your account from lockout.
 
 **Explore demo data** shows synthetic data (yellow *DEMO MODE* banner) without connecting.
@@ -446,6 +451,7 @@ connection closes.
 | Message | What to do |
 |---|---|
 | Host key has CHANGED | Do not continue. Ask Informatics support to confirm the new key, then edit `~/.ssh/known_hosts` yourself. |
+| Signed in, but ICF took more than 60 s to run its first command | ICF was slow to start your login. Connect again; the second try is usually fast. |
 | Authentication failed | Check UUN/password; if you use a saved password, Forget it and type it again. |
 | Host name could not be resolved / Network error | Check network/VPN and that `ssh icf` works in Terminal. |
 | The SLURM controller did not answer | Cluster-side issue; last good data stays visible; retries back off automatically. |

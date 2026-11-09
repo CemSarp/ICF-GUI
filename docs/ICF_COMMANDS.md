@@ -110,7 +110,8 @@ ssh -F <cfg> [-l <user>] [-J <jump>] \
   The socket accepts only a peer with the same UID that descends from the app's own ssh master and
   presents the nonce. Exit 1 means deny, and ssh then fails closed.
 - Host-key prompts are shown to you with the fingerprint. Only an explicit "yes" is sent.
-- The connection is "up" when the control socket appears. The 30 s budget excludes the time you spend answering prompts.
+- The connection is "up" when the control socket appears. The 30 s budget excludes the time you spend answering prompts
+  and the time macOS takes to read a saved password from the Keychain (seconds on the first read after launch).
 - Right after login, the identity probe runs (§4.1). If the remote user differs from the expected one, the app disconnects.
 - `ControlPersist` is deliberately off (ADR-003), so host-key-changed errors stay visible.
 
@@ -145,7 +146,8 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 | What | Timeout | Max stdout |
 |---|---|---|
 | local `ssh -G` / `-O check` / `-O exit` / `-V` | 5 s | 4–256 KiB |
-| identity probe, inventory, job list, most scripts (`COMMAND_TIMEOUT`) | 15 s | 2 MiB inventory/jobs/run status; 16–520 KiB others |
+| identity probe right after login (`PROBE_TIMEOUT`): the first command of a new login pays ICF's login start-up | 60 s | 256 KiB |
+| inventory, job list, most scripts (`COMMAND_TIMEOUT`) | 15 s | 2 MiB inventory/jobs/run status; 16–520 KiB others |
 | `sbatch` submission | 45 s (partial output kept to classify "uncertain") | 64 KiB |
 | file read / write for the editor | 90 s | base64 of 2 MiB text / 20 MiB `.ipynb` |
 | Python environment probe / import check | 60 s / 120 s | 64 KiB |
@@ -157,7 +159,7 @@ never appears in sftp's batch text. Both paths are validated to a charset that n
 
 ## 3. IPC command reference
 
-78 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
+85 commands, all listed in `backend/build.rs`. **Cap.** says which capability grants them:
 **D** = `capabilities/default.json` (reads and local state), **J** = `job-mutations.json`, **F** = `file-mutations.json`,
 **K** = `kernel-mutations.json`, **T** = `terminal-mutations.json`. `default.json` also grants `core:window:allow-set-fullscreen` (the Notebooks
 full-screen button; local only).
@@ -182,6 +184,7 @@ full-screen button; local only).
 | `cluster_clear_cache` | `clearCache` | D | local |
 | `settings_get` / `settings_set_poll_interval` | `settings` / `setPollInterval` | D | local (45–600 s) |
 | `open_external` | `openExternal` | D | local `/usr/bin/open <one of 3 fixed URLs>` |
+| `handbook_save` | `handbookSave` | D | native macOS save panel, then writes the handbook bundled in the app (`docs/HANDBOOK.md`, fixed text) to the chosen file; nothing remote |
 
 ### Jobs — `backend/src/jobs/commands.rs`
 

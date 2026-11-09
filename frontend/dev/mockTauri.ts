@@ -431,6 +431,8 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
       );
     return null;
   },
+  // The real app shows a macOS save dialog; the preview pretends it was saved.
+  handbook_save: () => '/Users/demo/Downloads/ICF-Control-Center-Handbook.md',
   // Preview terminal: a fake prompt that echoes typing; never runs anything.
   terminal_open: (a) => {
     const send = kernelChannel(a.events as { id: number });

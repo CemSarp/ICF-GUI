@@ -129,7 +129,7 @@
 - [ ] Live (owner): a Python script job with a conda environment (`mls-asr`) runs `<env>/bin/python`
 - [ ] Published
 
-## v0.6.0 (Head node terminal and command library; ADR-039)
+## v0.6.0 (Head node terminal and command library; ADR-039; handbook; first-connect timeout)
 
 - [ ] Frontend gates: lint, typecheck, UI tests, production build
 - [ ] Rust gates: fmt, clippy `-D warnings`, tests (PTY tests run a local `sh`), and
@@ -142,3 +142,6 @@
 - [ ] Live (owner): Disconnect ends the shell; **New session** after a reconnect works
 - [ ] Packaged app (`pnpm tauri build`): the terminal renders (WebGL under the real CSP) and the console
       shows no error other than xterm's blocked inline styles
+- [ ] Handbook: sidebar and sign-in screen open it; search filters sections; **Save as Markdown…** writes
+      the file through the macOS save panel; **Copy all** fills the clipboard
+- [ ] Live (owner): first Connect after starting the app succeeds (no 15 s identity-check timeout)

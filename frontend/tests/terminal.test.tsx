@@ -37,8 +37,17 @@ vi.mock('@xterm/xterm', () => ({
     }
   },
 }));
-vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }));
-vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: class { onContextLoss() {} dispose() {} } }));
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: class {
+    fit() {}
+  },
+}));
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    onContextLoss() {}
+    dispose() {}
+  },
+}));
 
 const b64 = (s: string) => btoa(s);
 const text = () => fake.written.map((b) => new TextDecoder().decode(b)).join('');
@@ -61,18 +70,30 @@ describe('Command library (pure)', () => {
       expect(x.command.trim(), x.id).not.toBe('');
       expect(x.command, `${x.id} must not run by itself`).not.toMatch(/[\r\n]/);
     }
-    for (const c of CATEGORIES) expect(LIBRARY.some((x) => x.category === c.id), c.id).toBe(true);
+    for (const c of CATEGORIES)
+      expect(
+        LIBRARY.some((x) => x.category === c.id),
+        c.id,
+      ).toBe(true);
   });
 
   it('covers the asked-for setup tasks and never ships a driver-update command', () => {
     const all = LIBRARY.map((x) => x.command).join('\n');
-    for (const needle of ['conda create', 'conda install', 'pip install', 'download.pytorch.org/whl/cu128', 'mv <from> <to>', 'nvidia-smi'])
+    for (const needle of [
+      'conda create',
+      'conda install',
+      'pip install',
+      'download.pytorch.org/whl/cu128',
+      'mv <from> <to>',
+      'nvidia-smi',
+    ])
       expect(all, needle).toContain(needle);
     expect(all).not.toMatch(/apt(-get)?\s+install|yum\s+install|dnf\s+install|\.run\b/);
   });
 
   it('marks deleting commands with a warning', () => {
-    for (const id of ['rm', 'rm-dir', 'scancel', 'conda-remove-env']) expect(LIBRARY.find((x) => x.id === id)?.warn, id).toBe(true);
+    for (const id of ['rm', 'rm-dir', 'scancel', 'conda-remove-env'])
+      expect(LIBRARY.find((x) => x.id === id)?.warn, id).toBe(true);
   });
 
   it('filters by category and by every search word', () => {
@@ -101,7 +122,7 @@ describe('Terminal screen', () => {
     await openTerminal();
     const open = backend.calls.find((c) => c.cmd === 'terminal_open')!;
     expect(open.args).toMatchObject({ cols: 100, rows: 30 });
-    act(() => backend.terminal!.onmessage({ event: 'data', data: b64('café$ ') .replace(/.*/, btoa('hello $ ')) }));
+    act(() => backend.terminal!.onmessage({ event: 'data', data: b64('café$ ').replace(/.*/, btoa('hello $ ')) }));
     expect(text()).toBe('hello $ ');
   });
 
@@ -137,7 +158,9 @@ describe('Terminal screen', () => {
     await userEvent.type(screen.getByLabelText('Command to save'), 'rsync -a a/ b/');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('My sync')).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem('icfcc.terminal.customCommands')!)).toMatchObject([{ title: 'My sync', command: 'rsync -a a/ b/' }]);
+    expect(JSON.parse(localStorage.getItem('icfcc.terminal.customCommands')!)).toMatchObject([
+      { title: 'My sync', command: 'rsync -a a/ b/' },
+    ]);
     await userEvent.click(screen.getByRole('button', { name: 'Remove My sync' }));
     expect(screen.getByText('Nothing saved yet.')).toBeInTheDocument();
   });

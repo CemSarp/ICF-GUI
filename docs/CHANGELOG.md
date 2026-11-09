@@ -1,8 +1,17 @@
 # Changelog
 
-## [0.6.0] — 2026-11-03 · Head node terminal and command library
+## [0.6.0] — 2026-11-09 · Terminal, command library and handbook
 
 ### Added
+- **Handbook** (sidebar, and *Read the handbook* on the sign-in screen): a complete, searchable
+  reference for every screen, setting, job type, state, limit and error message, with a section on
+  running the MLS course work (CUDA tutorial, Homework 1, RAG). **Save as Markdown…** writes it to a
+  `.md` file (macOS save panel) and **Copy all** copies it, to give to an AI assistant. The text is
+  `docs/HANDBOOK.md`, shipped inside the app. New command `handbook_save` (local only, fixed text).
+- **Download folders** (Transfers → *Choose a folder on ICF*, and **Download** on folders in
+  Projects): the folder is packed into one `.tar.gz` on ICF, downloaded and verified with SHA-256,
+  and unpacked on the Mac. It never replaces an existing folder; both archives are deleted afterwards.
+- **Collapsible sidebar**: the chevron under the logo shrinks the sidebar to icons (remembered).
 - **Terminal** (ADR-039): an interactive login shell on the head node inside the app, over the existing
   SSH connection (no second window or login). A real terminal: prompts such as `conda`'s `[y/n]`,
   Ctrl-C, colours, resizing, scrollback. It stays open while you use other screens, survives a window
@@ -12,9 +21,27 @@
 - **Command library** next to the terminal: about 70 commands for environments, conda and pip,
   PyTorch (CUDA 12.8), GPU and driver checks, files, Slurm, Git and system info, with search and
   categories. *Insert* types the command without pressing Enter; commands that delete are marked.
-  You can save your own (kept on this Mac).
+  You can save your own (kept on this Mac). **Hide library** / **Show library**, and the divider
+  between terminal and library can be dragged (double-click resets); both are remembered.
 - Dependency: xterm.js (`@xterm/xterm`, `addon-fit`, `addon-webgl`), bundled; the WebGL renderer is
   used because xterm's DOM renderer injects `<style>` elements that the app's CSP does not allow.
+
+### Fixed
+- **The first Connect after starting the app often failed with a timeout**, and a second or third
+  try worked. Cause (seen in the macOS log of a real sign-in): signing in took 10 s, then the identity
+  check, the first command of the new ICF login, was still waiting after its 15 s limit, because ICF
+  does its login start-up (session setup, shell start-up files on the network home) right then; the
+  retry a few seconds later found ICF warm and finished in 11.5 s. That first command now gets 60 s
+  (`PROBE_TIMEOUT`), with a clear message if even that is exceeded, and the sign-in screen says the
+  first sign-in after a while can take up to a minute. The seconds macOS spends reading saved
+  passwords from the Keychain (3–4 s each on the first read after launch) no longer count against the
+  30 s sign-in budget.
+- Numbered lists in rendered Markdown (notebook cells and the handbook) started at 0.
+- Settings, Notebooks and the kernel sheet pointed batch notebooks to the old *Training workflow*
+  form; they now say **New job → Notebook**.
+
+### Changed
+- Pages use the full window width instead of stopping at 1280 px.
 
 ## [0.5.1] — 2026-10-28 · New job, GPU sessions, Rename and Unpack
 

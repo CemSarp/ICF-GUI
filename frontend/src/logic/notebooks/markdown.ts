@@ -29,7 +29,8 @@ function resolveImage(src: string, attachments: Attachments | undefined): string
 
 function attrsOf(t: Token): RichAttrs | undefined {
   if (t.tag === 'ol') {
-    const start = Number(t.attrGet('start'));
+    // markdown-it sets `start` only when a list does not start at 1 (Number(null) would be 0).
+    const start = Number(t.attrGet('start') ?? 1);
     return Number.isInteger(start) && start !== 1 ? { start } : undefined;
   }
   const align = /text-align:(left|center|right)/.exec(t.attrGet('style') ?? '')?.[1] as RichAttrs['align'];

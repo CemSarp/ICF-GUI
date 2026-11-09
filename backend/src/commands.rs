@@ -637,6 +637,24 @@ pub fn settings_set_poll_interval(state: State<AppState>, seconds: u64) -> AppRe
     Ok(store.data.settings.clone())
 }
 
+/// The handbook shipped with this build (the Handbook screen shows the same file).
+const HANDBOOK: &str = include_str!("../../docs/HANDBOOK.md");
+
+/// Saves the bundled handbook where the user chooses in a macOS save dialog (which asks before
+/// replacing a file). Local only and fixed content: nothing is sent anywhere. `None` = cancelled.
+#[tauri::command]
+pub async fn handbook_save(app: AppHandle) -> AppResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let name = format!("ICF-Control-Center-Handbook-{}.md", env!("CARGO_PKG_VERSION"));
+    app.dialog().file().set_title("Save the handbook as").set_file_name(&name).add_filter("Markdown", &["md"]).save_file(move |p| {
+        let _ = tx.send(p);
+    });
+    let Some(dest) = rx.await.ok().flatten().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    std::fs::write(&dest, HANDBOOK).map_err(|_| AppError::internal("Could not write the handbook file there."))?;
+    Ok(Some(dest.display().to_string()))
+}
+
 /// Opens one of a fixed set of documentation URLs in the default browser (user click only).
 #[tauri::command]
 pub fn open_external(target: String) -> AppResult<()> {

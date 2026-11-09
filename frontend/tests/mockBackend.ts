@@ -323,6 +323,7 @@ export const backend = {
           );
         return null;
       },
+      handbook_save: () => '/Users/me/Handbook.md',
       terminal_open: (a) => {
         this.terminal = a.events as TerminalChannel;
         return { terminalId: 't1', reattached: false };

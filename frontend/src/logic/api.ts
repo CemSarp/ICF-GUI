@@ -96,6 +96,8 @@ export const api = {
   jobsDismissReceipt: (tag: string) => invoke<null>('jobs_dismiss_receipt', { tag }),
   openExternal: (target: 'icf_status' | 'icf_tutorial' | 'vscode_remote_ssh') =>
     invoke<null>('open_external', { target }),
+  /** Saves the bundled handbook through a macOS save dialog; the saved path, or `null` if cancelled. */
+  handbookSave: () => invoke<string | null>('handbook_save'),
   // V3. Remote paths are validated and re-resolved in Rust/on ICF; local paths come only from
   // backend-owned native dialogs (the UI holds opaque tokens).
   projectsRecent: () => invoke<ProjectRecord[]>('projects_recent'),

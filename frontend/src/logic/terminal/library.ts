@@ -22,7 +22,8 @@ export const CATEGORIES: readonly { id: CategoryId; label: string; blurb?: strin
   {
     id: 'gpu',
     label: 'GPU & drivers',
-    blurb: 'Drivers are managed by the ICF admins and cannot be updated from your account. These commands show what is installed.',
+    blurb:
+      'Drivers are managed by the ICF admins and cannot be updated from your account. These commands show what is installed.',
   },
   { id: 'files', label: 'Files' },
   { id: 'slurm', label: 'Slurm' },
@@ -32,7 +33,13 @@ export const CATEGORIES: readonly { id: CategoryId; label: string; blurb?: strin
 
 const CONDA_SH = SETUP_LINES.conda('x').split('\n')[0]!;
 
-const e = (id: string, category: CategoryId, title: string, command: string, extra: { note?: string; warn?: boolean } = {}): LibraryEntry => ({
+const e = (
+  id: string,
+  category: CategoryId,
+  title: string,
+  command: string,
+  extra: { note?: string; warn?: boolean } = {},
+): LibraryEntry => ({
   id,
   category,
   title,
@@ -41,7 +48,9 @@ const e = (id: string, category: CategoryId, title: string, command: string, ext
 });
 
 export const LIBRARY: LibraryEntry[] = [
-  e('conda-load', 'env', 'Load conda in this shell', CONDA_SH, { note: 'Needed once per session if `conda` is not found.' }),
+  e('conda-load', 'env', 'Load conda in this shell', CONDA_SH, {
+    note: 'Needed once per session if `conda` is not found.',
+  }),
   e('conda-create', 'env', 'Create a conda environment', 'conda create -n <env-name> python=3.11 -y'),
   e('conda-activate', 'env', 'Activate a conda environment', 'conda activate <env-name>'),
   e('conda-deactivate', 'env', 'Leave the environment', 'conda deactivate'),
@@ -57,7 +66,9 @@ export const LIBRARY: LibraryEntry[] = [
   e('conda-forge', 'pkg', 'conda install from conda-forge', 'conda install -y -c conda-forge <package>'),
   e('conda-list', 'pkg', 'List installed conda packages', 'conda list'),
   e('conda-update', 'pkg', 'Update conda itself', 'conda update -n base conda'),
-  e('conda-clean', 'pkg', 'Free disk: clear conda caches', 'conda clean --all -y', { note: 'Removes cached downloads only; environments stay.' }),
+  e('conda-clean', 'pkg', 'Free disk: clear conda caches', 'conda clean --all -y', {
+    note: 'Removes cached downloads only; environments stay.',
+  }),
   e('pip-install', 'pkg', 'pip install', 'pip install <package>'),
   e('pip-req', 'pkg', 'Install from requirements.txt', 'pip install -r requirements.txt'),
   e('pip-editable', 'pkg', 'Install this project (editable)', 'pip install -e .'),
@@ -68,17 +79,41 @@ export const LIBRARY: LibraryEntry[] = [
   e('pip-uninstall', 'pkg', 'pip uninstall', 'pip uninstall -y <package>', { warn: true }),
   e('pip-cache', 'pkg', 'Free disk: clear pip cache', 'pip cache purge'),
 
-  e('torch-cu128', 'torch', 'Install PyTorch (CUDA 12.8)', 'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128', {
-    note: 'Matches the CUDA 12.8 on ICF. Do it inside an activated environment.',
-  }),
-  e('torch-cpu', 'torch', 'Install PyTorch (CPU only)', 'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu'),
-  e('torch-verify', 'torch', 'Check PyTorch and CUDA', 'python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"', {
-    note: 'The head node has no GPU, so False is expected here; run it in a GPU job. The first import can take minutes.',
-  }),
-  e('torch-pkgs', 'torch', 'Which torch / CUDA packages are installed', 'pip list 2>/dev/null | grep -i -E "torch|nvidia|triton"'),
+  e(
+    'torch-cu128',
+    'torch',
+    'Install PyTorch (CUDA 12.8)',
+    'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128',
+    {
+      note: 'Matches the CUDA 12.8 on ICF. Do it inside an activated environment.',
+    },
+  ),
+  e(
+    'torch-cpu',
+    'torch',
+    'Install PyTorch (CPU only)',
+    'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu',
+  ),
+  e(
+    'torch-verify',
+    'torch',
+    'Check PyTorch and CUDA',
+    'python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"',
+    {
+      note: 'The head node has no GPU, so False is expected here; run it in a GPU job. The first import can take minutes.',
+    },
+  ),
+  e(
+    'torch-pkgs',
+    'torch',
+    'Which torch / CUDA packages are installed',
+    'pip list 2>/dev/null | grep -i -E "torch|nvidia|triton"',
+  ),
   e('torch-uninstall', 'torch', 'Uninstall PyTorch', 'pip uninstall -y torch torchvision torchaudio', { warn: true }),
 
-  e('gpu-list', 'gpu', 'List GPUs on this machine', SETUP_LINES.gpu, { note: 'The head node usually has none; use a GPU job or session.' }),
+  e('gpu-list', 'gpu', 'List GPUs on this machine', SETUP_LINES.gpu, {
+    note: 'The head node usually has none; use a GPU job or session.',
+  }),
   e('gpu-smi', 'gpu', 'GPU status and usage', 'nvidia-smi'),
   e('gpu-driver', 'gpu', 'NVIDIA driver version', 'nvidia-smi --query-gpu=driver_version,name --format=csv'),
   e('cuda-path', 'gpu', 'Put CUDA 12.8 on PATH', SETUP_LINES.cuda, { note: 'For this shell only.' }),
@@ -103,16 +138,30 @@ export const LIBRARY: LibraryEntry[] = [
   e('wget', 'files', 'Download a file', 'wget <url>'),
   e('chmod', 'files', 'Make a script executable', 'chmod +x <file>'),
   e('rm', 'files', 'Delete a file (asks first)', 'rm -i <file>', { warn: true }),
-  e('rm-dir', 'files', 'Delete a folder and everything in it', 'rm -r <folder>', { warn: true, note: 'No undo and no trash on ICF.' }),
+  e('rm-dir', 'files', 'Delete a folder and everything in it', 'rm -r <folder>', {
+    warn: true,
+    note: 'No undo and no trash on ICF.',
+  }),
 
   e('squeue', 'slurm', 'My jobs in the queue', 'squeue -u $USER'),
   e('sinfo', 'slurm', 'Partitions and free nodes', 'sinfo -o "%P %a %l %D %t %G"'),
-  e('sacct', 'slurm', 'My jobs today', 'sacct -u $USER --starttime today --format=JobID,JobName,Partition,State,Elapsed,ExitCode'),
+  e(
+    'sacct',
+    'slurm',
+    'My jobs today',
+    'sacct -u $USER --starttime today --format=JobID,JobName,Partition,State,Elapsed,ExitCode',
+  ),
   e('scontrol-job', 'slurm', 'Details of one job', 'scontrol show job <job-id>'),
   e('sbatch', 'slurm', 'Submit a script', 'sbatch <script>.sh'),
-  e('srun-gpu', 'slurm', 'Interactive shell on a GPU node', 'srun --partition=<partition> --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash', {
-    note: 'Waits in the queue; leave with exit.',
-  }),
+  e(
+    'srun-gpu',
+    'slurm',
+    'Interactive shell on a GPU node',
+    'srun --partition=<partition> --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash',
+    {
+      note: 'Waits in the queue; leave with exit.',
+    },
+  ),
   e('scancel', 'slurm', 'Cancel a job', 'scancel <job-id>', { warn: true }),
 
   e('git-clone', 'git', 'Clone a repository', 'git clone <url>'),

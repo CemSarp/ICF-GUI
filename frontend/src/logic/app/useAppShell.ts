@@ -13,7 +13,18 @@ import type { WizardInit } from '../training/wizardDraft';
 import type { JobRequest, Settings } from '../../types';
 
 export type View =
-  'home' | 'overview' | 'nodes' | 'request' | 'jobs' | 'projects' | 'notebooks' | 'terminal' | 'training' | 'transfers' | 'settings';
+  | 'home'
+  | 'overview'
+  | 'nodes'
+  | 'request'
+  | 'jobs'
+  | 'projects'
+  | 'notebooks'
+  | 'terminal'
+  | 'training'
+  | 'transfers'
+  | 'settings'
+  | 'handbook';
 
 /**
  * App-wide state: connection, settings, the cluster snapshot, which screen and item is open, and

@@ -13,6 +13,7 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
 [**⬇️ Download**](https://github.com/CemSarp/ICF-GUI/releases/latest) ·
+[Handbook](docs/HANDBOOK.md) ·
 [User guide](docs/USER_GUIDE.md) ·
 [Security](docs/SECURITY.md) ·
 [Changelog](docs/CHANGELOG.md)
@@ -25,12 +26,22 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ## 🆕 New in 0.6.0
 
+- 📖 **Handbook.** A searchable, complete reference inside the app: every screen, setting, job type,
+  state, limit and error message, plus how to run the MLS course work (CUDA tutorial, Homework 1, RAG).
+  **Save as Markdown…** exports it so you can give it to an AI assistant and ask anything about the
+  app. Also on the sign-in screen, and in this repository as [docs/HANDBOOK.md](docs/HANDBOOK.md).
+- 🔌 **First connect no longer times out.** The first sign-in after starting the app often failed
+  with a timeout and worked on the second or third try: ICF's first command after a new login can
+  take over 15 s, which was the limit. It now gets 60 s. → [what happened](docs/CHANGELOG.md)
 - 💻 **Head node terminal.** A **Terminal** screen is a real shell on the ICF login node, over the
   connection the app already has: no second window, no second login. Set up conda environments,
   `pip install`, move files, check `squeue`; prompts, Ctrl-C and colours work.
   → [Terminal](docs/USER_GUIDE.md#terminal)
 - 📚 **Command library** beside it: environments, conda and pip, PyTorch, GPU checks, files, Slurm and
   Git. *Insert* types a command at the prompt (you edit the `<brackets>` and press Enter); save your own.
+  Hide it or drag its edge to resize.
+- 📦 **Download whole folders** from ICF: packed on ICF, verified with SHA-256, unpacked on your Mac.
+- ↔️ **Collapsible sidebar**, and pages that use the full window width.
 
 ## New in 0.5.1
 
@@ -99,9 +110,11 @@ worked. **ICF Control Center puts all of that in one window.**
 | ✏️ **Edit on ICF** | Code editor with syntax colours, search and ⌘S. Saves are checked, so they never silently overwrite someone else's change. **Run on GPU** runs a Python, CUDA, C++ or C file on a GPU node and shows its output. |
 | 📓 **Notebooks** *(experimental)* | Jupyter notebooks as a real notebook page: run cells one at a time on an Interactive-partition GPU, see tables, plots and errors as they arrive, Jupyter keys, full screen. Python, CUDA, C++ and C cells. No notebook server, port or token. |
 | 🧑‍💻 **VS Code** | Open a project in VS Code over Remote - SSH, optionally signed in through the app so it never asks for passwords. Pick the remote Python interpreter and CUDA toolchain. |
-| ⇅ **Transfers** | Upload datasets and download results over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
+| ⇅ **Transfers** | Upload datasets and download results (files or whole folders) over your existing SSH connection, verified with SHA-256, resumable, never overwriting. |
+| 💻 **Terminal** | A shell on the ICF head node inside the app, with a library of common commands (conda, pip, PyTorch, Slurm, Git) to insert and edit. |
 | 🏋️ **Training workflows** | One reviewed job that stages data to the GPU node's fast local disk, trains, saves checkpoints, copies results back and cleans up. |
 | 📈 **Training runs** | Follow each run's stage, node, GPU, metrics, checkpoints, results and failures — even after restarting the app. |
+| 📖 **Handbook** | A searchable reference to every feature and setting, with MLS course recipes; export it as Markdown for an AI assistant. |
 | 🔐 **Safe by design** | Uses your Mac's own `ssh`. Passwords never touch disk unless you opt in to the macOS Keychain. Nothing is ever submitted without your explicit click. |
 
 ## 🖼️ A quick tour
@@ -203,7 +216,8 @@ flowchart LR
 
 <br clear="right">
 
-👉 The full walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md)
+👉 Every screen and setting is explained in the [handbook](docs/HANDBOOK.md) (also inside the app, and
+exportable for an AI assistant). The walkthrough, including what each node state means, is in the [user guide](docs/USER_GUIDE.md)
 ([connecting](docs/USER_GUIDE.md#connecting), [jobs](docs/USER_GUIDE.md#requesting-a-gpu-batch-jobs),
 [projects and VS Code](docs/USER_GUIDE.md#projects-and-vs-code), [transfers](docs/USER_GUIDE.md#transfers),
 [training workflows](docs/USER_GUIDE.md#training-workflows), [troubleshooting](docs/USER_GUIDE.md#troubleshooting)).
@@ -224,7 +238,7 @@ flowchart LR
 - Uses **your Mac's OpenSSH** with normal host-key checking, never `sshpass` or "accept any key".
 - Passwords travel only through a private, in-memory channel to `ssh`. They're never put in command
   lines, environment variables, logs or files, and go into the Keychain only if you tick *Remember*.
-- The interface can't run arbitrary commands, only fixed, typed operations: read-only SLURM queries,
+- Apart from the **Terminal** screen, where you type into your own shell, the interface can't run arbitrary commands, only fixed, typed operations: read-only SLURM queries,
   `sbatch`/`scancel` after your confirmation, one `srun` per notebook kernel you confirm, bounded
   folder listings, SFTP transfers, and explicit file writes. Every one of them is listed in
   [ICF_COMMANDS.md](docs/ICF_COMMANDS.md).
@@ -251,7 +265,7 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
 - **VRAM** figures are nominal per GPU model, not live free memory.
 - The app never uses `salloc` or opens an interactive GPU shell. It uses `srun` only for a notebook
   kernel you start (Interactive partition only). For long or unattended notebook runs, use a batch
-  notebook run (New job → Training workflow → Notebook).
+  notebook run (New job → Notebook).
 - **Scratch is temporary and `/home` is not backed up.** Results reach `/home` when a job ends, fails,
   is cancelled or nears its time limit — but nothing can be copied from a node that fails. Use the
   periodic checkpoint sync and keep your own copies of important results.

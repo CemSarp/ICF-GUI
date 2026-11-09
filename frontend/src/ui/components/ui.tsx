@@ -43,6 +43,7 @@ const PATHS = {
   keyboard: 'M3.5 6.5h17v11h-17zM7 10h.01M10.5 10h.01M14 10h.01M17.5 10h.01M8 14h8',
   chevron: 'M9.5 5.5L16 12l-6.5 6.5',
   terminal: 'M3.5 5.5h17v13h-17zM7 10l3 2.5L7 15M12.5 15h4.5',
+  book: 'M12 6.5c-1.6-1.3-4.4-2-7.5-2v13c3.1 0 5.9.7 7.5 2c1.6-1.3 4.4-2 7.5-2v-13c-3.1 0-5.9.7-7.5 2zM12 6.5v13',
 } as const;
 export type IconName = keyof typeof PATHS;
 

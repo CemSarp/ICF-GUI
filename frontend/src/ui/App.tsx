@@ -1,5 +1,6 @@
+import { usePersistentState } from '../logic/persist';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Badge, Dialog, EmptyState, Icon, Notice, type IconName } from './components/ui';
+import { BackButton, Badge, Dialog, EmptyState, Icon, Notice, type IconName } from './components/ui';
 import { Nodes } from './cluster/Nodes';
 import { NodeDetail } from './cluster/NodeDetail';
 import { Overview } from './cluster/Overview';
@@ -21,6 +22,13 @@ import { CONN_STATE, formatTime } from '../logic/format';
 // CodeMirror is only needed once a file is opened: keep it out of the startup bundle.
 const EditorView = lazy(() => import('./editor/EditorView').then((m) => ({ default: m.EditorView })));
 const NotebooksView = lazy(() => import('./notebooks/NotebooksView').then((m) => ({ default: m.NotebooksView })));
+const HandbookView = lazy(() => import('./handbook/HandbookView').then((m) => ({ default: m.HandbookView })));
+
+const handbookLoading = (
+  <div className="skeleton" aria-busy="true">
+    Opening the handbook…
+  </div>
+);
 
 type NavItem = { id: View; label: string; icon: IconName };
 const NAV_GROUPS: { heading: string; items: NavItem[]; bottom?: boolean }[] = [
@@ -50,7 +58,14 @@ const NAV_GROUPS: { heading: string; items: NavItem[]; bottom?: boolean }[] = [
       { id: 'transfers', label: 'Transfers', icon: 'transfers' },
     ],
   },
-  { heading: '', items: [{ id: 'settings', label: 'Settings', icon: 'settings' }], bottom: true },
+  {
+    heading: '',
+    items: [
+      { id: 'handbook', label: 'Handbook', icon: 'book' },
+      { id: 'settings', label: 'Settings', icon: 'settings' },
+    ],
+    bottom: true,
+  },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 /** The sidebar item a screen belongs to. */
@@ -145,6 +160,9 @@ export function App() {
   // The terminal mounts on first visit and then stays (hidden) so leaving the screen keeps the
   // shell; disconnecting drops it.
   const [terminalOpened, setTerminalOpened] = useState(false);
+  const [navCollapsed, setNavCollapsed] = usePersistentState('sidebar.collapsed', false);
+  // The sign-in screen can open the handbook before connecting.
+  const [loginHandbook, setLoginHandbook] = useState(false);
   const wantTerminal = live && (terminalOpened || view === 'terminal');
   if (wantTerminal !== terminalOpened) setTerminalOpened(wantTerminal);
 
@@ -154,9 +172,22 @@ export function App() {
   }, [view, selectedNode, selectedJob, project, selectedRun, editingFile, openNotebook]);
 
   if (!live) {
+    if (loginHandbook) {
+      return (
+        <main className="main handbook-standalone" id="main">
+          <div className="page">
+            <BackButton label="Sign in" onClick={() => setLoginHandbook(false)} />
+            <h1 className="page-title">Handbook</h1>
+            <Suspense fallback={handbookLoading}>
+              <HandbookView />
+            </Suspense>
+          </div>
+        </main>
+      );
+    }
     return (
       <>
-        <LoginView status={status} />
+        <LoginView status={status} onHandbook={() => setLoginHandbook(true)} />
         {challenge && <ChallengeDialog key={challenge.id} challenge={challenge} onDone={dismissChallenge} />}
       </>
     );
@@ -165,7 +196,7 @@ export function App() {
   const conn = CONN_STATE[status.state];
 
   return (
-    <div className={focusMode && view === 'notebooks' ? 'shell focus' : 'shell'}>
+    <div className={`shell${focusMode && view === 'notebooks' ? ' focus' : ''}${navCollapsed ? ' collapsed' : ''}`}>
       <a href="#main" className="skip">
         Skip to content
       </a>
@@ -174,8 +205,17 @@ export function App() {
           <span className="logo" aria-hidden="true">
             <Icon name="chip" size={16} />
           </span>
-          ICF Control Center
+          <span className="nav-label">ICF Control Center</span>
         </div>
+        <button
+          className="sidebar-toggle"
+          aria-label={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!navCollapsed}
+          title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={() => setNavCollapsed(!navCollapsed)}
+        >
+          <Icon name="chevron" />
+        </button>
         {NAV_GROUPS.map((g) => (
           <div className={g.bottom ? 'nav-group bottom' : 'nav-group'} key={g.heading || g.items[0]!.id}>
             {g.heading && (
@@ -188,18 +228,20 @@ export function App() {
                 <li key={n.id}>
                   <button
                     className="nav"
+                    aria-label={n.label}
+                    title={navCollapsed ? n.label : undefined}
                     aria-current={navOf(view) === n.id ? 'page' : undefined}
                     onClick={() => navigate(n.id)}
                   >
                     <Icon name={n.icon} />
-                    {n.label}
+                    <span className="nav-label">{n.label}</span>
                   </button>
                 </li>
               ))}
             </ul>
           </div>
         ))}
-        <div className="sidebar-foot muted small">Version {APP_VERSION}</div>
+        <div className="sidebar-foot muted small nav-label">Version {APP_VERSION}</div>
       </nav>
 
       <div className="content">
@@ -402,6 +444,10 @@ export function App() {
               ) : (
                 <MyJobsView status={status} onOpen={setSelectedJob} onOpenRun={openRun} />
               )
+            ) : view === 'handbook' ? (
+              <Suspense fallback={handbookLoading}>
+                <HandbookView />
+              </Suspense>
             ) : view === 'settings' ? (
               <SettingsView
                 settings={settings}

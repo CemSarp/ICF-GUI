@@ -39,7 +39,7 @@ export function KernelDialog({
       {snapshot && s.partitions.length === 0 && (
         <Notice tone="warn">
           No Interactive partition is visible to your account in the current cluster data, so a kernel cannot start. Use
-          a batch notebook run (New job → Training workflow → Notebook) instead.
+          a batch notebook run (New job → Notebook) instead.
         </Notice>
       )}
       <div className="kernel-form">

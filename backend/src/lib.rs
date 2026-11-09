@@ -52,6 +52,7 @@ pub fn run() {
             commands::settings_get,
             commands::settings_set_poll_interval,
             commands::open_external,
+            commands::handbook_save,
             jobs::commands::jobs_preview,
             jobs::commands::jobs_submit,
             jobs::commands::jobs_list_mine,
