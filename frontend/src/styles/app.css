@@ -2761,75 +2761,261 @@ input[type='checkbox'][role='switch']:focus-visible {
 }
 
 /* ---------- Handbook ---------- */
-.handbook-head {
-  display: grid;
-  gap: var(--s3);
-  margin-bottom: var(--s4);
+/* A reading layout: one document surface with a ~72-character measure, a grouped contents list
+   that follows the section being read, and a search bar that stays in reach while scrolling. */
+.hb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin: calc(-1 * var(--s3)) 0 var(--s4);
 }
-.handbook-head .nb-markdown {
+.hb-lead.nb-markdown {
   padding: 0;
+  font-size: 15px;
+  color: var(--muted);
 }
-.handbook-head .nb-markdown h1 {
+.hb-lead h1 {
   display: none; /* the page title already says Handbook */
 }
-.handbook-search {
-  width: 100%;
+.hb-actions {
+  display: flex;
+  gap: var(--s2);
 }
-.handbook-grid {
+.hb-search {
+  position: sticky;
+  top: calc(-1 * var(--main-pad-top) + var(--s2));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s5);
+  padding: 0 var(--s3);
+  min-height: 44px;
+  color: var(--muted);
+  background: var(--material);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+.hb-search:focus-within {
+  box-shadow:
+    0 0 0 3px var(--focus),
+    var(--shadow-card);
+}
+.hb-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: 15px var(--font);
+  color: var(--text);
+  outline: none;
+  box-shadow: none;
+  padding: 0;
+}
+.hb-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hb-count kbd {
+  font: 11px var(--font);
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+}
+.hb-start {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
-  gap: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+}
+.hb-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--s3);
+  row-gap: 2px;
+  align-items: start;
+  align-content: start;
+  text-align: left;
+  padding: 14px var(--s4);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.hb-card:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--primary));
+}
+.hb-card:active {
+  transform: scale(0.98);
+}
+.hb-card-icon {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-control);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) var(--tint), transparent);
+}
+.hb-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.hb-card .muted {
+  font-size: 13px;
+}
+.hb-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--s5);
   align-items: start;
 }
-.handbook-toc {
+.hb-toc {
   position: sticky;
-  top: 0;
-  max-height: calc(100vh - 140px);
+  top: calc(44px + var(--s4));
+  max-height: calc(100vh - 150px);
   overflow: auto;
+  padding-bottom: var(--s4);
 }
-.handbook-toc ol {
+.hb-toc-group + .hb-toc-group {
+  margin-top: var(--s4);
+}
+.hb-toc-heading {
+  margin: 0 0 var(--s1);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.hb-toc ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.handbook-toc li + li {
-  margin-top: 2px;
-}
-.handbook-toc .link {
+.hb-toc button {
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--text);
+  font: 13px/1.35 var(--font);
   text-align: left;
-  font-size: 13px;
-  padding: 3px 0;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
 }
-.handbook-toc .link:disabled {
+.hb-toc button:hover:not(:disabled) {
+  background: var(--fill);
+}
+.hb-toc button[aria-current] {
+  background: var(--fill-strong);
+  font-weight: 600;
+}
+.hb-toc button:disabled {
   color: var(--muted);
-  opacity: 0.5;
-  text-decoration: none;
+  opacity: 0.45;
   cursor: default;
 }
-.handbook-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr); /* a wide table or code block scrolls inside its card */
-  gap: var(--s4);
+.hb-doc {
   min-width: 0;
+  padding: 0 var(--s6);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
-.handbook-section {
-  padding: var(--s4) var(--s5);
-  scroll-margin-top: var(--s3);
+.hb-section.nb-markdown {
+  max-width: 72ch;
+  margin: 0 auto;
+  padding: 36px 0 40px;
+  font-size: 15px;
+  line-height: 1.65;
+  scroll-margin-top: calc(44px + var(--s4));
 }
-.handbook-section table {
+.hb-section + .hb-section {
+  border-top: 1px solid var(--border);
+}
+.hb-section.nb-markdown h2 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin: 0 0 0.6em;
+}
+.hb-section.nb-markdown h3 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 1.7em 0 0.35em;
+}
+.hb-section strong {
+  font-weight: 600;
+}
+.hb-section table {
   display: block;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.hb-section tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--fill) 45%, transparent);
+}
+.hb-section mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--alloc) 42%, transparent);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.hb-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--s1);
+  padding: 72px var(--s4);
+  text-align: center;
+  color: var(--muted);
+}
+.hb-empty p {
+  margin: 0;
+}
+.hb-empty p:first-of-type {
+  color: var(--text);
+  font-weight: 600;
+  margin-top: var(--s2);
 }
 .handbook-standalone {
   height: 100vh;
   overflow: auto;
 }
 @media (max-width: 900px) {
-  .handbook-grid {
+  .hb-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .handbook-toc {
-    position: static;
-    max-height: none;
+  .hb-toc {
+    display: none; /* search and Start here remain; the column is too narrow for both */
+  }
+  .hb-doc {
+    padding: 0 var(--s4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-card,
+  .hb-search {
+    transition: none;
   }
 }
