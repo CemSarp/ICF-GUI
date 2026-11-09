@@ -165,7 +165,7 @@ worked. **ICF Control Center puts all of that in one window.**
 
 | Head node terminal with the command library | Handbook (searchable, exportable) |
 |---|---|
-| ![Terminal: a shell on the ICF head node beside the command library, with Insert and Copy](docs/screenshots/terminal.jpg) | ![Handbook: contents, search, Save as Markdown and the MLS course section](docs/screenshots/handbook.jpg) |
+| ![Terminal: a shell on the ICF head node beside the command library, with Insert and Copy](docs/screenshots/terminal.jpg) | ![Handbook: search, Start here shortcuts, grouped contents and a readable document column](docs/screenshots/handbook.jpg) |
 
 ### And more
 

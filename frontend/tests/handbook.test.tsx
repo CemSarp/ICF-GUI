@@ -2,7 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DISCONNECTED } from '../src/logic/connection/useConnection';
-import { HANDBOOK, filterSections, splitSections } from '../src/logic/handbook/handbook';
+import {
+  HANDBOOK,
+  START_HERE,
+  filterSections,
+  groupSections,
+  highlight,
+  splitSections,
+} from '../src/logic/handbook/handbook';
 import { renderMarkdown } from '../src/logic/notebooks/markdown';
 import { backend, connectedLive } from './mockBackend';
 import { renderApp } from './render';
@@ -54,6 +61,25 @@ describe('Handbook text', () => {
       'GPU test',
     ])
       expect(HANDBOOK, tile).toContain(`**${tile}**`);
+  });
+
+  it('groups every section under Basics, Screens and Reference, and Start here points at real sections', () => {
+    const groups = groupSections(sections);
+    expect(groups.map((g) => g.label)).toEqual(['Basics', 'Screens', 'Reference']);
+    expect(groups.flatMap((g) => g.sections)).toEqual(sections);
+    for (const s of START_HERE)
+      expect(
+        sections.map((x) => x.id),
+        s.title,
+      ).toContain(s.id);
+  });
+
+  it('highlights every match, any case, without touching code blocks', () => {
+    const nodes = renderMarkdown('GPU and gpu here\n\n```\ngpu\n```');
+    const out = JSON.stringify(highlight(nodes, 'gpu'));
+    expect(out.match(/"tag":"mark"/g)).toHaveLength(2);
+    expect(out).toContain('"text":"GPU"');
+    expect(highlight(nodes, '  ')).toBe(nodes);
   });
 
   it('search keeps only sections containing every word', () => {

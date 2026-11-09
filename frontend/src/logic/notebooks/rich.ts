@@ -6,6 +6,7 @@ import type { Span } from './highlight';
  */
 export type RichTag =
   | 'p'
+  | 'mark'
   | 'h1'
   | 'h2'
   | 'h3'
@@ -76,6 +77,7 @@ const TAGS = new Set<string>([
   'sup',
   'div',
   'span',
+  'mark',
   'table',
   'caption',
   'thead',

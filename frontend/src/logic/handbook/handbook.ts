@@ -33,14 +33,65 @@ export function splitSections(md: string): { intro: string; sections: Section[] 
   };
 }
 
+const words = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean);
+
 /** Sections containing every word of the query (case-insensitive); all of them for an empty query. */
 export function filterSections(sections: Section[], query: string): Section[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const w = words(query);
   return sections.filter((s) => {
     const hay = s.body.toLowerCase();
-    return words.every((w) => hay.includes(w));
+    return w.every((x) => hay.includes(x));
   });
 }
+
+/** The contents list's groups: each starts at the section with this title (ponytail: titles, not markup). */
+const GROUP_STARTS = [
+  ['Basics', 'About this handbook'],
+  ['Screens', 'Sign-in screen'],
+  ['Reference', 'Settings and fields A–Z'],
+] as const;
+
+export function groupSections(sections: Section[]): { label: string; sections: Section[] }[] {
+  const groups: { label: string; sections: Section[] }[] = [];
+  for (const s of sections) {
+    const start = GROUP_STARTS.find(([, title]) => title === s.title);
+    if (start || groups.length === 0) groups.push({ label: start?.[0] ?? '', sections: [] });
+    groups[groups.length - 1]!.sections.push(s);
+  }
+  return groups;
+}
+
+/** Wraps every match of the query words in `<mark>` (text only; code blocks are left as they are). */
+export function highlight(nodes: RichNode[], query: string): RichNode[] {
+  const w = words(query);
+  if (w.length === 0) return nodes;
+  // A capturing split puts the matches at the odd indexes.
+  const re = new RegExp(`(${w.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'i');
+  const walk = (n: RichNode): RichNode[] => {
+    if (n.k === 'text') {
+      return n.text
+        .split(re)
+        .flatMap((part, i): RichNode[] =>
+          !part
+            ? []
+            : i % 2
+              ? [{ k: 'el', tag: 'mark', children: [{ k: 'text', text: part }] }]
+              : [{ k: 'text', text: part }],
+        );
+    }
+    if (n.k === 'el' || n.k === 'link') return [{ ...n, children: n.children.flatMap(walk) }];
+    return [n];
+  };
+  return nodes.flatMap(walk);
+}
+
+/** Shortcuts shown above the handbook: the sections people look for most. */
+export const START_HERE = [
+  { title: 'Which job type should I use?', blurb: 'From a quick test to a full training run.' },
+  { title: 'Recommended setup for the MLS course', blurb: 'CUDA tutorial, Homework 1 and RAG.' },
+  { title: 'Troubleshooting', blurb: 'Every message, what it means, what to do.' },
+  { title: 'Settings and fields A–Z', blurb: 'Every setting with its default.' },
+].map((x) => ({ ...x, id: slug(x.title) }));
 
 const PARSED = splitSections(HANDBOOK);
 
@@ -53,7 +104,9 @@ export function useHandbook() {
     [],
   );
   const intro = useMemo(() => renderMarkdown(PARSED.intro), []);
+  const groups = useMemo(() => groupSections(PARSED.sections), []);
   const shown = useMemo(() => filterSections(PARSED.sections, query), [query]);
+  const nodesFor = (id: string) => highlight(rendered.get(id) ?? [], query);
   const save = () =>
     api
       .handbookSave()
@@ -64,5 +117,16 @@ export function useHandbook() {
       () => setMsg({ tone: 'ok', text: 'Copied the whole handbook. Paste it into an AI assistant and ask away.' }),
       () => setMsg({ tone: 'bad', text: 'Could not copy to the clipboard. Use Save as Markdown… instead.' }),
     );
-  return { intro, sections: PARSED.sections, shown, rendered, query, setQuery, save, copy, msg };
+  return {
+    intro,
+    groups,
+    total: PARSED.sections.length,
+    shown,
+    nodesFor,
+    query,
+    setQuery,
+    save,
+    copy,
+    msg,
+  };
 }
