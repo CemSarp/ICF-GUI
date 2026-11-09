@@ -18,7 +18,7 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 [Security](docs/SECURITY.md) ·
 [Changelog](docs/CHANGELOG.md)
 
-![Overview: GPUs by type with potentially free, allocated, unavailable and unknown counts (demo data)](docs/screenshots/overview.jpg)
+![Cluster overview: each partition with its potentially free, allocated, unavailable and unknown GPUs (demo data)](docs/screenshots/overview.jpg)
 
 </div>
 
@@ -161,11 +161,19 @@ worked. **ICF Control Center puts all of that in one window.**
 | **Run detail** | **Transfers** |
 | ![Run detail: logs, metrics with trends, outputs and checkpoints](docs/screenshots/run-detail.jpg) | ![Transfers: uploads and downloads verified with SHA-256](docs/screenshots/transfers.jpg) |
 
+### Terminal and handbook
+
+| Head node terminal with the command library | Handbook (searchable, exportable) |
+|---|---|
+| ![Terminal: a shell on the ICF head node beside the command library, with Insert and Copy](docs/screenshots/terminal.jpg) | ![Handbook: contents, search, Save as Markdown and the MLS course section](docs/screenshots/handbook.jpg) |
+
 ### And more
 
-| Projects | Dark mode |
+| Start | Projects |
 |---|---|
-| ![Projects: recent projects and a browser for your ICF home](docs/screenshots/projects.jpg) | ![Overview in dark mode](docs/screenshots/overview-dark.jpg) |
+| ![Start: the next step, GPU milestones and the GPUs free right now](docs/screenshots/start.jpg) | ![Projects: recent projects and a browser for your ICF home](docs/screenshots/projects.jpg) |
+| **Dark mode** | |
+| ![Overview in dark mode](docs/screenshots/overview-dark.jpg) | |
 
 ## ⬇️ Install
 
