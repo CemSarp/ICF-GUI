@@ -25,6 +25,10 @@ use zeroize::Zeroizing;
 pub const CONNECT_BUDGET: Duration = Duration::from_secs(30);
 pub const CHALLENGE_TIMEOUT: Duration = Duration::from_secs(180);
 pub const COMMAND_TIMEOUT: Duration = Duration::from_secs(15);
+/// The probe is the first command of a fresh ICF login, which pays the login's start-up cost
+/// (session setup, shell start-up files on the network home). Seen live (2026-11-09): >15 s on the
+/// first connect after a while, 11.5 s on the retry right after, so 15 s failed the first connect.
+pub const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 pub const MAX_INVENTORY_BYTES: usize = 2 * 1024 * 1024;
 /// Close the master after this long without a command (the UI polls only while visible).
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
@@ -392,7 +396,12 @@ pub async fn connect(
                 }
             }
             Some(p) = prx.recv() => {
-                match plan_prompt(&mut st, &p.prompt) {
+                // A saved password is read from the Keychain here; macOS can take seconds on the
+                // first read after launch (or show a dialog), so that time is not ssh's either.
+                let t_plan = Instant::now();
+                let step = plan_prompt(&mut st, &p.prompt);
+                interactive += t_plan.elapsed();
+                match step {
                     Step::Answer(a) => { let _ = p.reply.send(a); }
                     Step::Ask(ch, hop) => {
                         let (id, kind, host, fp) = (ch.id.clone(), ch.kind, ch.host.clone(), ch.fingerprint.clone());
@@ -463,7 +472,17 @@ pub async fn connect(
     }
     *session.master.lock().unwrap() = Some(child);
 
-    let caps = match session.run(PROBE_SCRIPT, COMMAND_TIMEOUT, 256 * 1024).await.map(|out| parse_probe(&out)) {
+    let probe = session.run(PROBE_SCRIPT, PROBE_TIMEOUT, 256 * 1024).await.map_err(|e| match e.code {
+        ErrorCode::SshTimeout => AppError::new(
+            ErrorCode::SshTimeout,
+            format!(
+                "Signed in, but ICF took more than {} s to run its first command. It is slow to start new logins right now; connect again.",
+                PROBE_TIMEOUT.as_secs()
+            ),
+        ),
+        _ => e,
+    });
+    let caps = match probe.map(|out| parse_probe(&out)) {
         Ok(Some(c)) => c,
         Ok(None) => {
             session.close().await;
