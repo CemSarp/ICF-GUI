@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.1] — 2026-11-09 · A calmer Handbook
+
+### Changed
+- **Handbook reading layout.** One document surface with a comfortable line length (about 72
+  characters) instead of a card per section, larger section titles and quieter tables.
+- **Contents** grouped into Basics, Screens and Reference, styled like the sidebar, and following
+  the section you are reading.
+- **Search** stays at the top while you scroll: **⌘F** focuses it, **Esc** clears it, it shows how
+  many sections match, highlights every match and scrolls to the first one.
+- **Start here** shortcuts to the sections people look for most: which job type to use, the MLS
+  course setup, troubleshooting and the settings A–Z table.
+- **Copy all** and **Save as Markdown…** sit beside the version line.
+
 ## [0.6.0] — 2026-11-09 · Terminal, command library and handbook
 
 ### Added

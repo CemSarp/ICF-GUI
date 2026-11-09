@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.6.0-blue)
+![version](https://img.shields.io/badge/version-0.6.1-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -24,7 +24,12 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 New in 0.6.0
+## 🆕 New in 0.6.1
+
+- 📖 **A calmer Handbook**: a readable document column, contents that follow where you are, search that
+  stays in reach and highlights every match (⌘F), and *Start here* shortcuts.
+
+## New in 0.6.0
 
 - 📖 **Handbook.** A searchable, complete reference inside the app: every screen, setting, job type,
   state, limit and error message, plus how to run the MLS course work (CUDA tutorial, Homework 1, RAG).
