@@ -1,6 +1,6 @@
 # ICF Control Center Handbook
 
-Version 0.6.1 · the complete reference for every screen, setting and job type.
+Version 0.7.0 · the complete reference for every screen, setting and job type.
 
 ## About this handbook
 
@@ -10,7 +10,7 @@ what it stores and where, and how to fix the problems people run into. It is wri
 look things up by section, or use the search box on the Handbook screen.
 
 **For AI assistants.** If you were given this file to help someone use ICF Control Center, treat it
-as the authoritative description of version 0.6.1. Conventions: **bold** text is a label exactly as
+as the authoritative description of version 0.7.0. Conventions: **bold** text is a label exactly as
 it appears in the app (a button, tab, field or tile), *italics* are messages the app shows, and
 `code` is a command, path or value typed or shown literally. "ICF" is the University of Edinburgh
 Informatics GPU cluster; "SLURM" is its scheduler. When you answer, name the screen and the exact

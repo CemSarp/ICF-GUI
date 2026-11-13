@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatTime } from '../../logic/format';
+import { formatTime, gpuModel, slurmMemory } from '../../logic/format';
 import { useJobDetail } from '../../logic/jobs/jobDetail';
 import { useCompare, useSuggestions, useWorkbench } from '../../logic/workbench/useWorkbench';
 import { verdict, type Analysis } from '../../logic/workbench/diagnostics';
@@ -9,6 +9,8 @@ import {
   KIND_LABEL,
   RUN_STATUS,
   runTimes,
+  seconds,
+  showKind,
   type WorkbenchSession,
 } from '../../logic/workbench/workbench';
 import type { ConnectionStatus, DevTask, JobRequest, ProjectRecord, RunRecord, TaskKind } from '../../types';
@@ -92,7 +94,8 @@ export function WorkbenchView({
                 return (
                   <li key={t.id} className="wb-task">
                     <div className="wb-task-text">
-                      <strong>{t.name}</strong> <span className="badge tone-muted">{KIND_LABEL[t.kind]}</span>
+                      <strong>{t.name}</strong>{' '}
+                      {showKind(t) && <span className="badge tone-muted">{KIND_LABEL[t.kind]}</span>}
                       {last && <RunBadge run={last} />}
                       {t.description && <div className="muted small">{t.description}</div>}
                       <code className="mono small wb-command" title={t.command}>
@@ -234,7 +237,7 @@ function SessionCard({ w, nav, status }: { w: W; nav: WorkbenchNav; status: Conn
           </div>
           <div className="kv-row">
             <dt>GPU</dt>
-            <dd>{s.row.gpus ?? s.request.gresType ?? 'gpu'}</dd>
+            <dd>{s.row.gpus ?? `${gpuModel(s.request.gresType)} × ${s.request.gpuCount}`}</dd>
           </div>
           <div className="kv-row">
             <dt>Partition</dt>
@@ -243,7 +246,8 @@ function SessionCard({ w, nav, status }: { w: W; nav: WorkbenchNav; status: Conn
           <div className="kv-row">
             <dt>CPUs · RAM</dt>
             <dd>
-              {s.row.cpus ?? s.request.cpus} · {s.row.memory ?? `${Math.round(s.request.memoryMib / 1024)}G`}
+              {s.row.cpus ?? s.request.cpus} ·{' '}
+              {s.row.memory ? slurmMemory(s.row.memory) : slurmMemory(`${s.request.memoryMib}M`)}
             </dd>
           </div>
           <div className="kv-row">
@@ -404,8 +408,8 @@ export function OutputCard({
       <p className="muted small">
         Sent {formatTime(r.sentAt)} to job {r.jobId}
         {r.node ? ` on ${r.node}` : ''}
-        {waited !== null ? ` · started about ${waited} s later` : ''}
-        {ran !== null ? ` · ran ${ran} s (whole command, not GPU kernel time)` : ''}
+        {waited !== null ? ` · started ${waited < 1 ? 'within a second' : `about ${seconds(waited)} later`}` : ''}
+        {ran !== null ? ` · ran ${seconds(ran)} (whole command, not GPU kernel time)` : ''}
         {r.exitCode !== null ? ` · exit code ${r.exitCode}` : ''}
       </p>
       {r.message && <Notice tone="warn">{r.message}</Notice>}
@@ -528,7 +532,11 @@ function RecentRuns({ w, status, path }: { w: W; status: ConnectionStatus; path:
   const [picked, setPicked] = useState<string[]>([]);
   if (w.runs.length === 0) return null;
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id].slice(-2)));
-  const pair = picked.map((id) => w.runs.find((r) => r.id === id)).filter((r) => !!r);
+  // Older run on the left.
+  const pair = picked
+    .map((id) => w.runs.find((r) => r.id === id))
+    .filter((r) => !!r)
+    .sort((x, y) => x.sentMs - y.sentMs);
   return (
     <>
       <section className="card" aria-labelledby="wb-runs-title">
@@ -569,12 +577,12 @@ function CompareCard({ a, b, status, path }: { a: RunRecord; b: RunRecord; statu
   const [ta, tb] = useCompare(status, path, [a.id, b.id]);
   const rows: [string, (r: RunRecord) => string][] = [
     ['Task', (r) => r.taskName],
-    ['GPU type', (r) => r.gpu ?? 'not recorded'],
+    ['GPU type', (r) => (r.gpu ? gpuModel(r.gpu) : 'not recorded')],
     ['Node', (r) => r.node ?? 'not recorded'],
     ['Sent', (r) => formatTime(r.sentAt)],
     ['Status', (r) => RUN_STATUS[r.status].label],
     ['Exit code', (r) => (r.exitCode === null ? '—' : String(r.exitCode))],
-    ['Command wall time', (r) => (runTimes(r).ran === null ? '—' : `${runTimes(r).ran} s`)],
+    ['Command wall time', (r) => (runTimes(r).ran === null ? '—' : seconds(runTimes(r).ran!))],
     ['Note', (r) => r.note ?? ''],
   ];
   return (
@@ -591,8 +599,12 @@ function CompareCard({ a, b, status, path }: { a: RunRecord; b: RunRecord; statu
             <th scope="col">
               <span className="sr-only">Field</span>
             </th>
-            <th scope="col">First</th>
-            <th scope="col">Second</th>
+            <th scope="col">
+              {a.taskName} · {formatTime(a.sentAt)}
+            </th>
+            <th scope="col">
+              {b.taskName} · {formatTime(b.sentAt)}
+            </th>
           </tr>
         </thead>
         <tbody>

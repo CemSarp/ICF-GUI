@@ -2,7 +2,8 @@ import { EditorView } from '@codemirror/view';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { findSession, newTaskId, pollDelay, sessionRequest } from '../src/logic/workbench/workbench';
+import { findSession, newTaskId, pollDelay, seconds, sessionRequest, showKind } from '../src/logic/workbench/workbench';
+import { gpuModel, slurmMemory } from '../src/logic/format';
 import type {
   ConnectionStatus,
   DevTask,
@@ -489,11 +490,11 @@ describe('GPU Workbench: history', () => {
     await userEvent.click(boxes[0]!);
     await userEvent.click(boxes[1]!);
     const card = await screen.findByRole('region', { name: 'Compare two runs' });
-    expect(within(card).getByRole('row', { name: /Command wall time 50 s 60 s/ })).toBeInTheDocument();
+    expect(within(card).getByRole('row', { name: /Command wall time 1 min 50 s/ })).toBeInTheDocument();
     expect(within(card).getByRole('row', { name: /Note tile 32/ })).toBeInTheDocument();
     expect(within(card).getByText(/not GPU kernel time\. Two runs are not enough/)).toBeInTheDocument();
-    expect(await within(card).findByLabelText('Output of the first run')).toHaveTextContent('kernel time 1.2 ms');
-    expect(await within(card).findByLabelText('Output of the second run')).toHaveTextContent('kernel time 1.9 ms');
+    expect(await within(card).findByLabelText('Output of the first run')).toHaveTextContent('kernel time 1.9 ms');
+    expect(await within(card).findByLabelText('Output of the second run')).toHaveTextContent('kernel time 1.2 ms');
     expect(within(card).queryByText(/faster|speed-?up of/i)).toBeNull();
     expect(within(card).queryByText(/different GPU types/)).toBeNull();
   });
@@ -507,9 +508,7 @@ describe('GPU Workbench: history', () => {
     const boxes = await screen.findAllByRole('checkbox');
     await userEvent.click(boxes[0]!);
     await userEvent.click(boxes[1]!);
-    expect(
-      await screen.findByText(/used different GPU types \(nvidia_rtx_2080_ti and nvidia_rtx_a6000\)/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/used different GPU types \(RTX A6000 and RTX 2080 Ti\)/)).toBeInTheDocument();
   });
 
   it('⌘↩ runs the last task again, once, and not while typing', async () => {
@@ -526,5 +525,32 @@ describe('GPU Workbench: history', () => {
       taskId: 'bench',
       jobId: '5001',
     });
+  });
+});
+
+describe('Readable resources', () => {
+  it('shows SLURM memory as GB and GPU types by name', () => {
+    expect(['8000M', '32G', '16384M', '16Gn', '4000Mc', '512M', '1.5T', 'weird', null].map(slurmMemory)).toEqual([
+      '7.8 GB',
+      '32 GB',
+      '16 GB',
+      '16 GB',
+      '3.9 GB per CPU',
+      '512 MB',
+      '1536 GB',
+      'weird',
+      '—',
+    ]);
+    expect(gpuModel('nvidia_geforce_rtx_2080_ti')).toBe('GeForce RTX 2080 Ti');
+    expect(gpuModel('nvidia_rtx_a6000')).toBe('RTX A6000');
+    expect(gpuModel('nvidia_a100_3g.40gb')).toBe('A100 3g.40gb');
+    expect(gpuModel(null)).toBe('GPU (untyped)');
+  });
+
+  it('says sub-second runs plainly and hides kind badges that repeat the name', () => {
+    expect([0, 13, 60, 125].map(seconds)).toEqual(['under 1 s', '13 s', '1 min', '2 min 5 s']);
+    expect(showKind(task({ name: 'Build', kind: 'build' }))).toBe(false);
+    expect(showKind(task({ name: 'make check-sm', kind: 'test' }))).toBe(true);
+    expect(showKind(task({ name: 'Notes', kind: 'custom' }))).toBe(false);
   });
 });

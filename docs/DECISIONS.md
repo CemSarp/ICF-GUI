@@ -457,7 +457,8 @@ SSH shell in the UI"), AGENTS.md rules 5 and 6 and docs/SECURITY.md for this one
   working directory across sessions, scripting the terminal (by design).
 
 ## ADR-040 — GPU Workbench: project tasks run in the project's GPU session (amends ADR-038)
-*Status: accepted (unreleased), not yet tried on ICF.* The edit → build → test loop was spread over
+*Status: accepted (0.7.0). Tried on ICF 2026-11-13 (job 3716757, `damnii12`): tasks picked up about
+3 s after Run, exit codes and output per run as designed.* The edit → build → test loop was spread over
 Projects, the editor, New job, My Jobs and the log viewer. The Workbench is a tab of a project that
 joins them; it adds no scheduler path, SSH path, editor or session system.
 - **Session.** The project's session is the newest GPU session receipt (ADR-038) whose working
@@ -501,7 +502,7 @@ joins them; it adds no scheduler path, SSH path, editor or session system.
   VS Code at line", numeric benchmark extraction.
 
 ## ADR-041 — Choosing the head node (icf or icf2)
-*Status: accepted (unreleased), requested by the owner while `icf` was down.*
+*Status: accepted (0.7.0), requested by the owner while `icf` was down.*
 - **What.** The sign-in screen offers `icf` and `icf2`. The choice travels in the login request as
   `headNode`, is checked in Rust against the fixed list `profiles::HEAD_NODES`, and is saved as the
   profile's `sshAlias` (resetting *last successful connection*). A custom alias typed under Advanced

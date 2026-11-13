@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.6.1-blue)
+![version](https://img.shields.io/badge/version-0.7.0-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -24,7 +24,7 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 Coming next (unreleased)
+## 🆕 New in 0.7.0
 
 - 🧪 **GPU Workbench.** A tab on every project: start one GPU session, save your build/test/run
   commands as tasks (Makefile targets are suggested), press **Run**, and see *Queued → Running →
@@ -158,6 +158,10 @@ worked. **ICF Control Center puts all of that in one window.**
 **Projects → project → GPU Workbench**: one GPU session for the project, saved tasks (`make`,
 `make test`, `python main.py` …) run with one click, live status and exit codes, compiler errors that
 open the editor at the line, and **Save & Build** in the editor.
+
+| GPU session and tasks | Compiler errors with the line to open |
+|---|---|
+| ![GPU Workbench: the project's GPU session on landonia05 with GPU, RAM and time left, and Build, Test and Benchmark tasks with Run buttons (demo data)](docs/screenshots/workbench.jpg) | ![A failed Build: exit code 2, one nvcc error and one warning listed with Open at line, and the raw compiler output below (demo data)](docs/screenshots/workbench-errors.jpg) |
 
 ### Notebooks on a GPU (experimental)
 

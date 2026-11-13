@@ -271,10 +271,7 @@ fn squeue_sacct_scontrol_parsing() {
     let s = '\u{1f}';
     let line = format!("4242{s}s1{s}Teaching{s}RUNNING{s}1:02:03{s}10:57:57{s}12:00:00{s}8{s}32G{s}gres/gpu:nvidia_rtx_a6000:1{s}2026-10-16T09:00:00{s}2026-10-16T09:05:00{s}landonia11{s}None{s}icfcc-abc{s}name with | pipes");
     let r = parse_squeue_line(&line).unwrap();
-    assert_eq!(
-        (r.job_id.as_str(), r.state, r.nodes.as_deref(), r.gpus.as_deref()),
-        ("4242", JobState::Running, Some("landonia11"), Some("nvidia_rtx_a6000 × 1"))
-    );
+    assert_eq!((r.job_id.as_str(), r.state, r.nodes.as_deref(), r.gpus.as_deref()), ("4242", JobState::Running, Some("landonia11"), Some("RTX A6000 × 1")));
     assert_eq!(r.name, "name with | pipes");
     assert_eq!(r.comment.as_deref(), Some("icfcc-abc"));
     let pending = line.replace("RUNNING", "PENDING").replace("None", "Resources");
@@ -291,7 +288,7 @@ fn squeue_sacct_scontrol_parsing() {
     );
     let rows = parse_sacct(&sacct);
     assert_eq!(rows.len(), 2, "steps are skipped");
-    assert_eq!((rows[0].state, rows[0].exit_code.as_deref(), rows[0].gpus.as_deref()), (JobState::Failed, Some("1:0"), Some("nvidia_l40s × 1")));
+    assert_eq!((rows[0].state, rows[0].exit_code.as_deref(), rows[0].gpus.as_deref()), (JobState::Failed, Some("1:0"), Some("L40S × 1")));
     assert_eq!((rows[1].state, rows[1].nodes.clone()), (JobState::Cancelled, None));
     assert!(parse_sacct("").is_empty());
 

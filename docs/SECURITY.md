@@ -1,6 +1,6 @@
 # Security design
 
-Covers the app as of 0.6.1 plus the unreleased GPU Workbench (ADR-040) and head node choice
+Covers the app as of 0.7.0, including the GPU Workbench (ADR-040) and the head node choice
 (ADR-041). Decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Threat model in one paragraph
@@ -289,7 +289,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 | V3 on ICF (scratch, staging, GPU, copy-back) | prepared GPU smoke test; needs explicit approval | ⏳ pending |
 | GPU session send path | real `sh` with stub `squeue` (`jobs/tests.rs`): not sent unless RUNNING, `$(touch PWNED)` stays text, blocks in order; used on ICF with 0.5.1 | ✅ |
 | GPU Workbench run path | the real session loop in `bash` (`jobs::tests::workbench_task_runs_*`): stored task only, quoted `cd`, a forged `@@icfcc-block … rc=0` changes nothing, exit code from `.rc`; UI: one send per double-click, nothing sent after a failed or conflicting save | ✅ simulated |
-| GPU Workbench on ICF | needs explicit approval (pickup/output latency, interrupted session, deleted session folder) | ⏳ pending |
+| GPU Workbench on ICF | 2026-11-13, job 3716757: tasks run in the session with exit codes, ~3 s pickup | ✅ |
+| Workbench edge cases on ICF | interrupted session, deleted session folder, pre-0.7.0 session | ⏳ pending |
 | Head node choice | Rust rejects anything but `icf`/`icf2` (incl. `-oProxyCommand=x`, `icf2;id`); scripted ssh connects to `icf2` with its own host-key prompt | ✅ simulated |
 | Sign-in through `icf2` on ICF | not yet observed | ⏳ pending |
 

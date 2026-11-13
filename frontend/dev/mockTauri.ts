@@ -76,6 +76,12 @@ let wbRuns: RunRecord[] = [
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
 let state = new URLSearchParams(location.search).get('state') ?? 'login';
+// ?open=workbench (with state=live) starts on the sample project's GPU Workbench, for screenshots.
+if (new URLSearchParams(location.search).get('open') === 'workbench') {
+  localStorage.setItem('icfcc.view', JSON.stringify('projects'));
+  localStorage.setItem('icfcc.project.selected', JSON.stringify(v3.PROJECT));
+  localStorage.setItem('icfcc.project.tab', JSON.stringify('workbench'));
+}
 // ?state=live previews the V3 screens as if connected (synthetic data, still no SSH).
 const status = () => ({
   state: state === 'login' ? 'disconnected' : 'connected',
@@ -261,6 +267,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         job({
           jobId: '900103',
           name: 'semeval-session',
+          gpus: 'GeForce RTX 2080 Ti × 1',
           nodes: 'landonia05',
           cpus: 4,
           memory: '16G',

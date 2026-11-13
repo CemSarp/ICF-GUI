@@ -91,6 +91,8 @@ describe('Compiler and test output', () => {
     expect(verdict('succeeded', 0, analyze('PASS a', P, P))).toBe(
       'Succeeded (exit code 0) — 1 reported pass, 0 reported fail.',
     );
+    expect(verdict('succeeded', 0, analyze('make: Nothing to be done', P, P))).toBeNull(); // the badge says it
+    expect(verdict('failed', 1, analyze('oops', P, P))).toBeNull();
   });
 
   it('gives short CUDA hints for recognisable problems', () => {

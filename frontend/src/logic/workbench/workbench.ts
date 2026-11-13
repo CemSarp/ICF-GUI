@@ -1,3 +1,4 @@
+import { gpuModel } from '../format';
 import { envDirOf } from '../jobs/projectEnv';
 import { SESSION_IDLE_DEFAULT } from '../jobs/jobRequest';
 import type {
@@ -149,6 +150,15 @@ export function runTimes(r: RunRecord): { waited: number | null; ran: number | n
   };
 }
 
+/** Whole seconds as measured on the node: `under 1 s`, `13 s`, `2 min 5 s`. */
+export function seconds(s: number): string {
+  if (s < 1) return 'under 1 s';
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`;
+}
+
+/** The kind badge only when it says something the name does not (not "Build · Build"). */
+export const showKind = (t: DevTask) => t.kind !== 'custom' && t.name.trim().toLowerCase() !== t.kind;
+
 export function emptyTask(): DevTask {
   return { id: '', name: '', kind: 'custom', command: '', workingDir: '', description: '' };
 }
@@ -167,7 +177,7 @@ export function compareNotes(a: RunRecord, b: RunRecord): { tone: 'warn' | 'info
   else if (a.gpu !== b.gpu)
     out.push({
       tone: 'warn',
-      text: `These runs used different GPU types (${a.gpu} and ${b.gpu}); their timings are not directly comparable.`,
+      text: `These runs used different GPU types (${gpuModel(a.gpu)} and ${gpuModel(b.gpu)}); their timings are not directly comparable.`,
     });
   else if (a.node !== b.node)
     out.push({

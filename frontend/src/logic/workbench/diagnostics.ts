@@ -216,7 +216,9 @@ export function verdict(status: string, exitCode: number | null, a: Analysis): s
   const found = parts.join(' · ');
   if (status === 'succeeded' && a.tests && a.tests.failed > 0)
     return `Exit code 0, but the output reports ${a.tests.failed} failure${a.tests.failed === 1 ? '' : 's'}. The command's own exit code says it succeeded; check the output.`;
-  if (status === 'failed') return `Failed (exit code ${exitCode ?? '?'})${found ? ` — ${found}` : ''}.`;
-  if (status === 'succeeded') return `Succeeded (exit code 0)${found ? ` — ${found}` : ''}.`;
-  return found || null;
+  // Nothing recognised: the status badge already says it all.
+  if (!found) return null;
+  if (status === 'failed') return `Failed (exit code ${exitCode ?? '?'}) — ${found}.`;
+  if (status === 'succeeded') return `Succeeded (exit code 0) — ${found}.`;
+  return found;
 }

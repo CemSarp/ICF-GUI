@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BackButton, Badge, Dialog, Icon, Notice } from '../components/ui';
 import { errorMessage } from '../../logic/api';
-import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
+import { clusterTime, formatTime, JOB_STATE, slurmMemory } from '../../logic/format';
 import { failedBeforeRunning, isActiveJob, useCancelJob, useJobDetail } from '../../logic/jobs/jobDetail';
 import { useAvoidNodes } from '../../logic/jobs/avoidNodes';
 import { useSessionSend } from '../../logic/jobs/session';
@@ -167,7 +167,7 @@ export function JobDetailView({
               <dd>{j.gpus ?? '—'}</dd>
               <dt>CPUs / RAM</dt>
               <dd>
-                {j.cpus ?? '—'} / {j.memory ?? '—'}
+                {j.cpus ?? '—'} / {slurmMemory(j.memory)}
               </dd>
               <dt>Node</dt>
               <dd>{j.nodes ?? (j.state === 'pending' ? 'Not allocated yet' : '—')}</dd>

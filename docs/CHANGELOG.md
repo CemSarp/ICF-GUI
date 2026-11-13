@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] · GPU Workbench and head node choice
+## [0.7.0] — 2026-11-13 · GPU Workbench and head node choice
 
 ### Added
 - **GPU Workbench** (Projects → project → GPU Workbench, ADR-040): the project's GPU session with its
@@ -33,6 +33,14 @@
 - **Projects**: a project page has two tabs, *Files & environment* and *GPU Workbench*.
 - An unreadable `projects.json` is now kept aside as `projects.json.corrupt-<ms>` instead of being
   replaced on the next save.
+- **Readable resources everywhere**: job RAM shows as GB (`8000M` → *7.8 GB*, per-CPU requests say so)
+  in My Jobs, job pages and the Workbench, and GPUs show by model name (*GeForce RTX 2080 Ti × 1*
+  instead of `nvidia_geforce_rtx_2080_ti × 1`).
+
+### Verified on ICF
+- GPU Workbench on 2026-11-13: session job 3716757 (Teaching, 1 × RTX 2080 Ti on `damnii12`); *Build*
+  (`make`, 13 s) and *make check-sm* succeeded with their exit codes, each picked up about 3 s after
+  Run; comparing the two runs worked.
 
 ## [0.6.1] — 2026-11-09 · A calmer Handbook
 

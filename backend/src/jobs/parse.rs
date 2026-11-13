@@ -106,7 +106,7 @@ pub fn gpu_summary(s: &str) -> Option<String> {
         let txt: Vec<String> = pick
             .iter()
             .map(|(k, v)| match k.strip_prefix("gres/gpu:") {
-                Some(t) => format!("{t} × {v}"),
+                Some(t) => format!("{} × {v}", crate::slurm::model_label(Some(t))),
                 None => format!("gpu × {v}"),
             })
             .collect();
@@ -123,7 +123,7 @@ pub fn gpu_summary(s: &str) -> Option<String> {
             let rest: Vec<&str> = it.collect();
             Some(match rest.as_slice() {
                 [n] => format!("gpu × {n}"),
-                [t, n, ..] => format!("{t} × {}", n.split('(').next().unwrap_or(n)),
+                [t, n, ..] => format!("{} × {}", crate::slurm::model_label(Some(t)), n.split('(').next().unwrap_or(n)),
                 [] => "gpu".into(),
             })
         })

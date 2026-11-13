@@ -91,7 +91,7 @@ Notes:
 | Frontend `tests/notebooks.test.tsx` (14) | Markdown/HTML whitelisting (scripts, styles, `on*`, remote images, `javascript:` links), ANSI and progress bars, stream merging, MIME priority, Jupyter keys, byte-for-byte serialisation; Notebooks tab: open from Projects, save only edited source, reviewed kernel start, live run + saved outputs, Run all stops at the first error, leave guard stops the kernel, full screen, command-mode keys; cell language from the magic line, switching a cell to CUDA from its menu |
 | Frontend `tests/run.test.tsx` (5) | which files run and the cell sent for each; editor Run on GPU for CUDA (unsaved text, arguments, reviewed kernel start, output panel) and Python (`%%icfcc_script` with the path); leaving asks first and stops the kernel; no run bar for other text files |
 
-## GPU Workbench (unreleased, ADR-040)
+## GPU Workbench (0.7.0, ADR-040)
 
 | Suite | What |
 |---|---|
@@ -101,8 +101,8 @@ Notes:
 | Frontend `tests/workbench.test.tsx` (17) | opening from Projects, empty state, add/edit/duplicate; no session → Run disabled + Start opens New job prefilled (nothing submitted); waiting/ended sessions; one run per double-click, Queued → Running → Failed (exit 2) through the 2 s polling with continuing offsets; navigating away and back; compiler errors → editor at line and column; **Save & Build** saves then runs; conflict or save error → nothing sent; Makefile suggestions added only after review; Interrupted and *no longer on ICF*; comparing two runs (no speed-up claims, different GPU types warned); ⌘↩ reruns, not while typing |
 | Frontend `tests/workbenchParsing.test.ts` (12) | nvcc/GCC/Clang diagnostics with continuations, ANSI, duplicates, paths inside the project only, Python frames, PASS/FAIL and pytest counts, the exit-0-with-failures discrepancy, CUDA hints, 10 000 lines + a 200 KB line in < 2 s capped at 200; Makefile parsing for a generic CUDA project, a C++ project without `.PHONY`, a numbered-test course-style fixture, pytest evidence, no build system |
 
-Not automated (need ICF, with your approval): pickup latency (compare a run's *started about N s
-later*, from `.rc` times vs. the send time) and output latency on real NFS; a session started before
+Tried on ICF (2026-11-13, job 3716757 on `damnii12`): two tasks ran with exit codes and output,
+each picked up about 3 s after Run. Still not automated or tried (need ICF, with your approval): a session started before
 this version (no `.rc` files: its runs show Unknown, pointing to the job log — start a new session); a session that
 hits its time limit mid-task (expect Interrupted); deleting `icfcc-run/session-*` (expect *no longer on
 ICF*); SSH/NFS load with the Workbench visible for an hour vs. hidden.
