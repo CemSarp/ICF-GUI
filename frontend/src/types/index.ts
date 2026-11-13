@@ -198,6 +198,8 @@ export interface LoginRequest {
   sameForBoth?: boolean;
   remember?: boolean;
   useSaved?: boolean;
+  /** `icf` or `icf2`; the backend validates it and saves it as the profile's SSH alias. */
+  headNode?: string;
 }
 
 export interface ProfileInput {

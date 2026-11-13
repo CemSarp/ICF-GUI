@@ -456,6 +456,18 @@ SSH shell in the UI"), AGENTS.md rules 5 and 6 and docs/SECURITY.md for this one
 - **Not done:** several terminals or tabs, running a library command in one click, remembering the
   working directory across sessions, scripting the terminal (by design).
 
+## ADR-040 — Choosing the head node (icf or icf2)
+*Status: accepted (unreleased), requested by the owner while `icf` was down.*
+- **What.** The sign-in screen offers `icf` and `icf2`. The choice travels in the login request as
+  `headNode`, is checked in Rust against the fixed list `profiles::HEAD_NODES`, and is saved as the
+  profile's `sshAlias` (resetting *last successful connection*). A custom alias typed under Advanced
+  still works and is saved through `connection_profile_save` as before.
+- **Host keys.** Nothing changes: `icf2`'s key goes through the normal first-connect prompt and is
+  recorded as its own host-key decision. Saved Keychain passwords are keyed by host, so a password
+  saved for `icf` is not sent to `icf2`.
+- **Defaults that used to assume `icf`.** The gateway fallback without an ssh config and the VS Code
+  `~/.ssh/config` hint now apply to either head node (alias equals hostname, no ProxyJump).
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

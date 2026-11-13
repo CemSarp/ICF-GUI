@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Dialog, Notice } from '../components/ui';
-import { useLogin } from '../../logic/connection/useLogin';
+import { HEAD_NODES, useLogin } from '../../logic/connection/useLogin';
 import { formatTime } from '../../logic/format';
 import type { ConnectionStatus } from '../../types';
 
@@ -60,8 +60,8 @@ export function LoginView({ status, onHandbook }: { status: ConnectionStatus; on
       >
         <h1 id="login-title">Connect to ICF</h1>
         <p className="muted">
-          Signs in with macOS OpenSSH through your SSH config (alias <code>{profile?.sshAlias ?? 'icf'}</code>). Nothing
-          is submitted or changed on ICF until you confirm it.
+          Signs in with macOS OpenSSH through your SSH config (alias <code>{alias}</code>). Nothing is submitted or
+          changed on ICF until you confirm it.
         </p>
 
         {profiles.length > 1 && (
@@ -76,6 +76,34 @@ export function LoginView({ status, onHandbook }: { status: ConnectionStatus; on
             </select>
           </label>
         )}
+
+        <div className="field">
+          <span id="head-node-label">Head node</span>
+          <div
+            className="segmented choice"
+            role="radiogroup"
+            aria-labelledby="head-node-label"
+            aria-describedby="head-node-help"
+          >
+            {HEAD_NODES.map((h) => (
+              <label key={h}>
+                <input
+                  type="radio"
+                  name="head-node"
+                  checked={alias === h}
+                  onChange={() => setAlias(h)}
+                  disabled={connecting}
+                />
+                {h}
+              </label>
+            ))}
+          </div>
+          <small id="head-node-help" className="muted">
+            {(HEAD_NODES as readonly string[]).includes(alias)
+              ? 'If one head node is down, sign in through the other.'
+              : `Using the custom SSH alias "${alias}" from Advanced connection settings.`}
+          </small>
+        </div>
 
         <fieldset className="segmented" disabled={connecting}>
           <legend>Sign-in method</legend>
@@ -164,7 +192,7 @@ export function LoginView({ status, onHandbook }: { status: ConnectionStatus; on
         <details className="advanced">
           <summary>Advanced connection settings</summary>
           <label className="field">
-            <span>SSH host alias</span>
+            <span>SSH host alias (overrides the head node)</span>
             <input
               value={alias}
               onChange={(e) => setAlias(e.target.value)}

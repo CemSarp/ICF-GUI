@@ -423,6 +423,8 @@ fn alias_problems_explain_what_vscode_will_not_know() {
     let snippet = snippet.unwrap();
     assert!(snippet.contains("ProxyJump edinburgh-jump") && snippet.contains("User s1234567") && snippet.contains("student.ssh.inf.ed.ac.uk"));
     assert_eq!(alias_problems(&a("icf", "s1234567", Some("edinburgh-jump")), "", "s1234567"), (vec![], None));
+    let (_, snippet) = alias_problems(&AliasCheck { alias: "icf2".into(), ..a("icf2", "s1", None) }, "", "s1");
+    assert!(snippet.unwrap().contains("Host icf2\n    HostName icf2\n"), "snippet names the chosen head node");
     let (p, _) = alias_problems(&AliasCheck { alias: "mybox".into(), ..a("10.0.0.1", "s1", None) }, "s1@gw", "s1");
     assert_eq!(p.len(), 1, "jump host override not in ssh config");
 }

@@ -271,6 +271,9 @@ pub struct LoginRequest {
     remember: bool,
     #[serde(default)]
     use_saved: bool,
+    /// One of `profiles::HEAD_NODES`; replaces the profile's SSH alias. None keeps the saved alias.
+    #[serde(default)]
+    head_node: Option<String>,
 }
 
 /// Closes the app's SSH master and forgets per-identity state. Never touches SLURM batch jobs; the
@@ -333,6 +336,14 @@ async fn do_login(app: &AppHandle, state: &AppState, request: LoginRequest) -> A
     if let Some(m) = request.auth_mode.filter(|m| *m != profile.auth_mode) {
         profile.auth_mode = m;
         changed = true;
+    }
+    if let Some(h) = request.head_node.as_deref() {
+        crate::profiles::validate_head_node(h)?;
+        if h != profile.ssh_alias {
+            profile.ssh_alias = h.to_string();
+            profile.last_success_at = None;
+            changed = true;
+        }
     }
     profile.validate()?;
     if changed {

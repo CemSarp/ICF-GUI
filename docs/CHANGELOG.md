@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Head node choice** on the sign-in screen: **icf** or **icf2**, so you can still sign in when
+  one is down. Remembered in the profile; validated in the backend as one of the two. `icf2` gets
+  its own first-connect host-key check, the gateway fallback without an ssh config, and its own
+  `Host icf2` block in the VS Code setup hint (ADR-040).
+
 ## [0.6.1] — 2026-11-09 · A calmer Handbook
 
 ### Changed

@@ -279,6 +279,14 @@ The first screen. Title *Connect to ICF*. Nothing is submitted or changed on ICF
 ### Profile
 Shown only if you have more than one connection profile. Picks which saved profile to use.
 
+### Head node
+**icf** or **icf2**, the two ICF login nodes. If one is down, pick the other. The choice is
+remembered in the profile. Each head node has its own host key, so the first sign-in to `icf2` asks
+you to verify its fingerprint, and a password saved for `icf` is not reused for `icf2` (tick
+*Remember* again). With your own `~/.ssh/config`, `icf2` needs its own `Host icf2` block (a copy of
+the `icf` one with `HostName icf2`); without one, the app goes through the gateway as for `icf`. A
+custom *SSH host alias* under Advanced overrides this choice.
+
 ### Sign-in method
 - **Use existing SSH config / agent** *(recommended)*: for when `ssh icf` already works in the macOS
   Terminal with SSH keys or an agent. No password is typed into the app.
@@ -299,8 +307,9 @@ password empty. *Saved in Keychain: …* lists what is saved; **Forget saved pas
 Keychain items after a confirmation (**Delete from Keychain**).
 
 ### Advanced connection settings
-- **SSH host alias** (default `icf`): the `Host` name from your `~/.ssh/config` the app connects to.
-- **Jump host override**: empty = use your SSH config's `ProxyJump`; if you have no `icf` entry, the
+- **SSH host alias (overrides the head node)** (default `icf`): the `Host` name from your
+  `~/.ssh/config` the app connects to. Picking a head node above replaces it with `icf` or `icf2`.
+- **Jump host override**: empty = use your SSH config's `ProxyJump`; if you have no `icf`/`icf2` entry, the
   app goes through `student.ssh.inf.ed.ac.uk` as the UUN you typed. A value here always wins.
 - **Gateway password (if different)**: the password for the gateway, if it differs from ICF's.
 - **Use the same password for the gateway and ICF**: sends the one password to both hops. Without

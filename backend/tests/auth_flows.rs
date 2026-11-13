@@ -408,3 +408,24 @@ async fn existing_ssh_config_is_used_as_is() {
     assert!(!seen(&f).contains(" -J "), "no jump host added when ~/.ssh/config already routes icf");
     c.session.close().await;
 }
+
+#[tokio::test]
+async fn icf2_without_ssh_config_goes_through_the_gateway_and_asks_for_its_own_host_key() {
+    let hk = format!("ask yes {}", HOSTKEY_PROMPT.replace("'icf ", "'icf2 ")).replace(' ', "\\x20").replacen("ask\\x20yes\\x20", "ask yes ", 1);
+    let f = fixture(&[GW, &hk, "ask destpass (s1@icf2)\\x20Password:\\x20"]);
+    std::fs::write(f.dir.join("noconfig"), "").unwrap();
+    let ui = Arc::new(ScriptUi { answers: Mutex::new(VecDeque::from([Some("yes".into())])), ..Default::default() });
+    let (_tx, rx) = watch::channel(false);
+    let p = ConnectionProfile { ssh_alias: "icf2".into(), ..profile(AuthMode::Password) };
+    let c = connect(&f.env, req(p, secrets(Some("destpass"), Some("gwpass"), false), false, false), &Mem::default(), ui.clone(), rx)
+        .await
+        .unwrap_or_else(|e| panic!("{:?}", e.error));
+    let s = seen(&f);
+    assert!(s.contains("-J s1@student.ssh.inf.ed.ac.uk") && s.contains(" -- icf2"), "{s}");
+    assert!(!s.contains("StrictHostKeyChecking=no") && !s.contains("accept-new"));
+    let asked = ui.seen.lock().unwrap().clone();
+    assert_eq!((asked.len(), asked[0].kind, asked[0].host.as_deref()), (1, ChallengeKind::HostKey, Some("icf2")), "icf2's key is confirmed by the user");
+    assert_eq!(c.host_key_decisions.iter().map(|d| d.host.as_str()).collect::<Vec<_>>(), ["icf2"]);
+    assert_eq!(c.session.resolved.hops.last().unwrap().hostname, "icf2");
+    c.session.close().await;
+}

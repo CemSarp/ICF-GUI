@@ -3,6 +3,10 @@ import { api, errorMessage } from '../api';
 import { useNow } from '../persist';
 import type { AuthMode, ConnectionProfile, ConnectionStatus } from '../../types';
 
+/** ICF head (login) nodes; the backend accepts only these as `headNode`. */
+export const HEAD_NODES = ['icf', 'icf2'] as const;
+const isHeadNode = (a: string) => (HEAD_NODES as readonly string[]).includes(a);
+
 /** Login form model: profiles, the fields sent to the backend, and the connect/forget/demo actions. */
 export function useLogin(status: ConnectionStatus) {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
@@ -51,7 +55,8 @@ export function useLogin(status: ConnectionStatus) {
     setPassword('');
     setGatewayPassword('');
     try {
-      if (alias !== profile.sshAlias || jumpHost !== profile.jumpHost) {
+      // A head-node choice travels in the login request; only custom aliases and jump hosts are saved here.
+      if ((alias !== profile.sshAlias && !isHeadNode(alias)) || jumpHost !== profile.jumpHost) {
         const updated = await api.saveProfile({
           ...profile,
           sshAlias: alias.trim(),
@@ -70,6 +75,7 @@ export function useLogin(status: ConnectionStatus) {
         sameForBoth: authMode === 'password' && sameForBoth,
         remember: authMode === 'password' && remember,
         useSaved: authMode === 'password' && saved.length > 0,
+        headNode: isHeadNode(alias) ? alias : undefined,
       });
     } catch (err) {
       setError(errorMessage(err));

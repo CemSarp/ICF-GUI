@@ -155,4 +155,20 @@ describe('login (V1-AC01, V1-AC03)', () => {
     >;
     expect(req).toMatchObject({ useSaved: true, password: undefined });
   });
+
+  it('signs in through the chosen head node (icf2)', async () => {
+    renderApp();
+    const icf2 = await screen.findByRole('radio', { name: 'icf2' });
+    expect(screen.getByRole('radio', { name: 'icf' })).toBeChecked();
+    await userEvent.click(icf2);
+    expect(icf2).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await waitFor(() => expect(backend.count('connection_test_and_login')).toBe(1));
+    const req = backend.calls.find((c) => c.cmd === 'connection_test_and_login')!.args.request as Record<
+      string,
+      unknown
+    >;
+    expect(req).toMatchObject({ headNode: 'icf2' });
+    expect(backend.count('connection_profile_save')).toBe(0);
+  });
 });
