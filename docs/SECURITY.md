@@ -128,6 +128,33 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   symlinks out of home are refused, and `scancel` receives exactly one id.
 - Closing the app or disconnecting never cancels jobs.
 
+## GPU Workbench (ADR-040)
+
+- **What a task is.** A development task is shell text the user typed (or accepted from a suggestion
+  after seeing it), stored locally in `projects.json` per profile + remote user + project. It runs only
+  when the user presses Run (or ⌘↩ / Save & run), only inside that user's own running GPU session on a
+  compute node, never on the login node, never during rendering, refresh, project opening or startup.
+- **No new execution path.** `workbench_run` (job-mutations capability, like `session_send`) takes a
+  task **id**, not text: Rust loads the stored task, validates it again, and builds the block as
+  `cd -- '<project>/<folder>'` (validated relative folder, single-quoted) followed by the stored
+  command. It goes through the ADR-038 send path: receipt from this Mac, the session's folder must be
+  the project folder, `squeue -j <id> -u <user>` must say RUNNING on ICF, random-delimiter quoted
+  heredoc (nothing expanded on the login node), mutation lock, never retried. A transport failure is
+  recorded as Unknown, not resent.
+- **Status from files, not text.** A run's outcome is read from `done/<id>.rc` in the session folder
+  (resolved inside `$HOME`; the log file must be owned by the user, as for all logs), so output that
+  prints a fake `@@icfcc-block … rc=0` line cannot turn a failure into success. Reads are bounded (64
+  KiB, by offset), rate-limited (1 s per run in Rust; 2–10 s in the UI, visible window only), and make
+  no SLURM call. Text is sanitised by the existing log reader and rendered as plain text.
+- **Discovery is read-only.** Suggestions come from reading `Makefile`/`pyproject.toml`/`setup.cfg`
+  with `files_read` and a static parser; `make` and scripts are never executed to find them, and
+  `install`/`setup…`/`deploy`-style targets are never suggested.
+- **Local data.** Tasks and the last 30 runs per project (no output) live in `projects.json` (0600,
+  atomic write). The task editor tells users not to put secrets in commands; the app never adds any.
+  An unreadable `projects.json` is kept aside as `projects.json.corrupt-<ms>` rather than overwritten.
+- **Allocation.** The Workbench never submits a job: *Start GPU session* opens New job, where the exact
+  script is reviewed and submitted once. *Stop session* uses the token-checked `jobs_cancel`.
+
 ## V3: projects, VS Code, transfers, training workflows
 
 - **Capabilities.** New reads/launches are in `default.json`; every V3 command that writes a file is in

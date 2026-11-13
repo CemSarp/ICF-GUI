@@ -24,7 +24,16 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 New in 0.6.1
+## 🆕 Coming next (unreleased)
+
+- 🧪 **GPU Workbench.** A tab on every project: start one GPU session, save your build/test/run
+  commands as tasks (Makefile targets are suggested), press **Run**, and see *Queued → Running →
+  Succeeded/Failed* with the exit code and output a few seconds after it is printed. Compiler errors
+  from nvcc, GCC and Clang link to their line in the editor; the editor gets **Save & Build** /
+  **Save & Test**. Recent runs can be compared side by side. Works for any project, not one course.
+  → [GPU Workbench](docs/USER_GUIDE.md#gpu-workbench)
+
+## New in 0.6.1
 
 - 📖 **A calmer Handbook**: a readable document column, contents that follow where you are, search that
   stays in reach and highlights every match (⌘F), and *Start here* shortcuts.
@@ -141,6 +150,12 @@ worked. **ICF Control Center puts all of that in one window.**
 | ![Editing train.py on ICF in the app](docs/screenshots/editor-python.jpg) | ![Editing a CUDA kernel in dark mode](docs/screenshots/editor-cuda-dark.jpg) |
 | **Run on GPU** | **New file** |
 | ![The editor running kernel.cu on a GPU node with program arguments; the output appears below the code](docs/screenshots/editor-run-gpu.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
+
+### Build and test on a held GPU
+
+**Projects → project → GPU Workbench**: one GPU session for the project, saved tasks (`make`,
+`make test`, `python main.py` …) run with one click, live status and exit codes, compiler errors that
+open the editor at the line, and **Save & Build** in the editor.
 
 ### Notebooks on a GPU (experimental)
 

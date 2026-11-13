@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Read-only and local commands: connection management, cluster views, job preview/list/detail/logs, V3 project browsing, reading a text file for the in-app editor, environment discovery and import checks, VS Code launch and connection-sharing status/preview, workflow preview/monitoring, interactive kernel preview, saving the bundled handbook through a save panel, and full screen for the main window. Mutations live in job-mutations.json, file-mutations.json and kernel-mutations.json.",
+  "description": "Read-only and local commands: connection management, cluster views, job preview/list/detail/logs, V3 project browsing, reading a text file for the in-app editor, environment discovery and import checks, VS Code launch and connection-sharing status/preview, workflow preview/monitoring, interactive kernel preview, GPU Workbench task lists, run records and run status reads (files only), saving the bundled handbook through a save panel, and full screen for the main window. Mutations live in job-mutations.json, file-mutations.json and kernel-mutations.json.",
   "windows": [
     "main"
   ],
@@ -67,6 +67,10 @@
     "allow-files-read",
     "allow-vscode-share-status",
     "allow-vscode-share-preview",
-    "allow-kernel-preview"
+    "allow-kernel-preview",
+    "allow-workbench-save-tasks",
+    "allow-workbench-runs",
+    "allow-workbench-run-status",
+    "allow-workbench-set-note"
   ]
 }

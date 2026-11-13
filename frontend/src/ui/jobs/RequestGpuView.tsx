@@ -20,6 +20,7 @@ export function RequestGpuView({
   onOpenJobs,
   onSwitch,
   runTarget = null,
+  onOpenProject,
 }: {
   snapshot: ClusterSnapshot;
   status: ConnectionStatus;
@@ -28,6 +29,7 @@ export function RequestGpuView({
   /** "What do you want to run?" picked something the training workflow form handles. */
   onSwitch: (m: JobMode) => void;
   runTarget?: RunTarget | null;
+  onOpenProject?: (path: string) => void;
 }) {
   const {
     home,
@@ -93,7 +95,15 @@ export function RequestGpuView({
               it. Progress, node and logs appear in My Jobs.
             </p>
             <div className="actions start">
-              <button className="btn primary" onClick={() => onOpenJobs(result.jobId)}>
+              {runTarget?.fromProject && onOpenProject && (
+                <button className="btn primary" onClick={() => onOpenProject(runTarget.fromProject!)}>
+                  Back to the GPU Workbench
+                </button>
+              )}
+              <button
+                className={runTarget?.fromProject ? 'btn' : 'btn primary'}
+                onClick={() => onOpenJobs(result.jobId)}
+              >
                 Open job {result.jobId}
               </button>
               <button className="btn" onClick={() => setResult(null)}>

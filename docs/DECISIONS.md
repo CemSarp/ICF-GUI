@@ -456,6 +456,50 @@ SSH shell in the UI"), AGENTS.md rules 5 and 6 and docs/SECURITY.md for this one
 - **Not done:** several terminals or tabs, running a library command in one click, remembering the
   working directory across sessions, scripting the terminal (by design).
 
+## ADR-040 — GPU Workbench: project tasks run in the project's GPU session (amends ADR-038)
+*Status: accepted (unreleased), not yet tried on ICF.* The edit → build → test loop was spread over
+Projects, the editor, New job, My Jobs and the log viewer. The Workbench is a tab of a project that
+joins them; it adds no scheduler path, SSH path, editor or session system.
+- **Session.** The project's session is the newest GPU session receipt (ADR-038) whose working
+  directory is exactly the project folder, for this profile and user; its state is the jobs list the
+  app already polls (45 s, visible only). Not in the active list = ended; list not loaded = unknown;
+  never assumed running. "Start GPU session" opens New job filled with a session request (the project's
+  previous session request if any, else 1 GPU in the project's partition with its Python environment
+  as `export PATH='<env>/bin':"$PATH"` and its toolchain as `setupSource`/`module load`), where the
+  exact script is reviewed and submitted once as before. Stop = the existing token-checked cancel.
+- **Tasks** (`DevTask`: id, name, kind, command, folder, description) are stored on the project
+  record in `projects.json`, scoped like it, validated in Rust (≤ 30, name ≤ 60, command ≤ 16 KB
+  plain text, folder relative without `..`). No `schemaVersion`: fields are additive with serde
+  defaults. They hold what the user typed; the editor says not to put secrets there.
+- **Running** (`workbench_run`, job-mutations capability) takes a task *id*, never command text:
+  Rust builds `cd -- '<project>/<folder>'` + the stored command and sends it with the ADR-038 send
+  path (receipt check, `squeue` RUNNING check for the user, random-delimiter heredoc, `submit_lock`,
+  never retried). A refusal records nothing; a transport failure records the run as **Unknown**,
+  which a later status read can resolve because the block id is known. The session must belong to
+  the project folder. `squeue -o '%T %N'` now also returns the node, recorded on the run.
+- **Session loop change (new sessions only).** Each block's stdout+stderr is piped through
+  `tee` into `done/<id>.log` (and still into the job log, now with stderr in order), and
+  `done/<id>.rc` gets `<exit code> <start epoch> <end epoch>` (`${PIPESTATUS[0]}`). A run's state
+  comes from these files, never from log text, so output that prints a fake `@@icfcc-block` line
+  cannot change it: `.rc` → Succeeded/Failed (the exit code always wins), inbox file → Queued, log
+  without `.rc` → Running, session ended without `.rc` → Interrupted. The inbox is checked every
+  1 s for two minutes after the last block, then every 5 s (compute node only). A block that leaves
+  a background process holding stdout open now delays the next block until that process exits.
+- **Status reads** (`workbench_run_status`, read-only, no SLURM command) amend ADR-038's "no extra
+  polling": only while a run is queued/running *and* the window is visible, one read at a time of
+  the oldest active run, every 2 s for 2 minutes, 5 s up to 10 minutes, then 10 s; stops at a final
+  state, on error, and while hidden; Unknown runs stop being checked after 15 minutes. Each read is
+  one fixed script over the mux reusing the log reader (home + owner checks, offset, 64 KB) with a
+  1 s floor per run in Rust. A long-lived `tail -f` reader was deferred: more lifecycle for ~1 s.
+- **History.** The last 30 runs per project (task, job, block, node, GPU type, command ≤ 4 KB,
+  status, exit code, on-node start/end, note) are kept locally; output stays on ICF and is re-read
+  on demand ("no longer on ICF" when it is gone). Durations are whole-command wall time, labelled
+  as not GPU kernel time.
+- **Also:** an unreadable `projects.json` is now renamed `projects.json.corrupt-<ms>` instead of being
+  silently replaced on the next save.
+- **Not done:** streaming output, importing/exporting tasks, running tasks in parallel, "open in
+  VS Code at line", numeric benchmark extraction.
+
 ## Open questions (need the user or Informatics)
 1. Exact prompt text of student.ssh.inf.ed.ac.uk and icf (password vs keyboard-interactive, MFA).
 2. Whether storing the university password in the Keychain is permitted by policy.

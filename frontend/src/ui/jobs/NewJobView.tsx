@@ -24,6 +24,7 @@ export function NewJobView({
   onOpenRun,
   onRefreshCluster,
   runTarget,
+  onOpenProject,
 }: {
   mode: JobMode;
   setMode: (m: JobMode) => void;
@@ -38,6 +39,7 @@ export function NewJobView({
   onRefreshCluster: () => void;
   /** Projects' Run buttons: the folder or file New job opens on. */
   runTarget: RunTarget | null;
+  onOpenProject: (path: string) => void;
 }) {
   return (
     <>
@@ -68,6 +70,7 @@ export function NewJobView({
           onOpenJobs={onOpenJobs}
           onSwitch={setMode}
           runTarget={runTarget}
+          onOpenProject={onOpenProject}
         />
       )}
     </>

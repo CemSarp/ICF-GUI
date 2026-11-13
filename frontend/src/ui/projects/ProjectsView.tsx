@@ -15,7 +15,9 @@ import { useJobLogs } from '../../logic/projects/jobLogs';
 import { homePrefix, useEnvPanel } from '../../logic/projects/env';
 import { useProjectDetail, useProjects } from '../../logic/projects/useProjects';
 import { useVsCodeShare, useVsCodeStatus } from '../../logic/projects/vscode';
-import type { ConnectionStatus, Interpreter, ProjectRecord } from '../../types';
+import { usePersistentState } from '../../logic/persist';
+import type { ConnectionStatus, Interpreter, JobRequest, ProjectRecord } from '../../types';
+import { WorkbenchView } from '../workbench/WorkbenchView';
 import { RemoteBrowser } from './RemoteBrowser';
 
 export interface ProjectNav {
@@ -29,6 +31,11 @@ export interface ProjectNav {
   }) => void;
   onUpload: (remoteDir: string) => void;
   onEditFile: (remotePath: string) => void;
+  /** GPU Workbench: New job filled with this session request (reviewed there), and a job's detail. */
+  onStartSession: (request: JobRequest) => void;
+  onOpenJob: (jobId: string) => void;
+  /** A project file in the editor, at a line (from a compiler message). */
+  onEditAt: (remotePath: string, line: number, column: number | null) => void;
 }
 
 export function ProjectsView({
@@ -124,6 +131,7 @@ function ProjectDetail({
   nav: ProjectNav;
 }) {
   const { launch, launchError, launching, openInVsCode, download, refresh } = useProjectDetail(status, project);
+  const [tab, setTab] = usePersistentState<'files' | 'workbench'>('project.tab', 'files');
 
   return (
     <section aria-labelledby="project-title" className="project-detail">
@@ -154,42 +162,60 @@ function ProjectDetail({
           </button>
         </div>
       </div>
-      <Notice tone="warn" title="VS Code runs on the login node">
-        Its Run and Debug buttons have no GPU there and must not train. To use a GPU, press <strong>Run</strong> next to
-        a file below, or <strong>Run on a GPU</strong>.
-      </Notice>
       {launch && (
         <Notice tone="info" title="Launch requested">
           {launch.message}
         </Notice>
       )}
       {launchError && <Notice tone="bad">{launchError}</Notice>}
-      <VsCodePanel status={status} collapsible />
-      <EnvPanel
-        project={project}
-        onChanged={refresh}
-        onSmokeTest={() =>
-          nav.onStartTraining({
-            projectDir: project.path,
-            kind: 'gpu_smoke_test',
-            interpreter: project.interpreter,
-            toolchainId: project.toolchainId,
-          })
-        }
-      />
-      <JobLogsPanel folder={project.path} />
-      <RemoteBrowser
-        status={status}
-        start={project.path}
-        allowMkdir
-        allowDelete
-        title="Project files"
-        onSelectDir={(p) => nav.onUpload(p)}
-        selectDirLabel="Upload here"
-        fileAction={{ label: 'Download', run: (p) => void download(p), dirs: true }}
-        onOpenFile={nav.onEditFile}
-        onRunFile={(p) => nav.onRun(p, false)}
-      />
+      <div role="tablist" className="tabs" aria-label="Project">
+        <button role="tab" className="tab" aria-selected={tab === 'files'} onClick={() => setTab('files')}>
+          Files &amp; environment
+        </button>
+        <button role="tab" className="tab" aria-selected={tab === 'workbench'} onClick={() => setTab('workbench')}>
+          GPU Workbench
+        </button>
+      </div>
+      {tab === 'workbench' ? (
+        <WorkbenchView
+          status={status}
+          project={project}
+          nav={{ onStartSession: nav.onStartSession, onOpenJob: nav.onOpenJob, onOpenFile: nav.onEditAt }}
+        />
+      ) : (
+        <>
+          <Notice tone="warn" title="VS Code runs on the login node">
+            Its Run and Debug buttons have no GPU there and must not train. To use a GPU, press <strong>Run</strong>{' '}
+            next to a file below, or <strong>Run on a GPU</strong>.
+          </Notice>
+          <VsCodePanel status={status} collapsible />
+          <EnvPanel
+            project={project}
+            onChanged={refresh}
+            onSmokeTest={() =>
+              nav.onStartTraining({
+                projectDir: project.path,
+                kind: 'gpu_smoke_test',
+                interpreter: project.interpreter,
+                toolchainId: project.toolchainId,
+              })
+            }
+          />
+          <JobLogsPanel folder={project.path} />
+          <RemoteBrowser
+            status={status}
+            start={project.path}
+            allowMkdir
+            allowDelete
+            title="Project files"
+            onSelectDir={(p) => nav.onUpload(p)}
+            selectDirLabel="Upload here"
+            fileAction={{ label: 'Download', run: (p) => void download(p), dirs: true }}
+            onOpenFile={nav.onEditFile}
+            onRunFile={(p) => nav.onRun(p, false)}
+          />
+        </>
+      )}
     </section>
   );
 }

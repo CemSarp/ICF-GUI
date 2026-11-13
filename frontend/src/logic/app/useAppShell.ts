@@ -50,6 +50,8 @@ export function useAppShell() {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [uploadDir, setUploadDir] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<string | null>(null);
+  /** Where the editor puts the cursor (a compiler message's location), once per key. */
+  const [editingAt, setEditingAt] = useState<{ line: number; column: number | null; key: number } | null>(null);
   const [openNotebook, setOpenNotebook] = usePersistentState<string | null>('notebook.open', null);
   /** The open editor or notebook: unsaved edits and/or a running kernel that leaving would discard. */
   const [guard, setGuard] = useState<PageGuard | null>(null);
@@ -104,6 +106,22 @@ export function useAppShell() {
     setJobMode('script');
     go('request');
   };
+  /** GPU Workbench's "Start GPU session": New job filled with the session, and a way back afterwards. */
+  const startSession = (request: JobRequest) => {
+    setRunTarget((t) => ({
+      path: request.workingDir,
+      isDir: true,
+      key: Math.max(Date.now(), (t?.key ?? 0) + 1),
+      request,
+      fromProject: request.workingDir,
+    }));
+    setJobMode('script');
+    go('request');
+  };
+  const openProject = (path: string) => {
+    go('projects');
+    setProject(path);
+  };
   /** A finished job's "Edit and run again": New job refilled with what was reviewed and submitted. */
   const runAgain = (request: JobRequest) => runOnGpu(request.workingDir, true, request);
   /** New job's "What do you want to run?" moved to the other form: it opens from its saved draft. */
@@ -127,8 +145,16 @@ export function useAppShell() {
   const navigate = (v: View) => (v === view && v === 'notebooks' ? undefined : guarded ? setPendingLeave(v) : go(v));
   const requestDisconnect = () => (guarded || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
   /** Project files: notebooks open in the Notebooks tab, other text files in the editor. */
+  /** A text file in the editor at a line (GPU Workbench diagnostics). */
+  const openFileAt = (path: string, line: number, column: number | null) => {
+    setEditingAt((a) => ({ line, column, key: (a?.key ?? 0) + 1 }));
+    setEditingFile(path);
+  };
   const openFile = (path: string) => {
-    if (fileKind(path) !== 'notebook') return setEditingFile(path);
+    if (fileKind(path) !== 'notebook') {
+      setEditingAt(null);
+      return setEditingFile(path);
+    }
     setOpenNotebook(path);
     go('notebooks');
   };
@@ -195,6 +221,8 @@ export function useAppShell() {
     runTarget,
     runOnGpu,
     runAgain,
+    startSession,
+    openProject,
     setJobMode,
     wizardInit,
     selectedRun,
@@ -209,6 +237,8 @@ export function useAppShell() {
     focusMode,
     toggleFocus: () => setFocus(!focusMode),
     openFile,
+    openFileAt,
+    editingAt,
     pendingLeave,
     setPendingLeave,
     startTraining,

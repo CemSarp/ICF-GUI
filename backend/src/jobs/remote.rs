@@ -99,22 +99,25 @@ pub(crate) fn precheck_lines(checks: &[Precheck]) -> String {
 pub fn session_send_script(session_dir: &str, job_id: &str, user: &str, name: &str, block: &str, delim: &str) -> String {
     let mut s = String::from("# icfcc:session-send\numask 077\n");
     s += PATH_HELPERS;
-    s += &format!("st=$(squeue -h -j {} -u {} -o %T 2>/dev/null)\n", q(job_id), q(user));
-    s += "[ \"$st\" = RUNNING ] || { printf '@@err not_running %s\\n' \"$st\"; exit 0; }\n";
+    s += &format!("st=$(squeue -h -j {} -u {} -o '%T %N' 2>/dev/null)\n", q(job_id), q(user));
+    s += "set -- $st\n[ \"$1\" = RUNNING ] || { printf '@@err not_running %s\\n' \"$1\"; exit 0; }\nnode=$2\n";
     s += &format!("S={}\nn={}\n", q(session_dir), q(name));
     s += r#"[ -d "$S/inbox" ] || { printf '@@err not_ready\n'; exit 0; }
 r=$(cd -P -- "$S" 2>/dev/null && pwd -P) || { printf '@@err not_ready\n'; exit 0; }
 inside "$r" || { printf '@@err outside\n'; exit 0; }
 "#;
     s += &format!("cat > \"$r/.tmp-$n\" <<'{delim}' || {{ printf '@@err failed\\n'; exit 0; }}\n{block}\n{delim}\n");
-    s += "mv -f -- \"$r/.tmp-$n\" \"$r/inbox/$n.sh\" || { printf '@@err failed\\n'; exit 0; }\nprintf '@@ok %s\\n' \"$n\"\n";
+    s += "mv -f -- \"$r/.tmp-$n\" \"$r/inbox/$n.sh\" || { printf '@@err failed\\n'; exit 0; }\nprintf '@@ok %s %s\\n' \"$n\" \"$node\"\n";
     s
 }
 
-pub fn parse_session_send(out: &str) -> AppResult<String> {
+/// The block id and, when SLURM reported it, the node the session runs on.
+pub fn parse_session_send(out: &str) -> AppResult<(String, Option<String>)> {
     let line = |p: &str| out.lines().find_map(|l| l.strip_prefix(p)).map(str::trim);
-    if let Some(id) = line("@@ok ") {
-        return Ok(id.to_string());
+    if let Some(ok) = line("@@ok ") {
+        let (id, node) = ok.split_once(' ').map_or((ok, ""), |(a, b)| (a, b.trim()));
+        let node = Some(node).filter(|n| super::request::valid_node_name(n)).map(str::to_string);
+        return Ok((id.to_string(), node));
     }
     Err(match line("@@err ").map(|e| e.split_once(' ').map_or(e, |(k, _)| k)) {
         Some("not_running") => AppError::invalid("The session is not running (still queued, or it has ended). Nothing was sent."),
@@ -122,6 +125,60 @@ pub fn parse_session_send(out: &str) -> AppResult<String> {
         Some("outside") => AppError::new(ErrorCode::InvalidPath, "The session folder resolves outside your home. Nothing was sent."),
         _ => AppError::new(ErrorCode::SlurmError, "The commands could not be handed to the session."),
     })
+}
+
+/// One session block's state from its files (ADR-040): `done/<id>.rc` (finished), `inbox/<id>.sh`
+/// (waiting), then its output `done/<id>.log` from `offset` through the ordinary log reader.
+/// Read-only; no SLURM command.
+pub fn block_status_script(session_dir: &str, block: &str, user: &str, offset: Option<u64>, max_bytes: u64) -> String {
+    let mut s = String::from("# icfcc:block-status\n");
+    s += PATH_HELPERS;
+    s += &format!("S={}\nn={}\n", q(session_dir), q(block));
+    s += r#"r=$(cd -P -- "$S" 2>/dev/null && pwd -P) || { printf '@@gone\n'; exit 0; }
+inside "$r" || { printf '@@err outside\n'; exit 0; }
+[ -f "$r/done/$n.rc" ] && printf '@@rc %s\n' "$(head -c 80 -- "$r/done/$n.rc" | tr -d '\n')"
+[ -f "$r/inbox/$n.sh" ] && printf '@@queued\n'
+[ -f "$r/done/$n.sh" ] && printf '@@moved\n'
+"#;
+    s + &log_script(&format!("{session_dir}/done/{block}.log"), user, offset, max_bytes)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BlockStatus {
+    /// The session folder no longer exists (deleted, or never created).
+    pub gone: bool,
+    /// Still in the inbox: the session has not picked it up.
+    pub queued: bool,
+    /// Moved to `done/`: the session ran it (a session from before ADR-040 leaves no `.rc`/`.log`).
+    pub moved: bool,
+    /// `(exit code, start epoch, end epoch)` once finished; times as measured on the node.
+    pub rc: Option<(i32, Option<u64>, Option<u64>)>,
+    pub log: super::parse::LogResult,
+}
+
+pub fn parse_block_status(out: &str) -> BlockStatus {
+    let mut st = BlockStatus { gone: false, queued: false, moved: false, rc: None, log: super::parse::LogResult::Error("missing".into()) };
+    let mut rest = out;
+    while let Some((line, tail)) = rest.split_once('\n') {
+        if line == "@@gone" {
+            st.gone = true;
+            return st;
+        } else if line == "@@queued" {
+            st.queued = true;
+        } else if line == "@@moved" {
+            st.moved = true;
+        } else if let Some(v) = line.strip_prefix("@@rc ") {
+            let mut it = v.split_whitespace();
+            if let Some(rc) = it.next().and_then(|x| x.parse::<i32>().ok()).filter(|rc| (0..=255).contains(rc)) {
+                st.rc = Some((rc, it.next().and_then(|x| x.parse().ok()), it.next().and_then(|x| x.parse().ok())));
+            }
+        } else {
+            break;
+        }
+        rest = tail;
+    }
+    st.log = super::parse::parse_log_output(rest, 200_000);
+    st
 }
 
 fn finish_submit(mut s: String, job_script: &str, tag: &str) -> String {

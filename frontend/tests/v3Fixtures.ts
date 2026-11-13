@@ -80,6 +80,7 @@ export const project = (o: Partial<ProjectRecord> = {}): ProjectRecord => ({
   toolchainId: 'uoe-cuda-12-8',
   partition: null,
   gresType: null,
+  tasks: [],
   ...o,
 });
 

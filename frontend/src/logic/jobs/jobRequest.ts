@@ -43,6 +43,8 @@ export interface RunTarget {
   key: number;
   /** "Edit and run again": the form is refilled with this earlier, reviewed request instead. */
   request?: JobRequest;
+  /** Opened from this project's GPU Workbench ("Start GPU session"): offer the way back. */
+  fromProject?: string;
 }
 
 export interface Draft {

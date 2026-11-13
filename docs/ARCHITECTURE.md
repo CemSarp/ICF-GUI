@@ -77,6 +77,40 @@ logic/training   wizardDraft + useTrainingWizard (DRAFT→UPLOADING→VALIDATING
 logic/transfers  useTransfers (pick/pack/upload/download, progress, cancel/retry/discard) →  ui/transfers
 ```
 
+## GPU Workbench (ADR-040)
+
+A project tab that runs the project's saved tasks in its GPU session (ADR-038). No new scheduler,
+SSH or session path:
+
+```text
+workbench.rs            DevTask / RunRecord, validation, task block (`cd -- '<dir>'` + command),
+                        apply_status (exit code first), workbench_save_tasks / runs / run (mutation,
+                        job-mutations capability) / run_status / set_note
+jobs/request.rs         session loop: per-block `done/<id>.log` (tee, stdout+stderr) and
+                        `done/<id>.rc` (`rc start end`), inbox checked every 1 s for 2 min, then 5 s
+jobs/remote.rs          session_send_script (also returns the node), block_status_script (reads
+                        `.rc`, the inbox and the block log via log_script)
+jobs/commands.rs        session_request / prepare_block shared by session_send and workbench_run
+projects/mod.rs         tasks on ProjectRecord, runs (≤ 30 per project) in projects.json
+        ⇅  logic/api.ts
+logic/workbench  workbench.ts (findSession from receipts + jobs list, sessionRequest, poll cadence,
+                 compareNotes), diagnostics.ts (nvcc/GCC/Clang/Python/test summaries/CUDA hints),
+                 discovery.ts (static Makefile/pytest suggestions), useWorkbench (tasks, runs, adaptive
+                 status reads of the oldest active run, output buffer ≤ 512 KB, suggestions, compare)
+ui/workbench     WorkbenchView (session, tasks, output, recent runs, compare, task editor),
+                 EditorTasks (Build/Test/Save & run bar in the editor, same state)  →  ui/projects tab
+```
+
+Flow of one run: **Run** → `workbench_run(path, taskId, jobId)` → Rust looks the task up in
+`projects.json`, checks the session receipt belongs to the project folder, sends one block with
+`session_send_script` (squeue RUNNING check on ICF), records the run (Queued, or Unknown on a transport
+failure) → the UI reads `workbench_run_status` for the oldest active run every 2/5/10 s while visible
+→ `.rc` present: Succeeded/Failed with exit code and on-node times; session gone from the jobs list
+without `.rc`: Interrupted. The session's state comes from the receipts and the shared jobs-list
+query (45 s), so the Workbench adds no SLURM queries. The editor's `CodeEditor` takes a `goto`
+(line, column, key) for compiler-error navigation; `useFileEditor.save` reports whether it saved, so
+*Save & run* runs only after a successful, conflict-checked save.
+
 ## Training workflow (V3)
 
 ```text

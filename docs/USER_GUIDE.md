@@ -141,6 +141,9 @@ its first failing command; the log shows `@@icfcc-block <id> end rc=<exit code>`
 reaches its time limit, or you press **Cancel job**. It is not a terminal: programs that wait for
 input will not get any.
 
+For buttons instead of typed blocks, use the project's **GPU Workbench** (Projects → project → GPU
+Workbench): the same kind of session, with saved tasks and clickable compiler errors.
+
 ### Avoiding a broken node
 
 If jobs fail at once with no log (My Jobs says SLURM stopped the job before it could run), the node
@@ -230,6 +233,62 @@ VS Code. If someone did, you choose **Reload from ICF** or **Overwrite the versi
 with unsaved edits asks first.
 
 **Limits.** Files over 2 MB (20 MB for notebooks), binary files and symbolic links are not opened.
+
+### GPU Workbench
+
+Open a project and choose the **GPU Workbench** tab. It turns the build → test → fix loop into
+buttons, on one GPU you keep while you work. Nothing needs configuring first.
+
+1. **Start GPU session.** New job opens with a GPU session for this folder (your project's Python
+   environment and CUDA toolchain as setup lines, if chosen). Check the GPU type and resources, review
+   the script, submit. It queues like any job; the Workbench shows *Waiting for a GPU*, then *GPU
+   allocated* with its node.
+2. **Add a task**: a name and the command you would type, e.g. *Build* = `make`, *Test* = `make test`,
+   *Run* = `python main.py`. If the project has a Makefile (or pytest configuration), *Suggested from
+   this project* lists its targets; **Add…** lets you check one before saving it. Nothing is run to
+   find them.
+3. **Run.** The task is handed to the session once and runs on its GPU node in the project folder.
+   It shows *Queued*, *Running*, then *Succeeded* or *Failed* with the exit code; the output updates
+   every few seconds while the window is visible. Run another task, or the same one again once it has
+   finished; there is no new SLURM job per run.
+4. **Fix errors.** Compiler errors and warnings (nvcc, GCC, Clang) are listed with file and line;
+   **Open at line** opens the file in the editor there. The raw output is always below.
+5. **Edit and repeat.** In the editor, the **Project tasks** bar has **Build** / **Test**; with unsaved
+   edits they become **Save & Build** / **Save & Test** (saved first, with the usual conflict check;
+   nothing runs if the save fails). Prefer VS Code? Edit and save there, then press Run here.
+6. **Benchmark and compare.** Run your benchmark task on the same session (same GPU), add a note, and
+   tick two runs under *Recent runs* to compare them side by side. Use the same GPU type for timing
+   comparisons; the time shown is the whole command, not the kernel.
+7. **Stop session** when you are done (or let it end after its idle minutes).
+
+**Example: a generic CUDA project.**
+
+```
+my-cuda-project/
+├── Makefile        # all: app · test: app → ./app --test · bench: app → ./app --bench
+├── src/kernel.cu
+├── src/main.cpp
+└── tests/
+```
+
+Open `my-cuda-project`, choose a CUDA toolchain under *Files & environment*, start a session, add
+the suggested *Build* (`make`), `make test` and `make bench`. A typo in `src/kernel.cu` shows as
+*Failed (exit code 2) — 1 compiler error* with **Open at line 42**; fix it, **Save & Build**, then
+**Test**. A Python GPU project works the same with a task like `python train.py --epochs 1`; a
+project with no build system just needs one task.
+
+**Example (illustration only): MLS 2026 Homework 1.** `hw1-asr` has `make`, `make test1` …
+`make test4`, `make test` in its Makefile; add them from the suggestions and add tasks
+`./run.sh --cuda task1` and `./run.sh --profile`. Choose the `mls-asr` environment and the CUDA
+toolchain first. Nothing in the app is specific to this course.
+
+**What is stored.** Tasks and the last 30 runs (task, job, node, GPU type, command, status, exit
+code, times, your note) are kept on this Mac in `projects.json`, for this account and project only.
+Output stays on ICF in the session's folder (`icfcc-run/session-<job id>/done/`).
+
+**Disconnecting** leaves the session running on ICF until it is idle or reaches its time limit; the
+Workbench finds it again when you reconnect. A task that was running when the session ended shows
+*Interrupted*; nothing is ever resubmitted for you.
 
 ### Job logs
 

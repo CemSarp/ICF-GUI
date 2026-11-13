@@ -1,10 +1,77 @@
 // Dev-only browser preview of the UI (pnpm dev, then /dev/preview.html). Never talks to SSH.
 import demo from '../fixtures/slurm/demo_snapshot.json';
 import * as v3 from '../tests/v3Fixtures';
+import type { RunRecord } from '../src/types';
 
 let shareOn = false;
 const deleted = new Set<string>(); // files_delete, until the page reloads
 const renamed = new Map<string, string>(); // files_rename: old path → new name
+
+// GPU Workbench preview data (ADR-040).
+const wbSession = {
+  partition: 'Teaching',
+  gresType: 'nvidia_rtx_2080_ti',
+  gpuCount: 1,
+  cpus: 4,
+  memoryMib: 16384,
+  timeLimitSeconds: 7200,
+  jobName: 'semeval-session',
+  workingDir: v3.PROJECT,
+  runner: 'session' as const,
+  program: '',
+  programArgs: [],
+  pythonEnv: null,
+  setupSource: null,
+  mailUser: null,
+  commands: '',
+  sessionIdleMinutes: 30,
+};
+let wbTasks = [
+  {
+    id: 'build',
+    name: 'Build',
+    kind: 'build' as const,
+    command: 'make',
+    workingDir: '',
+    description: 'Compile the project',
+  },
+  { id: 'test', name: 'Test', kind: 'test' as const, command: 'make test', workingDir: '', description: '' },
+  {
+    id: 'bench',
+    name: 'Benchmark',
+    kind: 'benchmark' as const,
+    command: './bench.sh --size large',
+    workingDir: '',
+    description: '',
+  },
+];
+const WB_FAIL =
+  'nvcc -O2 -arch=sm_75 -o app src/kernel.cu src/main.cpp\nsrc/kernel.cu(42): error: identifier "idx" is undefined\n      out[idx] = a[i] + b[i];\n          ^\n\nsrc/kernel.cu(57): warning #177-D: variable "tmp" was declared but never referenced\n\n1 error detected in the compilation of "src/kernel.cu".\nmake: *** [Makefile:8: app] Error 2\n';
+let wbRuns: RunRecord[] = [
+  {
+    profileId: 'default',
+    user: 's1234567',
+    project: v3.PROJECT,
+    id: 'r1',
+    taskId: 'build',
+    taskName: 'Build',
+    kind: 'build' as const,
+    jobId: '900103',
+    block: '1760000000000',
+    command: 'make',
+    workingDir: v3.PROJECT,
+    gpu: 'nvidia_rtx_2080_ti',
+    node: 'landonia05',
+    sentAt: '2026-10-16T09:20:00Z',
+    sentMs: 1760000000000,
+    status: 'failed',
+    exitCode: 2,
+    startedEpoch: 1760000001,
+    endedEpoch: 1760000006,
+    message: null,
+    note: null,
+  },
+];
 
 const callbacks = new Map<number, (e: unknown) => void>();
 let next = 1;
@@ -184,12 +251,22 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         'sbatch: error: Batch job submission failed: Invalid account or account/partition combination specified — Your account may not use this partition/QoS. Ask Informatics support which partitions you can use.',
     }),
     receipt({ tag: 'r1', status: 'accepted', partition: 'Teaching', jobId: '900101' }),
+    receipt({ tag: 'r3', status: 'accepted', partition: 'Teaching', jobId: '900103', request: wbSession }),
   ],
   jobs_dismiss_receipt: () => null,
   jobs_list_mine: () => ({
     list: {
       active: [
         job({ jobId: '900101', name: 'semeval-train', state: 'running', stateRaw: 'RUNNING', nodes: 'landonia11' }),
+        job({
+          jobId: '900103',
+          name: 'semeval-session',
+          nodes: 'landonia05',
+          cpus: 4,
+          memory: '16G',
+          elapsed: '0:12:40',
+          timeLeft: '1:47:20',
+        }),
         job({
           jobId: '900102',
           name: 'sweep-lr',
@@ -295,7 +372,56 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
           : `exec python3 '${r.workingDir}/${r.program}'\n`),
     };
   },
-  projects_recent: () => [v3.project()],
+  projects_recent: () => [v3.project({ tasks: wbTasks })],
+  workbench_save_tasks: (a) => ((wbTasks = a.tasks as typeof wbTasks), v3.project({ tasks: wbTasks })),
+  workbench_runs: () => wbRuns,
+  workbench_run: (a) => {
+    const t = wbTasks.find((x) => x.id === a.taskId)!;
+    const r = {
+      ...wbRuns[0]!,
+      id: `r${wbRuns.length + 1}`,
+      taskId: t.id,
+      taskName: t.name,
+      kind: t.kind,
+      command: t.command,
+      status: 'queued' as const,
+      exitCode: null,
+      startedEpoch: null,
+      endedEpoch: null,
+      sentAt: new Date().toISOString(),
+      sentMs: Date.now(),
+      note: null,
+    };
+    wbRuns = [r, ...wbRuns];
+    return r;
+  },
+  workbench_run_status: (a) => {
+    const r = wbRuns.find((x) => x.id === a.runId)!;
+    const done =
+      r.status === 'queued' || r.status === 'running'
+        ? {
+            ...r,
+            status: 'succeeded' as const,
+            exitCode: 0,
+            startedEpoch: Math.round(r.sentMs / 1000) + 2,
+            endedEpoch: Math.round(r.sentMs / 1000) + 9,
+          }
+        : r;
+    wbRuns = wbRuns.map((x) => (x.id === r.id ? done : x));
+    const text =
+      r.id === 'r1'
+        ? WB_FAIL
+        : 'nvcc -O2 -arch=sm_75 -o app src/kernel.cu src/main.cpp\nPASS vector_add\nPASS reduce\nALL PASS\n';
+    return {
+      run: done,
+      chunk: { path: 'x', size: text.length, from: 0, next: text.length, rotated: false, text },
+      logNote: null,
+    };
+  },
+  workbench_set_note: (a) =>
+    (wbRuns = wbRuns.map((x) => (x.id === a.runId ? { ...x, note: a.note as string } : x))).find(
+      (x) => x.id === a.runId,
+    ),
   projects_browse: (a) => {
     const l = v3.listing((a.path as string | null) ?? null);
     return {

@@ -1,5 +1,34 @@
 # Changelog
 
+## [Unreleased] · GPU Workbench
+
+### Added
+- **GPU Workbench** (Projects → project → GPU Workbench, ADR-040): the project's GPU session with its
+  state, node, GPU, resources and time left; **Start GPU session** opens New job prefilled (project
+  folder, Python environment, CUDA toolchain, or the project's previous session) for the usual review;
+  **Stop session** with the usual confirmation.
+- **Development tasks**: name + command (folder, kind and description optional), up to 30 per project,
+  stored on this Mac; Edit, Duplicate, Delete; **Run** sends a task once to the session; Queued, Running,
+  Succeeded, Failed (with exit code), Interrupted and Unknown, decided by the exit code.
+- **Task suggestions** from a Makefile's ordinary targets and from pytest configuration, read as text
+  and added only after review.
+- **Compiler errors and test results**: nvcc, GCC, Clang and Python locations listed with **Open at
+  line** (the editor jumps to the line and column); PASS/FAIL and pytest counts, with a warning when a
+  command exits 0 but reports failures; short hints for common CUDA failures.
+- **Editor**: a **Project tasks** bar with Build/Test and **Save & Build**/**Save & Test** (conflict-checked
+  save first; nothing runs if it fails).
+- **Recent runs** (last 30 per project) with notes, and **Compare** two runs side by side (GPU type
+  differences called out; wall time is never presented as kernel time). ⌘↩ reruns the last task.
+
+### Changed
+- **GPU sessions started from now on** keep each block's output in `done/<id>.log` (stdout and stderr
+  together, also still in the job log) and its exit code and times in `done/<id>.rc`, and pick up a new
+  block within about a second for two minutes after the last one (then every 5 s). Sessions started
+  with an older version keep working as before.
+- **Projects**: a project page has two tabs, *Files & environment* and *GPU Workbench*.
+- An unreadable `projects.json` is now kept aside as `projects.json.corrupt-<ms>` instead of being
+  replaced on the next save.
+
 ## [0.6.1] — 2026-11-09 · A calmer Handbook
 
 ### Changed

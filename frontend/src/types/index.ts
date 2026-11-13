@@ -454,6 +454,58 @@ export interface ProjectRecord {
   toolchainId: string | null;
   partition: string | null;
   gresType: string | null;
+  /** GPU Workbench tasks (ADR-040). */
+  tasks: DevTask[];
+}
+
+// ---- GPU Workbench (ADR-040, mirrors backend/src/workbench.rs) ----
+
+export type TaskKind = 'build' | 'test' | 'run' | 'benchmark' | 'custom';
+
+/** A named command the user runs often in the project's GPU session. */
+export interface DevTask {
+  id: string;
+  name: string;
+  kind: TaskKind;
+  /** Shell lines, run in order, stopping at the first failing one. */
+  command: string;
+  /** Relative to the project folder; '' = the project folder. */
+  workingDir: string;
+  description: string;
+}
+
+export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'interrupted' | 'unknown';
+
+export interface RunRecord {
+  profileId: string;
+  user: string;
+  project: string;
+  id: string;
+  taskId: string;
+  taskName: string;
+  kind: TaskKind;
+  jobId: string;
+  /** Session block id (distinct per run). */
+  block: string;
+  command: string;
+  workingDir: string;
+  gpu: string | null;
+  node: string | null;
+  sentAt: string;
+  sentMs: number;
+  status: RunStatus;
+  exitCode: number | null;
+  /** On-node start/end of the command, seconds since the epoch. */
+  startedEpoch: number | null;
+  endedEpoch: number | null;
+  message: string | null;
+  note: string | null;
+}
+
+export interface RunStatusResponse {
+  run: RunRecord;
+  chunk: LogChunk | null;
+  logNote: string | null;
 }
 
 /** Job logs in one icfcc-run folder; `old*` are those last changed more than the chosen days ago. */
