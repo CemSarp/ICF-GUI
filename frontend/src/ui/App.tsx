@@ -130,6 +130,8 @@ export function App() {
     runTarget,
     runOnGpu,
     runAgain,
+    startSession,
+    openProject,
     wizardInit,
     selectedRun,
     setSelectedRun,
@@ -143,6 +145,8 @@ export function App() {
     focusMode,
     toggleFocus,
     openFile,
+    openFileAt,
+    editingAt,
     pendingLeave,
     setPendingLeave,
     startTraining,
@@ -364,6 +368,8 @@ export function App() {
               >
                 <EditorView
                   path={editingFile}
+                  goto={editingAt}
+                  onOpenFile={openFileAt}
                   status={status}
                   snapshot={snapshot}
                   onClose={() => {
@@ -383,6 +389,9 @@ export function App() {
                   onStartTraining: (init) => startTraining(init),
                   onUpload: uploadTo,
                   onEditFile: openFile,
+                  onEditAt: openFileAt,
+                  onStartSession: startSession,
+                  onOpenJob: (id) => openJobs(id),
                 }}
               />
             ) : view === 'notebooks' ? (
@@ -430,6 +439,7 @@ export function App() {
                 onOpenJobs={openJobs}
                 onOpenRun={openRun}
                 onRefreshCluster={snap.refreshNow}
+                onOpenProject={openProject}
               />
             ) : view === 'transfers' ? (
               <TransfersView status={status} uploadDir={uploadDir ?? project} />

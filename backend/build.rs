@@ -91,6 +91,13 @@ const COMMANDS: &[&str] = &[
     "terminal_write",
     "terminal_resize",
     "terminal_close",
+    // GPU Workbench (ADR-040): local task/run records and the read-only status read; the run itself
+    // is granted only via capabilities/job-mutations.json
+    "workbench_save_tasks",
+    "workbench_runs",
+    "workbench_run_status",
+    "workbench_set_note",
+    "workbench_run",
 ];
 
 fn main() {

@@ -3019,3 +3019,159 @@ input[type='checkbox'][role='switch']:focus-visible {
     transition: none;
   }
 }
+
+/* GPU Workbench (ADR-040) */
+.workbench {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+.wb-tasks,
+.wb-runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wb-task {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.wb-task:first-child {
+  border-top: 0;
+}
+.wb-task-text {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.wb-command {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-pre {
+  max-height: 420px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb-run {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-run > span:first-child {
+  flex: 1;
+}
+.wb-run:hover,
+.wb-run.is-selected {
+  background: var(--surface-2);
+}
+.wb-verdict {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-2);
+}
+.wb-verdict.tone-bad {
+  border-left-color: var(--bad);
+}
+.wb-verdict.tone-warn {
+  border-left-color: var(--warn);
+}
+.wb-verdict.tone-ok {
+  border-left-color: var(--ok);
+}
+.wb-hints {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+.wb-diags ul {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.wb-diag {
+  color: var(--text);
+  padding: 6px 10px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.wb-diag.tone-bad {
+  color: var(--text);
+  border-left-color: var(--bad);
+}
+.wb-diag.tone-warn {
+  color: var(--text);
+  border-left-color: var(--warn);
+}
+.wb-diag.tone-bad strong {
+  color: var(--bad);
+}
+.wb-diag.tone-warn strong {
+  color: var(--warn);
+}
+.wb-diag pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+.wb-note,
+.wb-suggest {
+  margin-top: 8px;
+}
+.wb-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.wb-note input {
+  flex: 1 1 240px;
+}
+.wb-run-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wb-compare {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+.wb-compare th,
+.wb-compare td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.wb-compare-out {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}

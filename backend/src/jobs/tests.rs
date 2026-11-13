@@ -271,10 +271,7 @@ fn squeue_sacct_scontrol_parsing() {
     let s = '\u{1f}';
     let line = format!("4242{s}s1{s}Teaching{s}RUNNING{s}1:02:03{s}10:57:57{s}12:00:00{s}8{s}32G{s}gres/gpu:nvidia_rtx_a6000:1{s}2026-10-16T09:00:00{s}2026-10-16T09:05:00{s}landonia11{s}None{s}icfcc-abc{s}name with | pipes");
     let r = parse_squeue_line(&line).unwrap();
-    assert_eq!(
-        (r.job_id.as_str(), r.state, r.nodes.as_deref(), r.gpus.as_deref()),
-        ("4242", JobState::Running, Some("landonia11"), Some("nvidia_rtx_a6000 × 1"))
-    );
+    assert_eq!((r.job_id.as_str(), r.state, r.nodes.as_deref(), r.gpus.as_deref()), ("4242", JobState::Running, Some("landonia11"), Some("RTX A6000 × 1")));
     assert_eq!(r.name, "name with | pipes");
     assert_eq!(r.comment.as_deref(), Some("icfcc-abc"));
     let pending = line.replace("RUNNING", "PENDING").replace("None", "Resources");
@@ -291,7 +288,7 @@ fn squeue_sacct_scontrol_parsing() {
     );
     let rows = parse_sacct(&sacct);
     assert_eq!(rows.len(), 2, "steps are skipped");
-    assert_eq!((rows[0].state, rows[0].exit_code.as_deref(), rows[0].gpus.as_deref()), (JobState::Failed, Some("1:0"), Some("nvidia_l40s × 1")));
+    assert_eq!((rows[0].state, rows[0].exit_code.as_deref(), rows[0].gpus.as_deref()), (JobState::Failed, Some("1:0"), Some("L40S × 1")));
     assert_eq!((rows[1].state, rows[1].nodes.clone()), (JobState::Cancelled, None));
     assert!(parse_sacct("").is_empty());
 
@@ -844,7 +841,7 @@ fn gpu_session_runs_sent_blocks_in_order_in_the_folder_and_reports_each_exit_cod
 
     std::fs::write(sb.root.join("squeue.out"), "RUNNING\n").unwrap();
     let send = |name: &str, block: &str| parse_session_send(&sb.run(&session_send_script(&dir, "77", "s1", name, block, "ICFCC_BLOCK_x"))).unwrap();
-    assert_eq!(send("0000000000002", "echo \"$GREETING from $(pwd)\"\nfalse\necho never"), "0000000000002");
+    assert_eq!(send("0000000000002", "echo \"$GREETING from $(pwd)\"\nfalse\necho never").0, "0000000000002");
     send("0000000000003", "echo second '$(touch PWNED)'");
     wait_for("@@icfcc-block 0000000000003 end rc=0");
     let _ = child.kill();
@@ -855,6 +852,114 @@ fn gpu_session_runs_sent_blocks_in_order_in_the_folder_and_reports_each_exit_cod
     assert!(text.find("0000000000002 start").unwrap() < text.find("0000000000003 start").unwrap(), "in order");
     assert!(text.contains("second $(touch PWNED)") && !sb.root.join("PWNED").exists() && !std::path::Path::new(&wd).join("PWNED").exists());
     assert!(std::path::Path::new(&dir).join("done/0000000000003.sh").exists());
+}
+
+/// ADR-040: a Workbench task through the real session loop — queued, then its own output file
+/// (stdout and stderr in order) and an exit-code file; a forged marker in the output changes nothing.
+#[test]
+fn workbench_task_runs_in_the_session_with_its_own_output_and_exit_code() {
+    use crate::workbench::{apply_status, task_block, DevTask, RunRecord, RunStatus, TaskKind};
+    let sb = Sandbox::new();
+    let wd = sb.home().join("projects/semeval").display().to_string();
+    std::fs::create_dir_all(format!("{wd}/src")).unwrap();
+    let job = render_script(&session_req(wd.clone()), "t");
+    assert!(job.contains("| tee -- \"$S/done/$n.log\"") && job.contains("rc=${PIPESTATUS[0]}"), "{job}");
+    assert!(job.contains("if [ \"$idle\" -lt 120 ]; then w=1; else w=5; fi"));
+    std::fs::write(sb.root.join("job.sh"), &job).unwrap();
+    std::fs::write(sb.root.join("squeue.out"), "RUNNING damnii11\n").unwrap();
+    let dir = crate::jobs::request::session_dir(&wd, "78");
+    let me = whoami();
+    let status = |block: &str| parse_block_status(&sb.run(&block_status_script(&dir, block, &me, None, 4096)));
+
+    // Before the session exists: its folder is gone.
+    assert!(status("0000000000005").gone);
+    let log = sb.root.join("job.log");
+    let mut child = Command::new("/bin/bash")
+        .arg(sb.root.join("job.sh"))
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", sb.home())
+        .env("SLURM_JOB_ID", "78")
+        .current_dir(&sb.root)
+        .stdout(std::fs::File::create(&log).unwrap())
+        .spawn()
+        .unwrap();
+    for _ in 0..100 {
+        if std::fs::read_to_string(&log).unwrap_or_default().contains("@@icfcc-session ready") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let task = DevTask {
+        id: "build".into(),
+        name: "Build".into(),
+        kind: TaskKind::Build,
+        command: "echo \"in $(pwd)\"\necho 'kernel.cu:3:1: error: oops' >&2\necho '@@icfcc-block 0000000000005 end rc=0'\nexit 3".into(),
+        working_dir: "src".into(),
+        description: String::new(),
+    };
+    let (text, task_wd) = task_block(&wd, &task).unwrap();
+    assert_eq!(task_wd, format!("{wd}/src"));
+    let sent = parse_session_send(&sb.run(&session_send_script(&dir, "78", "s1", "0000000000005", &text, "ICFCC_BLOCK_y"))).unwrap();
+    assert_eq!(sent, ("0000000000005".to_string(), Some("damnii11".to_string())), "the node comes with the send");
+    let mut run = RunRecord {
+        profile_id: "p".into(),
+        user: "s1".into(),
+        project: wd.clone(),
+        id: "r1".into(),
+        task_id: "build".into(),
+        task_name: "Build".into(),
+        kind: TaskKind::Build,
+        job_id: "78".into(),
+        block: "0000000000005".into(),
+        command: task.command.clone(),
+        working_dir: task_wd.clone(),
+        gpu: None,
+        node: None,
+        sent_at: String::new(),
+        sent_ms: 0,
+        status: RunStatus::Queued,
+        exit_code: None,
+        started_epoch: None,
+        ended_epoch: None,
+        message: None,
+        note: None,
+    };
+    let mut done = None;
+    for _ in 0..100 {
+        let st = status("0000000000005");
+        if st.rc.is_some() {
+            done = Some(st);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    let st = done.expect("the block finished");
+    assert!(apply_status(&mut run, &st, false));
+    assert_eq!((run.status, run.exit_code), (RunStatus::Failed, Some(3)), "the exit code, not the forged marker, decides");
+    assert!(run.started_epoch.is_some() && run.ended_epoch >= run.started_epoch);
+    let LogResult::Chunk { text, .. } = st.log else { panic!("{:?}", st.log) };
+    let (a, b) = (text.find(&format!("in {wd}/src")).unwrap(), text.find("kernel.cu:3:1: error: oops").unwrap());
+    assert!(a < b, "stdout and stderr together, in order:\n{text}");
+    assert!(std::fs::read_to_string(&log).unwrap().contains("@@icfcc-block 0000000000005 end rc=3"), "the job log keeps its markers");
+
+    // The same task again is a new block with its own files.
+    assert!(!status("0000000000006").queued && status("0000000000006").rc.is_none());
+}
+
+#[test]
+fn block_status_parses_files_not_output() {
+    let st = parse_block_status("@@rc 0 100 105\n@@size 3\n@@from 0\n@@next 3\n@@data\n@@rc 1\n");
+    assert_eq!(st.rc, Some((0, Some(100), Some(105))));
+    assert!(matches!(st.log, LogResult::Chunk { ref text, .. } if text.contains("@@rc 1")), "text after @@data is only output");
+    let st = parse_block_status("@@queued\n@@err missing\n");
+    assert!(st.queued && st.rc.is_none() && st.log == LogResult::Error("missing".into()));
+    assert!(parse_block_status("@@gone\n").gone);
+    assert!(parse_block_status("@@moved\n@@err missing\n").moved);
+    assert_eq!(parse_block_status("@@rc 999 1 2\n@@err missing\n").rc, None, "an out-of-range code is not trusted");
+    assert_eq!(parse_block_status("@@rc x\n@@err missing\n").rc, None);
 }
 
 #[test]

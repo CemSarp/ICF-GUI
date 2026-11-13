@@ -12,6 +12,7 @@ pub mod state;
 pub mod terminal;
 pub mod transfers;
 pub mod util;
+pub mod workbench;
 pub mod workflow;
 
 use commands::AppState;
@@ -121,6 +122,11 @@ pub fn run() {
             terminal::commands::terminal_write,
             terminal::commands::terminal_resize,
             terminal::commands::terminal_close,
+            workbench::workbench_save_tasks,
+            workbench::workbench_runs,
+            workbench::workbench_run,
+            workbench::workbench_run_status,
+            workbench::workbench_set_note,
         ])
         .build(tauri::generate_context!())
         .expect("error while building ICF Control Center");

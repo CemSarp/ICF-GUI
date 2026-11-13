@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.7.0] — 2026-11-13 · GPU Workbench and head node choice
+
+### Added
+- **GPU Workbench** (Projects → project → GPU Workbench, ADR-040): the project's GPU session with its
+  state, node, GPU, resources and time left; **Start GPU session** opens New job prefilled (project
+  folder, Python environment, CUDA toolchain, or the project's previous session) for the usual review;
+  **Stop session** with the usual confirmation.
+- **Development tasks**: name + command (folder, kind and description optional), up to 30 per project,
+  stored on this Mac; Edit, Duplicate, Delete; **Run** sends a task once to the session; Queued, Running,
+  Succeeded, Failed (with exit code), Interrupted and Unknown, decided by the exit code.
+- **Task suggestions** from a Makefile's ordinary targets and from pytest configuration, read as text
+  and added only after review.
+- **Compiler errors and test results**: nvcc, GCC, Clang and Python locations listed with **Open at
+  line** (the editor jumps to the line and column); PASS/FAIL and pytest counts, with a warning when a
+  command exits 0 but reports failures; short hints for common CUDA failures.
+- **Editor**: a **Project tasks** bar with Build/Test and **Save & Build**/**Save & Test** (conflict-checked
+  save first; nothing runs if it fails).
+- **Recent runs** (last 30 per project) with notes, and **Compare** two runs side by side (GPU type
+  differences called out; wall time is never presented as kernel time). ⌘↩ reruns the last task.
+
+- **Head node choice** on the sign-in screen: **icf** or **icf2**, so you can still sign in when
+  one is down. Remembered in the profile; validated in the backend as one of the two. `icf2` gets
+  its own first-connect host-key check, the gateway fallback without an ssh config, and its own
+  `Host icf2` block in the VS Code setup hint (ADR-041).
+
+### Changed
+- **GPU sessions started from now on** keep each block's output in `done/<id>.log` (stdout and stderr
+  together, also still in the job log) and its exit code and times in `done/<id>.rc`, and pick up a new
+  block within about a second for two minutes after the last one (then every 5 s). Sessions started
+  with an older version keep working as before.
+- **Projects**: a project page has two tabs, *Files & environment* and *GPU Workbench*.
+- An unreadable `projects.json` is now kept aside as `projects.json.corrupt-<ms>` instead of being
+  replaced on the next save.
+- **Readable resources everywhere**: job RAM shows as GB (`8000M` → *7.8 GB*, per-CPU requests say so)
+  in My Jobs, job pages and the Workbench, and GPUs show by model name (*GeForce RTX 2080 Ti × 1*
+  instead of `nvidia_geforce_rtx_2080_ti × 1`).
+
+### Verified on ICF
+- GPU Workbench on 2026-11-13: session job 3716757 (Teaching, 1 × RTX 2080 Ti on `damnii12`); *Build*
+  (`make`, 13 s) and *make check-sm* succeeded with their exit codes, each picked up about 3 s after
+  Run; comparing the two runs worked.
+
 ## [0.6.1] — 2026-11-09 · A calmer Handbook
 
 ### Changed

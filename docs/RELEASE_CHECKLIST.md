@@ -148,3 +148,14 @@
 - [x] Released from this Mac with `scripts/release.sh` (GitHub's macOS runners never picked the job up;
       the release workflow was removed): downloaded zip passes `shasum -a 256 -c` and
       `codesign --verify --deep --strict`, version 0.6.0
+
+## v0.7.0 (GPU Workbench, ADR-040; head node choice, ADR-041)
+
+- [x] Frontend gates: lint, typecheck, 188 UI tests, production build
+- [x] Rust gates: fmt, clippy `--all-targets -D warnings`, tests (incl. the real session loop in `bash`)
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [x] Live (owner): a Workbench session ran tasks with exit codes (job 3716757, ~3 s pickup)
+- [ ] Live (owner): sign in through `icf2` (first-connect host-key prompt for icf2)
+- [ ] Live (owner): a compiler error opens the editor at its line; **Save & Build** from the editor
+- [ ] Live (owner): Stop session from the Workbench; a session that hits its time limit mid-task shows Interrupted
+- [ ] Merged to `main`, tagged `v0.7.0`, released with `scripts/release.sh`

@@ -1,6 +1,6 @@
 # ICF Control Center Handbook
 
-Version 0.6.1 · the complete reference for every screen, setting and job type.
+Version 0.7.0 · the complete reference for every screen, setting and job type.
 
 ## About this handbook
 
@@ -10,7 +10,7 @@ what it stores and where, and how to fix the problems people run into. It is wri
 look things up by section, or use the search box on the Handbook screen.
 
 **For AI assistants.** If you were given this file to help someone use ICF Control Center, treat it
-as the authoritative description of version 0.6.1. Conventions: **bold** text is a label exactly as
+as the authoritative description of version 0.7.0. Conventions: **bold** text is a label exactly as
 it appears in the app (a button, tab, field or tile), *italics* are messages the app shows, and
 `code` is a command, path or value typed or shown literally. "ICF" is the University of Edinburgh
 Informatics GPU cluster; "SLURM" is its scheduler. When you answer, name the screen and the exact
@@ -87,6 +87,12 @@ A Python process the app starts on an Interactive-partition GPU with `srun`, for
 A batch job type that holds one GPU and runs command blocks you send from the job's page, one after
 another in the same folder, without queueing again. Ends by itself after the idle minutes you choose.
 
+### GPU Workbench, development task
+A tab of a project (**Projects → project → GPU Workbench**) that runs the project's **development
+tasks** — named commands such as *Build* = `make` or *Test* = `make test` — in the project's GPU
+session, one after another, and shows their output, exit code and compiler errors. A task is the
+command you would type; it runs the files saved on ICF.
+
 ### Training workflow (managed training)
 A batch job built by the app that copies datasets to the GPU node's fast local disk, runs your script
 or notebook, keeps checkpoints, copies results back to `/home` and cleans up. Followed in **My Jobs →
@@ -137,7 +143,8 @@ Synthetic data for exploring the app without connecting.
 | Run a `.sh` file, or a course `.sbatch` file with `#SBATCH` lines | **Shell script** | New job (or **Run** next to the file in Projects) |
 | Run lines I would type in a terminal on a GPU node (`make`, `make test1`, `./run.sh …`, `nvcc …`) | **Commands** | New job |
 | Compile and run a `.cu`, `.cpp` or `.c` file as a batch job | **Commands** → **Choose a file** (the compile-and-run lines are filled in) | New job |
-| Edit, build, test, repeat on one GPU without queueing each time | **GPU session** | New job, then send blocks from My Jobs |
+| Edit, build, test, repeat on one GPU without queueing each time, with buttons and clickable compiler errors | **GPU Workbench** (a GPU session plus saved tasks) | Projects → project → **GPU Workbench** |
+| The same, typing each block yourself | **GPU session** | New job, then send blocks from My Jobs |
 | Train a model with datasets staged to fast disk, checkpoints and results copied back | **Python script** + **Managed training** | New job |
 | Run a whole notebook top to bottom, unattended | **Notebook** | New job |
 | Run notebook cells one at a time, keep variables, see plots | Interactive kernel | **Notebooks** tab → **Start kernel** |
@@ -203,6 +210,13 @@ Use a **GPU session** for the edit → build → test cycle:
 6. Edit `csrc/task*.cu` between blocks in the app's editor (Projects → click the file → ⌘S) or VS
    Code, then send the next block.
 7. **Cancel job** when you are done so the GPU goes back to the pool (or let the idle timer end it).
+
+Same loop with buttons (an example; nothing in the app is specific to this course): open
+`hw1-asr` in **Projects**, choose the `mls-asr` environment and the CUDA toolchain on its **Files &
+environment** tab, then on **GPU Workbench**: **Start GPU session** (review, pick the GPU type, submit),
+add the suggested `make`, `make test1` … targets from *Suggested from this project* and a task
+`./run.sh --cuda task1`. Edit a `.cu` file, press **Save & Test** in the editor, click a compiler
+error to jump to its line. See **GPU Workbench** below.
 
 Batch alternative: **Projects** → `hw1-asr` → **Run** next to `run_asr.sbatch`. Its partition
 (Teaching), GPU (`gpu:1`), 2 CPUs, 16 GB and 30 minutes are taken over, and its commands become the
@@ -279,6 +293,14 @@ The first screen. Title *Connect to ICF*. Nothing is submitted or changed on ICF
 ### Profile
 Shown only if you have more than one connection profile. Picks which saved profile to use.
 
+### Head node
+**icf** or **icf2**, the two ICF login nodes. If one is down, pick the other. The choice is
+remembered in the profile. Each head node has its own host key, so the first sign-in to `icf2` asks
+you to verify its fingerprint, and a password saved for `icf` is not reused for `icf2` (tick
+*Remember* again). With your own `~/.ssh/config`, `icf2` needs its own `Host icf2` block (a copy of
+the `icf` one with `HostName icf2`); without one, the app goes through the gateway as for `icf`. A
+custom *SSH host alias* under Advanced overrides this choice.
+
 ### Sign-in method
 - **Use existing SSH config / agent** *(recommended)*: for when `ssh icf` already works in the macOS
   Terminal with SSH keys or an agent. No password is typed into the app.
@@ -299,8 +321,9 @@ password empty. *Saved in Keychain: …* lists what is saved; **Forget saved pas
 Keychain items after a confirmation (**Delete from Keychain**).
 
 ### Advanced connection settings
-- **SSH host alias** (default `icf`): the `Host` name from your `~/.ssh/config` the app connects to.
-- **Jump host override**: empty = use your SSH config's `ProxyJump`; if you have no `icf` entry, the
+- **SSH host alias (overrides the head node)** (default `icf`): the `Host` name from your
+  `~/.ssh/config` the app connects to. Picking a head node above replaces it with `icf` or `icf2`.
+- **Jump host override**: empty = use your SSH config's `ProxyJump`; if you have no `icf`/`icf2` entry, the
   app goes through `student.ssh.inf.ed.ac.uk` as the UUN you typed. A value here always wins.
 - **Gateway password (if different)**: the password for the gateway, if it differs from ICF's.
 - **Use the same password for the gateway and ICF**: sends the one password to both hops. Without
@@ -722,7 +745,9 @@ passwords.
 
 ### Project page
 Header: the path, **Run on a GPU** (New job on this folder), **Open in VS Code**, **New training
-workflow**. Notice: *VS Code runs on the login node*: its Run and Debug buttons have no GPU there.
+workflow**. Two tabs (the choice is remembered): **Files & environment** (the cards below and the
+project's files) and **GPU Workbench** (see **GPU Workbench**). Notice: *VS Code runs on the login
+node*: its Run and Debug buttons have no GPU there.
 
 ### VS Code card
 Folded to one line with its status; click the title to open (remembered). Shows **VS Code** (version)
@@ -761,9 +786,115 @@ inactivity; quitting or disconnecting the app disconnects VS Code too. Untick to
 changed more than **Older than N days** (1–365, default 30). **Delete N old logs** removes only those,
 after confirmation; other files, links and newer logs (including running jobs') stay.
 
+## GPU Workbench
+
+**Projects → project → GPU Workbench.** Build, test and run a project on one GPU without writing a
+SLURM script or queueing for every run. Works for any project: a CUDA or C++ project with a Makefile,
+a Python project, or one with no build system at all.
+
+### GPU session card
+- **Start GPU session** opens **New job** filled with a GPU session for the project folder: the
+  project's last session settings if there was one, otherwise 1 GPU in the project's partition with its
+  Python environment (`export PATH='<env>/bin':"$PATH"`) and CUDA toolchain as setup lines. You review
+  the exact script and resources there and submit once, as for any job; then **Back to the GPU
+  Workbench**. Nothing is submitted by opening the Workbench.
+- States: **Not started**; **Waiting for a GPU** (queued, with SLURM's reason); **GPU allocated** (node,
+  GPU, partition, CPUs · RAM, running for · time left, when it ends by itself); **Ended**; **State
+  unknown** (your job list has not loaded yet). A session that is no longer among your active jobs is
+  shown as ended, never as running. The page notices state changes with the normal job-list refresh
+  (every 45 s); **Check session** refreshes now.
+- **Open job** goes to the job page (full log, all scheduler fields). **Stop session** cancels it with
+  the usual confirmation; only your own job, only when you confirm. Leaving the page or closing a file
+  never stops it; it ends by itself after its idle minutes or time limit.
+- The session belongs to the folder it was started in: one started elsewhere (or from another Mac) is
+  not used. A missing CUDA toolchain or an interpreter outside your home is explained before you start;
+  the app installs nothing.
+
+### Development tasks
+- **Add task**: a **Name** and a **Command** are all you need (*Build* / `make`). **More options**:
+  **Kind** (Build, Test, Run, Benchmark, Custom — only for display), **Folder** inside the project (e.g.
+  `src`; default the project folder), **Description**.
+- A command may have several lines; they run like a GPU-session block: in order, in the task's folder,
+  stopping at the first failing line. Each run starts in its folder again: a `cd` or `export` in one
+  task does not carry over to the next (the session's setup lines do).
+- **Edit**, **Duplicate**, **Delete** (asks first; files on ICF and earlier runs are not touched).
+- Up to 30 tasks per project, stored on this Mac for this account and project only. Don't put
+  passwords or tokens in a command.
+- *Suggested from this project*: read from the project's `Makefile` (ordinary targets such as `all`,
+  `test`, `test1`, `bench`, `clean`; never `install`, `setup…`, `deploy` and the like) and, when there is
+  `pytest.ini`, `conftest.py` or a pytest section in `pyproject.toml`/`setup.cfg`, `python -m pytest`.
+  The files are only read, never run. **Add…** opens the task editor with it filled in, so you check it
+  first; not every target is meant for a GPU node.
+
+### Running a task
+- **Run** needs a running session (*This task requires a running GPU session* otherwise). One press
+  sends the task once; Run stays disabled while that task is queued or running, so a double-click
+  cannot queue it twice. Other tasks can be queued behind it; the session runs them in order.
+- States: **Queued** (waiting in the session), **Running**, **Succeeded** (exit code 0), **Failed**
+  (non-zero exit code, shown), **Interrupted** (the session ended before it finished; no exit code),
+  **Unknown** (the connection failed while handing it over: it may or may not have arrived; the page
+  checks for 15 minutes and never sends it again by itself). Success comes only from the exit code,
+  never from words in the output.
+- While a task is queued or running and the window is visible, the page reads its output every 2 s
+  (5 s after 2 minutes, 10 s after 10 minutes), only from its file on ICF (no SLURM command). Nothing is
+  read while the window is hidden. **Refresh output** reads it again.
+- The output card: when it was sent, *started about N s later* (time waiting in the session), *ran N s*
+  (the whole command on the node, not GPU kernel time), exit code, then what was recognised, then the
+  full raw output (the last 512 KB in view). **Command** shows exactly what ran. **Add a note** keeps a
+  short note with the run.
+
+### Compiler errors and test results
+- Errors and warnings from nvcc (`kernel.cu(42): error: …`), GCC and Clang (`main.cpp:10:5: error: …`)
+  and Python traceback lines in your project are listed with file, line and message (up to 200).
+  **Open at line N** opens the file in the editor with the cursor on that line; files outside the
+  project are listed without a link.
+- Test counts come from lines that start with `PASS`/`FAIL` and from pytest's summary line. If the
+  command exits 0 but failures were reported, the page says so instead of hiding it.
+- Short hints for recognisable CUDA problems: illegal memory access (`compute-sanitizer`), out of GPU
+  memory, nvcc not found (choose a CUDA toolchain), no kernel image for this GPU (`-arch`), races
+  (`compute-sanitizer --tool racecheck`), segmentation faults. Nothing is run or edited for you.
+
+### Recent runs and comparing
+- The last 30 runs of the project (on this Mac): click one to see its output again (re-read from ICF;
+  *no longer on ICF* if it was deleted).
+- Tick two runs to **Compare** them: task, GPU type, node, time, status, exit code, command wall time,
+  note, and both outputs side by side. Different GPU types are called out; wall time includes start-up
+  and compilation, and two runs say nothing about significance.
+- ⌘↩ (outside text fields) runs the newest run's task again.
+
+### With the editor and VS Code
+- In the editor, a file inside a project with tasks shows **Project tasks**: its Build and Test tasks
+  and **More tasks…**, the session state, and the latest run's output with clickable errors. With
+  unsaved edits the buttons read **Save & Build** / **Save & Test**: the file is saved first (with the
+  usual conflict check) and the task runs only if the save succeeded.
+- **Run on GPU** in the editor is different: it runs the text in the editor, saved or not, on an
+  interactive kernel (Interactive partition). Workbench tasks run the saved files in the project's
+  batch GPU session.
+- With VS Code: edit there, save, then press Run in the Workbench. The Workbench never changes VS Code
+  settings.
+
+### What happens when…
+- **You disconnect or quit**: the session keeps running on ICF (until idle or its time limit); tasks
+  already sent keep running. When you reconnect, the Workbench finds the session again from this Mac's
+  records and the job list, and reads the outcome of runs it had not seen finish.
+- **The session was started by an older version of the app**: tasks run, but their result is only in
+  the job's log; the run shows Unknown and says so. Start a new session for per-task results.
+- **The session ends during a task**: the run shows Interrupted; nothing is resubmitted. **Start a new
+  GPU session** when you want another.
+
+### GPU Workbench vs other ways to run
+| | Holds a GPU between runs | What runs | Where it is set up |
+|---|---|---|---|
+| GPU Workbench | Yes (a batch GPU session) | Saved tasks, on saved files | Projects → GPU Workbench |
+| New job (Commands, scripts) | No, one job per run | One script or command list | New job |
+| GPU session panel on a job page | Yes | Blocks you type | My Jobs → job |
+| Editor Run on GPU / notebook kernels | Yes (interactive kernel) | The editor text or cells | Editor, Notebooks |
+
 ## Editor
 
-Opens when you click a text file in Projects (or its **Edit**).
+Opens when you click a text file in Projects (or its **Edit**), or a compiler error in the GPU
+Workbench (the cursor goes to its line). Files of a project with Workbench tasks show the **Project
+tasks** bar (see **GPU Workbench**).
 - Colours for Python, C/C++, CUDA (`.cu`, `.cuh`) and Markdown; other text files (`.txt`, `.sh`,
   `.json`, `.yaml`, `.env`…) as plain text. Notebooks open in Notebooks.
 - Keys: Tab indents (Esc then Tab leaves the editor), ⌘F searches, ⌘S saves. A dot marks unsaved
@@ -995,11 +1126,15 @@ failure · Result copy-back failed · Cancelled · Unknown failure.
 - `.icfcc-part` files: partial uploads (Transfers → Discard partial file removes them).
 - Scratch folders on GPU nodes (`/disk/scratch/<you>/icfcc-<job>-<tag>`): deleted by the job itself.
 - `.vscode/settings.json` (with a backup) only if you used **Set as VS Code interpreter**.
+- `<folder>/icfcc-run/session-<job id>/`: a GPU session's blocks (`inbox/`, then `done/<id>.sh`), and
+  for each, `done/<id>.log` (its output) and `done/<id>.rc` (exit code, start, end). Safe to delete
+  when the session has ended; the Workbench then says the output is no longer on ICF.
 
 ### On your Mac
 - `~/Library/Application Support/local.icf-control-center/`: `profiles.json` (connection profiles,
   host-key decisions, settings), `jobs.json` (receipts), `projects.json` (recent projects, environment
-  choices, toolchains, presets), `runs.json` (training runs), `transfers.json`, `vscode_ssh_config`
+  choices, toolchains, presets, GPU Workbench tasks and the last 30 runs per project: task, job, node,
+  GPU type, command, status, exit code, times, note — no output), `runs.json` (training runs), `transfers.json`, `vscode_ssh_config`
   (only with VS Code sharing). No passwords.
 - macOS Keychain: saved passwords, only if you ticked *Remember*.
 - VS Code's `settings.json`: one key `remote.SSH.configFile` (with a backup), only with VS Code sharing.
@@ -1023,6 +1158,11 @@ failure · Result copy-back failed · Cancelled · Unknown failure.
 | Commands / setup lines | ≤ 16 KB |
 | Avoid nodes | ≤ 16 |
 | GPU session idle | 5–240 min (default 30) |
+| GPU session picks up a block | within ~1 s for 2 min after the last block, then ~5 s |
+| Workbench tasks | ≤ 30 per project; name ≤ 60, description ≤ 200, command ≤ 16 KB |
+| Workbench runs kept | last 30 per project (on this Mac; output stays on ICF) |
+| Workbench output reads | while a task runs and the window is visible: every 2 s, 5 s after 2 min, 10 s after 10 min |
+| Workbench problems listed | ≤ 200 |
 | Kernel | Interactive partition only; 15–240 min; stops after 30 idle minutes |
 | Editor | ≤ 2 MB (notebooks ≤ 20 MB); no binaries or links |
 | Folder listing | first 1000 entries |
@@ -1138,6 +1278,7 @@ Only in the macOS Keychain, only if you ticked *Remember*, only after a successf
 | Editor | Tab / Esc then Tab | Indent / leave the editor |
 | Editor | ⌘⇧Enter | Run on GPU |
 | GPU session panel | ⌘↩ | Send the block |
+| GPU Workbench | ⌘↩ (outside text fields) | Run the last task again |
 | Notebooks | ⌃⌘F | Full screen |
 | Notebooks | see *Notebook keys* | Cell commands |
 | Terminal | Ctrl-C | Interrupt the running command |

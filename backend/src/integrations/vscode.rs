@@ -139,7 +139,7 @@ pub async fn alias_check(ssh_bin: &Path, alias: &str) -> AppResult<AliasCheck> {
 pub fn alias_problems(a: &AliasCheck, profile_jump: &str, remote_user: &str) -> (Vec<String>, Option<String>) {
     let mut p = vec![];
     let direct = a.proxy_jump.is_none() && !a.uses_proxy_command;
-    let needs_gateway = a.alias.eq_ignore_ascii_case("icf") && a.hostname.eq_ignore_ascii_case("icf") && direct;
+    let needs_gateway = crate::profiles::is_head_node(&a.alias) && a.hostname.eq_ignore_ascii_case(&a.alias) && direct;
     if needs_gateway {
         p.push(format!("Your ~/.ssh/config has no Host block for '{}', so VS Code can only reach it from inside the Informatics network. Add the block below to ~/.ssh/config (the app does not edit it).", a.alias));
     } else if !profile_jump.is_empty() && direct {
@@ -154,9 +154,9 @@ pub fn alias_problems(a: &AliasCheck, profile_jump: &str, remote_user: &str) -> 
             a.user
         ));
     }
-    let snippet = (!p.is_empty() && a.alias.eq_ignore_ascii_case("icf")).then(|| {
+    let snippet = (!p.is_empty() && crate::profiles::is_head_node(&a.alias)).then(|| {
         let u = if remote_user.is_empty() { "<UUN>" } else { remote_user };
-        format!("Host edinburgh-jump\n    HostName {}\n    User {u}\n\nHost icf\n    HostName icf\n    User {u}\n    ProxyJump edinburgh-jump\n    ServerAliveInterval 60\n    ServerAliveCountMax 3\n", crate::profiles::ICF_GATEWAY)
+        format!("Host edinburgh-jump\n    HostName {}\n    User {u}\n\nHost {h}\n    HostName {h}\n    User {u}\n    ProxyJump edinburgh-jump\n    ServerAliveInterval 60\n    ServerAliveCountMax 3\n", crate::profiles::ICF_GATEWAY, h = a.alias.to_ascii_lowercase())
     });
     (p, snippet)
 }

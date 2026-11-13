@@ -32,6 +32,41 @@ export function memory(mb: number | null): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(0)} GB` : `${mb} MB`;
 }
 
+/**
+ * SLURM's memory text (`8000M`, `32G`, `16Gn` per node, `4000Mc` per CPU) as GB; other text as is.
+ */
+export function slurmMemory(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const m = /^(\d+(?:\.\d+)?)([KMGT]?)([nc]?)$/i.exec(raw.trim());
+  if (!m) return raw;
+  const mb = Number(m[1]) * ({ K: 1 / 1024, M: 1, G: 1024, T: 1024 * 1024 }[m[2]!.toUpperCase() || 'M'] ?? 1);
+  const gb = mb / 1024;
+  const text =
+    gb >= 1 ? `${gb < 10 && !Number.isInteger(gb) ? gb.toFixed(1) : Math.round(gb)} GB` : `${Math.round(mb)} MB`;
+  return m[3]?.toLowerCase() === 'c' ? `${text} per CPU` : text;
+}
+
+/** A GRES type as people know it (`nvidia_geforce_rtx_2080_ti` → `GeForce RTX 2080 Ti`); mirrors the backend. */
+export function gpuModel(gresType: string | null | undefined): string {
+  if (!gresType) return 'GPU (untyped)';
+  const mig = (w: string) => /^\d+g\.\d+gb$/.test(w);
+  return gresType
+    .replace(/^nvidia_/, '')
+    .split('_')
+    .map((w) =>
+      w === 'ti'
+        ? 'Ti'
+        : w === 'geforce'
+          ? 'GeForce'
+          : mig(w)
+            ? w
+            : w.length >= 5 && /^[a-z]+$/i.test(w)
+              ? w[0]!.toUpperCase() + w.slice(1)
+              : w.toUpperCase(),
+    )
+    .join(' ');
+}
+
 // Text + glyph for every state so meaning never depends on colour alone.
 export const NODE_STATE: Record<NodeState, { label: string; glyph: string; tone: string }> = {
   idle: { label: 'Idle', glyph: '○', tone: 'ok' },

@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.6.1-blue)
+![version](https://img.shields.io/badge/version-0.7.0-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -24,7 +24,18 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
 ---
 
-## 🆕 New in 0.6.1
+## 🆕 New in 0.7.0
+
+- 🧪 **GPU Workbench.** A tab on every project: start one GPU session, save your build/test/run
+  commands as tasks (Makefile targets are suggested), press **Run**, and see *Queued → Running →
+  Succeeded/Failed* with the exit code and output a few seconds after it is printed. Compiler errors
+  from nvcc, GCC and Clang link to their line in the editor; the editor gets **Save & Build** /
+  **Save & Test**. Recent runs can be compared side by side. Works for any project, not one course.
+  → [GPU Workbench](docs/USER_GUIDE.md#gpu-workbench)
+- 🔀 **Choose the head node** on the sign-in screen: **icf** or **icf2**, so you can still get in when
+  one is down. Each has its own host-key check; a password saved for one is not sent to the other.
+
+## New in 0.6.1
 
 - 📖 **A calmer Handbook**: a readable document column, contents that follow where you are, search that
   stays in reach and highlights every match (⌘F), and *Start here* shortcuts.
@@ -142,6 +153,16 @@ worked. **ICF Control Center puts all of that in one window.**
 | **Run on GPU** | **New file** |
 | ![The editor running kernel.cu on a GPU node with program arguments; the output appears below the code](docs/screenshots/editor-run-gpu.jpg) | ![Create a file on ICF: name and type, then open it in the editor](docs/screenshots/new-file.jpg) |
 
+### Build and test on a held GPU
+
+**Projects → project → GPU Workbench**: one GPU session for the project, saved tasks (`make`,
+`make test`, `python main.py` …) run with one click, live status and exit codes, compiler errors that
+open the editor at the line, and **Save & Build** in the editor.
+
+| GPU session and tasks | Compiler errors with the line to open |
+|---|---|
+| ![GPU Workbench: the project's GPU session on landonia05 with GPU, RAM and time left, and Build, Test and Benchmark tasks with Run buttons (demo data)](docs/screenshots/workbench.jpg) | ![A failed Build: exit code 2, one nvcc error and one warning listed with Open at line, and the raw compiler output below (demo data)](docs/screenshots/workbench-errors.jpg) |
+
 ### Notebooks on a GPU (experimental)
 
 | A notebook with a running kernel | Start a kernel: the exact `srun` line, reviewed |
@@ -209,8 +230,9 @@ flowchart LR
 
 1. **Sign in.** Choose **Username and password**, type your UUN (e.g. `s1234567`) and your DICE
    password. Tick *Use the same password for the gateway and ICF* if they're the same.
-   **No SSH setup is needed:** if your Mac has no `icf` entry in `~/.ssh/config`, the app goes through
-   `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
+   Pick the head node, **icf** or **icf2** (if one is down, try the other).
+   **No SSH setup is needed:** if your Mac has no `icf`/`icf2` entry in `~/.ssh/config`, the app goes
+   through `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
 3. **Look around.** **Cluster** shows each partition with its free GPUs; its *Nodes* tab lists every node.

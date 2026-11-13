@@ -135,6 +135,7 @@ export function CodeEditor({
   cell = false,
   placeholder,
   label,
+  goto,
 }: {
   initial: string;
   lang: Lang;
@@ -154,6 +155,8 @@ export function CodeEditor({
   cell?: boolean;
   placeholder?: string;
   label: string;
+  /** Put the cursor on this line (1-based; column too when known) and scroll to it, once per `key`. */
+  goto?: { line: number; column: number | null; key: number } | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -232,6 +235,17 @@ export function CodeEditor({
     // Mount once per key: `initial`/`lang` changes arrive through a new `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const v = view.current;
+    if (!v || !goto) return;
+    const line = v.state.doc.line(Math.min(Math.max(1, goto.line), v.state.doc.lines));
+    const pos = Math.min(line.to, line.from + Math.max(0, (goto.column ?? 1) - 1));
+    v.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+    v.focus();
+    // Once per request (its key); runs after the mount above, so a newly opened file goes there too.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goto?.key]);
 
   return <div className={`code-editor${compact ? ' compact' : ''}${cell ? ' cell' : ''}`} ref={host} />;
 }

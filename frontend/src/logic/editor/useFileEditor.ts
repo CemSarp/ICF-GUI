@@ -55,8 +55,9 @@ export function useFileEditor(path: string, onDirtyChange: (dirty: boolean) => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
-  const save = async (overwrite = false) => {
-    if (!file || busy) return;
+  /** True once the text is on ICF; false when nothing was saved (conflict, error, busy). */
+  const save = async (overwrite = false): Promise<boolean> => {
+    if (!file || busy) return false;
     setBusy(true);
     setNote(null);
     try {
@@ -68,9 +69,11 @@ export function useFileEditor(path: string, onDirtyChange: (dirty: boolean) => v
       setConflict(false);
       markDirty(false);
       setNote({ tone: 'ok', text: 'Saved to ICF.' });
+      return true;
     } catch (e) {
       if (isConflict(e)) setConflict(true);
       else setNote({ tone: 'bad', text: errorMessage(e) });
+      return false;
     } finally {
       setBusy(false);
     }

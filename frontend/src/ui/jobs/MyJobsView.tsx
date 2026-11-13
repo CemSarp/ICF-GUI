@@ -1,5 +1,5 @@
 import { Badge, EmptyState, Icon, Notice } from '../components/ui';
-import { clusterTime, formatTime, JOB_STATE } from '../../logic/format';
+import { clusterTime, formatTime, JOB_STATE, slurmMemory } from '../../logic/format';
 import { newestFirst, useMyJobs } from '../../logic/jobs/myJobs';
 import type { ConnectionStatus, JobReceipt, JobRow } from '../../types';
 
@@ -144,7 +144,7 @@ export function MyJobsView({
                     <td>{j.partition}</td>
                     <td className="small nowrap">{j.gpus ?? '—'}</td>
                     <td className="num nowrap">
-                      {j.cpus ?? '—'} / {j.memory ?? '—'}
+                      {j.cpus ?? '—'} / {slurmMemory(j.memory)}
                     </td>
                     <td className="small nowrap" title={j.submittedAt ?? ''}>
                       {clusterTime(j.submittedAt)}

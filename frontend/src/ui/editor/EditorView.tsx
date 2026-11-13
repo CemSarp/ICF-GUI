@@ -10,6 +10,7 @@ import { CellOutputs } from '../notebooks/CellOutputs';
 import { KernelControls } from '../notebooks/KernelControls';
 import { KernelDialog } from '../notebooks/KernelDialog';
 import { RunStatus } from '../notebooks/RunStatus';
+import { EditorTasks } from '../workbench/EditorTasks';
 import { CodeEditor } from './CodeEditor';
 import { ConflictDialog } from './ConflictDialog';
 import '../../styles/notebook.css';
@@ -25,17 +26,27 @@ export function EditorView({
   snapshot,
   onClose,
   onGuard,
+  goto = null,
+  onOpenFile,
 }: {
   path: string;
   status: ConnectionStatus;
   snapshot: ClusterSnapshot | null;
   onClose: () => void;
   onGuard: (g: PageGuard | null) => void;
+  /** Cursor position to show (a compiler message's location). */
+  goto?: { line: number; column: number | null; key: number } | null;
+  /** Open a project file at a line; another file asks first while there are unsaved edits. */
+  onOpenFile?: (path: string, line: number, column: number | null) => void;
 }) {
   const p = useEditorPage(path, onGuard);
   const { kind, file, dirty, busy, kernel, lang, name } = p;
-  const [leaving, setLeaving] = useState(false);
-  const back = () => (dirty || kernel.active ? setLeaving(true) : onClose());
+  /** What happens once the user agrees to leave (back, or another file from a compiler message). */
+  const [leaving, setLeaving] = useState<null | (() => void)>(null);
+  const leave = (then: () => void) => (dirty || kernel.active ? setLeaving(() => then) : then());
+  const back = () => leave(onClose);
+  const openAt = (p2: string, line: number, column: number | null) =>
+    p2 === path ? onOpenFile?.(p2, line, column) : leave(() => onOpenFile?.(p2, line, column));
   const { setKernelSheet } = p;
   // Stable: a sheet re-focuses its first control whenever `onClose` changes.
   const closeKernelSheet = useCallback(() => setKernelSheet(false), [setKernelSheet]);
@@ -74,6 +85,9 @@ export function EditorView({
           </button>
         </div>
       </div>
+      {file && onOpenFile && (
+        <EditorTasks status={status} path={path} dirty={dirty} save={() => p.save()} onOpenFile={openAt} />
+      )}
       {lang && file && (
         <div className="run-bar" role="toolbar" aria-label="Run on a GPU node">
           <KernelControls kernel={kernel} onStart={() => setKernelSheet(true)} />
@@ -130,6 +144,7 @@ export function EditorView({
             lang={kind as Lang}
             readOnly={!file.writable}
             label={`Contents of ${name}`}
+            goto={goto}
             onSave={() => void p.save()}
             onRunFile={lang ? p.runFile : undefined}
             onChange={p.onTextChange}
@@ -180,7 +195,7 @@ export function EditorView({
         <Dialog
           title={dirty ? 'Discard unsaved changes?' : 'Stop the kernel?'}
           labelledBy="leave-title"
-          onClose={() => setLeaving(false)}
+          onClose={() => setLeaving(null)}
         >
           {dirty && (
             <p>
@@ -189,10 +204,10 @@ export function EditorView({
           )}
           {kernel.active && <p>The kernel stops and its GPU is released when you leave this file.</p>}
           <div className="actions">
-            <button className="btn" onClick={() => setLeaving(false)} data-autofocus>
+            <button className="btn" onClick={() => setLeaving(null)} data-autofocus>
               {dirty ? 'Keep editing' : 'Stay'}
             </button>
-            <button className="btn danger" onClick={onClose}>
+            <button className="btn danger" onClick={() => leaving()}>
               {dirty ? 'Discard changes' : 'Stop kernel and leave'}
             </button>
           </div>

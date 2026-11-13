@@ -101,6 +101,22 @@ pub fn validate_host(h: &str) -> Result<(), &'static str> {
 /// UUNs are lowercase and Linux usernames are case-sensitive: `-l S1234567` logs into a different
 /// (nonexistent) account and the password is rejected, while the gateway (user from ssh_config) works.
 // ponytail: always lowercase; revisit if a site ever needs mixed-case usernames.
+/// ICF head (login) nodes the sign-in screen offers. Both sit behind the gateway and have their own
+/// host keys, which go through the normal first-connect prompt.
+pub const HEAD_NODES: [&str; 2] = ["icf", "icf2"];
+
+pub fn is_head_node(alias: &str) -> bool {
+    HEAD_NODES.iter().any(|h| h.eq_ignore_ascii_case(alias))
+}
+
+pub fn validate_head_node(h: &str) -> AppResult<()> {
+    if HEAD_NODES.contains(&h) {
+        Ok(())
+    } else {
+        Err(AppError::invalid(format!("Head node must be one of: {}", HEAD_NODES.join(", "))))
+    }
+}
+
 /// Public Informatics gateway; `icf` only resolves from behind it.
 pub const ICF_GATEWAY: &str = "student.ssh.inf.ed.ac.uk";
 
@@ -227,6 +243,10 @@ mod tests {
         assert!(validate_user("s1234567").is_ok());
         assert!(validate_jump("s1234567@student.ssh.inf.ed.ac.uk").is_ok());
         assert!(validate_jump("edinburgh-jump,h2:2222").is_ok());
+        for bad in ["icf3", "ICF2", "icf2 ", "-oProxyCommand=x", "icf2;id", "", "student.ssh.inf.ed.ac.uk"] {
+            assert!(validate_head_node(bad).is_err(), "{bad:?}");
+        }
+        assert!(validate_head_node("icf").is_ok() && validate_head_node("icf2").is_ok());
     }
 
     use std::os::unix::fs::PermissionsExt;

@@ -46,6 +46,9 @@ pub struct ProjectRecord {
     pub partition: Option<String>,
     #[serde(default)]
     pub gres_type: Option<String>,
+    /// GPU Workbench tasks (ADR-040), changed only through `workbench_save_tasks`.
+    #[serde(default)]
+    pub tasks: Vec<crate::workbench::DevTask>,
 }
 
 /// User-editable fields of a project record.
@@ -135,6 +138,9 @@ pub struct ProjectData {
     /// VS Code reuses the app's connection (ADR-028). Changed only by the share commands.
     #[serde(default)]
     pub vscode_share: bool,
+    /// Recent GPU Workbench runs, at most `workbench::KEEP_RUNS` per project.
+    #[serde(default)]
+    pub runs: Vec<crate::workbench::RunRecord>,
 }
 
 /// Seeded once; editable and deletable. The university toolchain is *not* assumed to exist:
@@ -165,10 +171,15 @@ pub struct ProjectStore {
 impl ProjectStore {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("projects.json");
-        let data = std::fs::read(&path)
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_else(|| ProjectData { toolchains: default_toolchains(), ..Default::default() });
+        let fresh = || ProjectData { toolchains: default_toolchains(), ..Default::default() };
+        let data = match std::fs::read(&path) {
+            Err(_) => fresh(),
+            Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| {
+                // Unreadable settings are kept aside, never overwritten by the next save.
+                let _ = std::fs::rename(&path, dir.join(format!("projects.json.corrupt-{}", crate::util::now_ms())));
+                fresh()
+            }),
+        };
         Self { path, data }
     }
 
@@ -205,6 +216,7 @@ impl ProjectStore {
                     toolchain_id: None,
                     partition: None,
                     gres_type: None,
+                    tasks: vec![],
                 };
                 self.data.projects.push(p.clone());
                 p
@@ -234,6 +246,24 @@ impl ProjectStore {
 
     pub fn forget(&mut self, profile_id: &str, user: &str, path: Option<&str>) -> AppResult<()> {
         self.data.projects.retain(|p| !(p.profile_id == profile_id && p.user == user && path.is_none_or(|x| p.path == x)));
+        self.data.runs.retain(|r| !(r.profile_id == profile_id && r.user == user && path.is_none_or(|x| r.project == x)));
+        self.save()
+    }
+
+    /// A project's recent Workbench runs, newest first.
+    pub fn runs(&self, profile_id: &str, user: &str, project: &str) -> Vec<crate::workbench::RunRecord> {
+        let mut v: Vec<_> = self.data.runs.iter().filter(|r| r.profile_id == profile_id && r.user == user && r.project == project).cloned().collect();
+        v.sort_by_key(|r| std::cmp::Reverse(r.sent_ms));
+        v
+    }
+
+    /// Insert or replace a run (by id); keeps the newest `KEEP_RUNS` of its project.
+    pub fn put_run(&mut self, run: crate::workbench::RunRecord) -> AppResult<()> {
+        self.data.runs.retain(|r| r.id != run.id);
+        let (pid, user, project) = (run.profile_id.clone(), run.user.clone(), run.project.clone());
+        self.data.runs.push(run);
+        let old: Vec<String> = self.runs(&pid, &user, &project).into_iter().skip(crate::workbench::KEEP_RUNS).map(|r| r.id).collect();
+        self.data.runs.retain(|r| !old.contains(&r.id));
         self.save()
     }
 

@@ -517,6 +517,11 @@ pub fn session_dir(wd: &str, job_id: &str) -> String {
 /// Setup lines once, then a fixed loop: the oldest block in the inbox runs in a subshell in the
 /// working directory (stopping at its first failing command), framed by `@@icfcc-block` markers in
 /// the job log; after `idle` minutes without a block the job ends and the GPU is released.
+///
+/// ADR-040: each block's stdout+stderr also goes to `done/<id>.log`, and `done/<id>.rc` holds
+/// `<exit code> <start epoch> <end epoch>`, so the Workbench reads a run's state and output from
+/// files rather than from (forgeable) text in the log. The inbox is checked every second for two
+/// minutes after the last block, then every 5 s.
 fn session_body(r: &JobRequest) -> String {
     let idle = r.session_idle_minutes.unwrap_or(SESSION_IDLE_MIN);
     let mut s = String::new();
@@ -535,12 +540,17 @@ idle=0
 echo "@@icfcc-session ready on $(hostname)"
 while [ "$idle" -lt "$IDLE" ]; do
   f=$(ls -1 -- "$S/inbox" 2>/dev/null | grep -E '^[0-9]{13}\.sh$' | sort | head -n 1)
-  if [ -z "$f" ]; then sleep 5; idle=$((idle + 5)); continue; fi
+  if [ -z "$f" ]; then
+    if [ "$idle" -lt 120 ]; then w=1; else w=5; fi
+    sleep "$w"; idle=$((idle + w)); continue
+  fi
   idle=0
   n=${f%.sh}
+  t0=$(date +%s)
   echo "@@icfcc-block $n start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  ( cd -- "$WD" && set -e && . "$S/inbox/$f" )
-  rc=$?
+  ( cd -- "$WD" && set -e && . "$S/inbox/$f" ) 2>&1 | tee -- "$S/done/$n.log"
+  rc=${PIPESTATUS[0]}
+  printf '%s %s %s\n' "$rc" "$t0" "$(date +%s)" > "$S/done/$n.rc"
   mv -f -- "$S/inbox/$f" "$S/done/$f"
   echo "@@icfcc-block $n end rc=$rc"
 done

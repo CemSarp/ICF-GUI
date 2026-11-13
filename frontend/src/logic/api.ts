@@ -22,6 +22,9 @@ import type {
   Preset,
   ProjectPrefs,
   ProjectRecord,
+  DevTask,
+  RunRecord,
+  RunStatusResponse,
   RunsResponse,
   SettingsPreview,
   ToolchainProfile,
@@ -119,6 +122,17 @@ export const api = {
     invoke<string>('files_rename', { dir, name, kind, newName }),
   filesUnpack: (dir: string, name: string) => invoke<string>('files_unpack', { dir, name }),
   sessionSend: (jobId: string, commands: string) => invoke<string>('session_send', { jobId, commands }),
+  // GPU Workbench (ADR-040). Only workbenchRun changes cluster state (job-mutations capability); it
+  // sends a stored task by id, never command text from here.
+  workbenchSaveTasks: (path: string, tasks: DevTask[]) =>
+    invoke<ProjectRecord>('workbench_save_tasks', { path, tasks }),
+  workbenchRuns: (path: string) => invoke<RunRecord[]>('workbench_runs', { path }),
+  workbenchRun: (path: string, taskId: string, jobId: string) =>
+    invoke<RunRecord>('workbench_run', { path, taskId, jobId }),
+  workbenchRunStatus: (path: string, runId: string, offset: number | null, sessionEnded: boolean) =>
+    invoke<RunStatusResponse>('workbench_run_status', { path, runId, offset, sessionEnded }),
+  workbenchSetNote: (path: string, runId: string, note: string) =>
+    invoke<RunRecord>('workbench_set_note', { path, runId, note }),
   logsSummary: (dir: string, days: number) => invoke<LogsSummary>('logs_summary', { dir, days }),
   logsClean: (dir: string, days: number) => invoke<LogsSummary>('logs_clean', { dir, days }),
   filesWrite: (path: string, content: string, expectedSha256: string) =>
