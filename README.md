@@ -32,6 +32,8 @@ everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
   from nvcc, GCC and Clang link to their line in the editor; the editor gets **Save & Build** /
   **Save & Test**. Recent runs can be compared side by side. Works for any project, not one course.
   → [GPU Workbench](docs/USER_GUIDE.md#gpu-workbench)
+- 🔀 **Choose the head node** on the sign-in screen: **icf** or **icf2**, so you can still get in when
+  one is down. Each has its own host-key check; a password saved for one is not sent to the other.
 
 ## New in 0.6.1
 
@@ -224,8 +226,9 @@ flowchart LR
 
 1. **Sign in.** Choose **Username and password**, type your UUN (e.g. `s1234567`) and your DICE
    password. Tick *Use the same password for the gateway and ICF* if they're the same.
-   **No SSH setup is needed:** if your Mac has no `icf` entry in `~/.ssh/config`, the app goes through
-   `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
+   Pick the head node, **icf** or **icf2** (if one is down, try the other).
+   **No SSH setup is needed:** if your Mac has no `icf`/`icf2` entry in `~/.ssh/config`, the app goes
+   through `student.ssh.inf.ed.ac.uk` for you. Already use SSH keys? Choose **Use existing SSH config / agent**.
 2. **Check the host keys** the first time. The app shows each server's fingerprint; compare it with
    the one Informatics publishes before accepting.
 3. **Look around.** **Cluster** shows each partition with its free GPUs; its *Nodes* tab lists every node.

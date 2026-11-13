@@ -1,4 +1,7 @@
-# Security design (V1–V3)
+# Security design
+
+Covers the app as of 0.6.1 plus the unreleased GPU Workbench (ADR-040) and head node choice
+(ADR-041). Decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Threat model in one paragraph
 
@@ -13,7 +16,7 @@ other software on the Mac may run as the same user but is not root.
 Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
                                             │ spawns, argv only, cleared env
                                             ▼
-                     /usr/bin/ssh -F <gen cfg> -o ControlMaster=yes -o ControlPersist=no -N icf
+                     /usr/bin/ssh -F <gen cfg> -o ControlMaster=yes -o ControlPersist=no -N <head node>
                         │ ProxyJump child: ssh -W … edinburgh-jump  (inherits -F and env)
                         │ every prompt → $SSH_ASKPASS "<prompt>"   (SSH_ASKPASS_REQUIRE=force)
                         ▼
@@ -46,6 +49,11 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 - **One attempt per Connect.** Each hop gets at most one automatic answer; a repeated prompt for the
   same hop is denied, so a wrong password fails once instead of looping. After 3 failed sign-ins the
   app blocks Connect for 5 minutes. No background or automatic retries exist.
+- **Head node (ADR-041).** The sign-in screen offers `icf` and `icf2`. The choice arrives as
+  `headNode` and is accepted only if it is exactly one of `profiles::HEAD_NODES` (so it can never
+  carry an ssh option or a second host), then saved as the profile's alias. Each head node has its
+  own host-key decision and its own Keychain item (accounts are per `user@host`), so a password
+  saved for `icf` is never sent to `icf2`. A custom alias under Advanced is validated as before.
 - **Success** means: the control socket exists *and* the fixed probe (`id -un`, `hostname`, …) ran
   over it and returned the expected user. TCP reachability is never treated as success.
 
@@ -71,9 +79,17 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 
 ## Other controls
 
-- Tauri: app commands must be listed in `build.rs`; `capabilities/default.json` grants exactly the
-  V1 commands plus event listen/unlisten. No shell, fs, http or opener plugin. CSP:
-  `default-src 'self'`, no inline/remote scripts, `connect-src ipc:`; `freezePrototype`.
+- Tauri: every app command must be listed in `build.rs` and is granted in exactly one capability
+  file. No shell, fs, http or opener plugin. CSP: `default-src 'self'`, no inline/remote scripts,
+  `connect-src ipc:`; `freezePrototype`.
+
+  | Capability | What it grants |
+  |---|---|
+  | `default.json` | Reads and local-only commands: connection, cluster, job preview/list/detail/logs/receipts, project browsing and preferences, file reads for the editor, environment discovery, VS Code status and launch, transfer picking and listing, workflow preview/monitoring, kernel preview, GPU Workbench task lists, run records and status reads, saving the handbook, full screen |
+  | `job-mutations.json` | The only commands that change cluster state through SLURM or a session: `jobs_submit`, `jobs_cancel`, `session_send`, `workbench_run` |
+  | `file-mutations.json` | Everything that writes a file on ICF or this Mac: `projects_mkdir`, `files_write/create/delete/rename/unpack`, `logs_clean`, transfers (upload, download, retry, discard), VS Code settings and connection sharing |
+  | `kernel-mutations.json` | Starting and driving an interactive kernel (ADR-031) |
+  | `terminal-mutations.json` | The head node terminal (ADR-039) |
 - Remote commands are fixed scripts sent on stdin to `sh -s`; nothing from the UI is interpolated.
   The one exception is the Terminal screen (ADR-039): an interactive login shell on the head node,
   reached with `ssh -tt` over the existing master (BatchMode, no new login, forwarding still off).
@@ -81,7 +97,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   Enter. Its four commands are in their own capability, and it is unavailable in demo mode.
 - Mux commands run with `BatchMode=yes` and without askpass/agent, so a dead session can never
   start a new login. A local `-O check` precedes each command.
-- Output caps (2 MiB inventory, 64 KiB stderr), 15 s command timeout, 30 s auth budget (time spent
+- Output caps (2 MiB inventory, 64 KiB stderr), 15 s command timeout (60 s for the first probe
+  after a new login, which ICF can be slow to answer), 30 s auth budget (time spent
   on user prompts excluded), ANSI/control/bidi stripping before display, React text rendering only
   (`dangerouslySetInnerHTML` is lint-banned).
 - Disconnect / quit: `ssh -O exit`, kill the master's process group, delete the session dir.
@@ -92,8 +109,9 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 
 ## V2: job submission, logs, cancellation
 
-- **Separate capability.** `jobs_submit` and `jobs_cancel` are the only commands that change cluster
-  state; they are granted in `capabilities/job-mutations.json`, apart from the read-only set.
+- **Separate capability.** `jobs_submit`, `jobs_cancel`, `session_send` and `workbench_run` are the
+  only commands that change cluster state through SLURM or a running session; they are granted in
+  `capabilities/job-mutations.json`, apart from the read-only set.
 - **Identity** for all job operations comes from the authenticated probe (`id -un`, `$HOME`), never
   from the UI. `squeue -u <user>`; rows for other users are dropped (and counted).
 - **Request validation** (`jobs/request.rs`, `deny_unknown_fields`): partition visible and not
@@ -127,6 +145,14 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   backticks and `'; rm -rf /` arrive as literal argv, `sbatch` receives byte-identical script text,
   symlinks out of home are refused, and `scancel` receives exactly one id.
 - Closing the app or disconnecting never cancels jobs.
+- **GPU sessions (ADR-038).** A session is an ordinary reviewed batch job; it has no listener, port or
+  token. `session_send` drops one block of the user's own commands into the session's `inbox/` on
+  NFS: only for a session receipt of this Mac and user, only while `squeue -j <id> -u <user>` says
+  RUNNING (checked on ICF in the same script), through a quoted heredoc with a random delimiter
+  checked against the text (nothing is expanded on the login node), written beside the inbox and
+  moved in so a half block is never run, under the mutation lock, never retried. Blocks run on the
+  compute node as the user, like the job itself. The session ends by itself after 5–240 idle
+  minutes or at its time limit.
 
 ## GPU Workbench (ADR-040)
 
@@ -157,10 +183,8 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 
 ## V3: projects, VS Code, transfers, training workflows
 
-- **Capabilities.** New reads/launches are in `default.json`; every V3 command that writes a file is in
-  `capabilities/file-mutations.json` (`projects_mkdir`, `vscode_settings_apply`, `transfers_upload`,
-  `transfers_download`, `transfers_retry`, `transfers_discard`, `files_write`, `vscode_share_apply`,
-  `vscode_share_disable`). Workflow submission has no new mutation
+- **Capabilities.** New reads/launches are in `default.json`; every command that writes a file is in
+  `capabilities/file-mutations.json` (see the table under *Other controls*). Workflow submission has no new mutation
   command: it goes through `jobs_submit` (job-mutations). `tauri-plugin-dialog` is registered for Rust
   only; the webview has no dialog permission.
 - **No new remote code path.** Every V3 remote operation is a fixed script on stdin to `sh -s` over the
@@ -176,10 +200,29 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   full validation pass (ADR-015). Tested with traversal (`../`, absolute, Windows drive), symlinks and
   hard links out, devices, FIFOs, duplicates, zip symlinks, encrypted zip members, gzip/zip bombs,
   truncated archives, too little space and a pre-existing destination.
-- **Deletion.** The app deletes only: its own job scratch directory (re-verified pattern, real dir, not
-  a symlink, owned by you), its own `.icfcc-part` files (never through symlinks), and archives it packed
-  in its cache. It never deletes shared caches (`HF_HOME` in `/home` is left alone), other jobs' scratch,
-  or anything a user path points to.
+- **Deletion the app does by itself** is limited to: its own job scratch directory (re-verified
+  pattern, real dir, not a symlink, owned by you), its own `.icfcc-part` files (never through
+  symlinks), its own download archives in `~/.icfcc-archives`, and archives it packed in its cache.
+  It never deletes shared caches (`HF_HOME` in `/home` is left alone) or other jobs' scratch.
+- **Deletion you ask for (ADR-032).** **Delete** in the folder browser removes one entry after a
+  confirmation that says it cannot be undone. The script re-resolves the folder inside home and
+  deletes only if the entry is still the kind the listing showed (a link is removed, never its
+  target; `rm -rf` does not follow links). **Job logs → Delete old logs** removes only real
+  `slurm-<id>.out/.err` files directly in an `icfcc-run` folder older than the chosen days, after a
+  confirmation; a running job's log is never old.
+- **Rename and Unpack (login node).** Rename stays in the same folder and never replaces an existing
+  name. Unpack extracts into a fresh hidden `mktemp -d` folder next to the archive with `tar`/`unzip`
+  (which drop leading `/` and refuse `..`), then moves the result to a name that does not exist yet;
+  on any failure the temporary folder is removed. The archive is kept. Large datasets belong in a
+  training workflow, which validates and extracts on the compute node (ADR-015).
+- **Folder downloads (0.6.0).** The folder is packed on ICF into `~/.icfcc-archives/<id>.tar.gz`
+  (temp name first), downloaded over the master, and accepted only if its SHA-256 matches the remote
+  file. It is unpacked with `/usr/bin/tar` (cleared environment, fixed `PATH`) into a new 0700
+  scratch folder next to the destination; libarchive strips leading `/`, refuses `..` and does not
+  extract through links. The result is moved into place only if the destination still does not
+  exist; nothing on the Mac is overwritten.
+- **Handbook export.** **Save as Markdown…** writes the bundled handbook (fixed content) where the user
+  chooses in the macOS save panel, which asks before replacing a file. Nothing is sent anywhere.
 - **Login node.** Interpreter discovery runs `python -I -c` that prints the version and *package
   metadata* (no `import torch`), with a timeout. GPU compatibility is checked only by a short SLURM job
   (GPU smoke test). Upload verification runs `nice sha256sum` on the uploaded file once.
@@ -244,6 +287,11 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
 | V3 sftp transfers | **real OpenSSH 10.3 + local sshd**, through the app's master: upload, verify, no overwrite, `reput` resume, corrupted partial rejected, download, dead master | ✅ (opt-in test) |
 | V3 VS Code launch | fake VS Code bundle: argv exact, environment clean; detection on this Mac's real install read-only | ✅ |
 | V3 on ICF (scratch, staging, GPU, copy-back) | prepared GPU smoke test; needs explicit approval | ⏳ pending |
+| GPU session send path | real `sh` with stub `squeue` (`jobs/tests.rs`): not sent unless RUNNING, `$(touch PWNED)` stays text, blocks in order; used on ICF with 0.5.1 | ✅ |
+| GPU Workbench run path | the real session loop in `bash` (`jobs::tests::workbench_task_runs_*`): stored task only, quoted `cd`, a forged `@@icfcc-block … rc=0` changes nothing, exit code from `.rc`; UI: one send per double-click, nothing sent after a failed or conflicting save | ✅ simulated |
+| GPU Workbench on ICF | needs explicit approval (pickup/output latency, interrupted session, deleted session folder) | ⏳ pending |
+| Head node choice | Rust rejects anything but `icf`/`icf2` (incl. `-oProxyCommand=x`, `icf2;id`); scripted ssh connects to `icf2` with its own host-key prompt | ✅ simulated |
+| Sign-in through `icf2` on ICF | not yet observed | ⏳ pending |
 
 A non-root `sshd` cannot produce password prompts, so the password rows rely on OpenSSH's documented
 prompt formats (unit-tested strings) until the manual ICF check is done. If the real Informatics
