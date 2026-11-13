@@ -314,14 +314,14 @@ fn plan_prompt(st: &mut PromptState, prompt: &str) -> Step {
     }
 }
 
-/// Out-of-the-box ICF access without an ssh config: when the default `icf` alias is not configured
-/// (no ProxyJump/ProxyCommand, hostname still `icf`) and no jump host was entered, go through the
+/// Out-of-the-box ICF access without an ssh config: when a head-node alias (`icf`, `icf2`) is not
+/// configured (no ProxyJump/ProxyCommand, hostname still the alias) and no jump host was entered, go through the
 /// Informatics gateway as the typed user. Any user config or explicit jump host wins.
 pub fn default_gateway(profile: &ConnectionProfile, resolved: &Resolved) -> Option<String> {
     let unconfigured = profile.jump_host.is_empty()
-        && profile.ssh_alias.eq_ignore_ascii_case("icf")
+        && crate::profiles::is_head_node(&profile.ssh_alias)
         && !resolved.uses_proxy_command
-        && matches!(resolved.hops.as_slice(), [only] if only.hostname.eq_ignore_ascii_case("icf"));
+        && matches!(resolved.hops.as_slice(), [only] if only.hostname.eq_ignore_ascii_case(&profile.ssh_alias));
     let user = if profile.username.is_empty() { &resolved.hops.last()?.user } else { &profile.username };
     unconfigured.then(|| if user.is_empty() { crate::profiles::ICF_GATEWAY.to_string() } else { format!("{user}@{}", crate::profiles::ICF_GATEWAY) })
 }
@@ -658,6 +658,12 @@ mod tests {
         p.jump_host.clear();
         p.ssh_alias = "mybox".into();
         assert_eq!(default_gateway(&p, &Resolved { hops: vec![hop("mybox")], uses_proxy_command: false }), None, "other aliases untouched");
+        p.ssh_alias = "icf2".into();
+        assert_eq!(
+            default_gateway(&p, &Resolved { hops: vec![hop("icf2")], uses_proxy_command: false }).as_deref(),
+            Some("s1@student.ssh.inf.ed.ac.uk"),
+            "icf2 too"
+        );
     }
 
     use super::*;

@@ -23,11 +23,11 @@ done
 if [ "$gmode" = yes ]; then
   case "$alias" in
     edinburgh-jump | student.ssh.inf.ed.ac.uk) printf 'user s1\nhostname student.ssh.inf.ed.ac.uk\nport 22\n' ;;
-    *) if [ -e "$here/noconfig" ]; then # no Host icf block: only an explicit -J gives a jump
-         printf 'user s1\nhostname icf\nport 22\n'; [ -n "$jump" ] && printf 'proxyjump %s\n' "$jump"
+    *) if [ -e "$here/noconfig" ]; then # no Host icf/icf2 block: only an explicit -J gives a jump
+         printf 'user s1\nhostname %s\nport 22\n' "$alias"; [ -n "$jump" ] && printf 'proxyjump %s\n' "$jump"
          exit 0
        fi
-       printf 'user s1\nhostname icf\nport 22\nproxyjump edinburgh-jump\n' ;;
+       printf 'user s1\nhostname %s\nport 22\nproxyjump edinburgh-jump\n' "$alias" ;;
   esac
   exit 0
 fi

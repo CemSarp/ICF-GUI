@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] · GPU Workbench
+## [Unreleased] · GPU Workbench and head node choice
 
 ### Added
 - **GPU Workbench** (Projects → project → GPU Workbench, ADR-040): the project's GPU session with its
@@ -19,6 +19,11 @@
   save first; nothing runs if it fails).
 - **Recent runs** (last 30 per project) with notes, and **Compare** two runs side by side (GPU type
   differences called out; wall time is never presented as kernel time). ⌘↩ reruns the last task.
+
+- **Head node choice** on the sign-in screen: **icf** or **icf2**, so you can still sign in when
+  one is down. Remembered in the profile; validated in the backend as one of the two. `icf2` gets
+  its own first-connect host-key check, the gateway fallback without an ssh config, and its own
+  `Host icf2` block in the VS Code setup hint (ADR-041).
 
 ### Changed
 - **GPU sessions started from now on** keep each block's output in `done/<id>.log` (stdout and stderr

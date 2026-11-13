@@ -12,7 +12,9 @@ Informatics gateway (`student.ssh.inf.ed.ac.uk`) automatically, as the UUN you t
 ICF* if they are the same, and verify both host keys on first connect. An existing `Host icf` entry or
 a jump host typed under *Advanced* always takes precedence.
 
-1. Open **ICF Control Center**.
+1. Open **ICF Control Center**. Pick the **Head node**: `icf`, or `icf2` if `icf` is down. The first
+   connection to `icf2` asks you to verify its own host key. If you use `~/.ssh/config`, add a
+   `Host icf2` block (a copy of `Host icf` with `HostName icf2`).
 2. Choose a sign-in method:
    - **Use existing SSH config / agent** (recommended if `ssh icf` already works in Terminal with keys).
    - **Username and password**: enter your UUN and the password for the ICF login host. If the gateway
