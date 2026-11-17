@@ -140,8 +140,9 @@ export function App() {
     setEditingFile,
     openNotebook,
     setOpenNotebook,
-    guard,
     setGuard,
+    setNbGuard,
+    leaveGuards,
     focusMode,
     toggleFocus,
     openFile,
@@ -169,6 +170,10 @@ export function App() {
   const [loginHandbook, setLoginHandbook] = useState(false);
   const wantTerminal = live && (terminalOpened || view === 'terminal');
   if (wantTerminal !== terminalOpened) setTerminalOpened(wantTerminal);
+  // Notebooks likewise: the page (and its kernel) stays mounted, hidden, until you disconnect.
+  const [notebooksOpened, setNotebooksOpened] = useState(false);
+  const wantNotebooks = live && (notebooksOpened || view === 'notebooks');
+  if (wantNotebooks !== notebooksOpened) setNotebooksOpened(wantNotebooks);
 
   useEffect(() => {
     mainRef.current?.focus(); // move focus to content on navigation (screen readers)
@@ -394,31 +399,7 @@ export function App() {
                   onOpenJob: (id) => openJobs(id),
                 }}
               />
-            ) : view === 'notebooks' ? (
-              <Suspense
-                fallback={
-                  <div className="skeleton" aria-busy="true">
-                    Opening Notebooks…
-                  </div>
-                }
-              >
-                <NotebooksView
-                  status={status}
-                  snapshot={snapshot}
-                  path={openNotebook}
-                  startDir={project}
-                  focus={focusMode}
-                  onToggleFocus={toggleFocus}
-                  onOpen={setOpenNotebook}
-                  onClose={() => {
-                    setGuard(null);
-                    if (focusMode) toggleFocus();
-                    setOpenNotebook(null);
-                  }}
-                  onGuard={setGuard}
-                />
-              </Suspense>
-            ) : view === 'training' ? (
+            ) : view === 'notebooks' ? null : view === 'training' ? (
               <RunsView
                 status={status}
                 selected={selectedRun}
@@ -499,6 +480,34 @@ export function App() {
               </details>
             )}
           </div>
+          {notebooksOpened && (
+            <div className="page wide terminal-keep" hidden={view !== 'notebooks'}>
+              <Suspense
+                fallback={
+                  <div className="skeleton" aria-busy="true">
+                    Opening Notebooks…
+                  </div>
+                }
+              >
+                <NotebooksView
+                  status={status}
+                  snapshot={snapshot}
+                  path={openNotebook}
+                  active={view === 'notebooks'}
+                  startDir={project}
+                  focus={focusMode}
+                  onToggleFocus={toggleFocus}
+                  onOpen={setOpenNotebook}
+                  onClose={() => {
+                    setNbGuard(null);
+                    if (focusMode) toggleFocus();
+                    setOpenNotebook(null);
+                  }}
+                  onGuard={setNbGuard}
+                />
+              </Suspense>
+            </div>
+          )}
           {terminalOpened && (
             <div className="page terminal-keep" hidden={view !== 'terminal'}>
               <TerminalView active={view === 'terminal'} />
@@ -511,36 +520,40 @@ export function App() {
           title={
             pendingLeave === 'disconnect'
               ? 'Disconnect from ICF?'
-              : guard?.dirty
+              : leaveGuards.some((g) => g.dirty)
                 ? 'Discard unsaved changes?'
                 : 'Stop the kernel?'
           }
           labelledBy="leave-title"
           onClose={() => setPendingLeave(null)}
         >
-          {guard?.dirty && (
-            <p>
-              Your edits to <code>{guard.name}</code> have not been saved to ICF and will be lost.
-            </p>
-          )}
-          {guard?.kernel && (
-            <p>
-              The kernel of <code>{guard.name}</code> stops and its GPU is released.
-            </p>
-          )}
+          {leaveGuards.map((g) => (
+            <div key={g.name}>
+              {g.dirty && (
+                <p>
+                  Your edits to <code>{g.name}</code> have not been saved to ICF and will be lost.
+                </p>
+              )}
+              {g.kernel && (
+                <p>
+                  The kernel of <code>{g.name}</code> stops and its GPU is released.
+                </p>
+              )}
+            </div>
+          ))}
           {pendingLeave === 'disconnect' && vscodeInUse && (
             <p>VS Code windows using this app&apos;s connection will disconnect too.</p>
           )}
           <div className="actions">
             <button className="btn" onClick={() => setPendingLeave(null)} data-autofocus>
-              {guard?.dirty ? 'Keep editing' : guard ? 'Stay' : 'Stay connected'}
+              {leaveGuards.some((g) => g.dirty) ? 'Keep editing' : leaveGuards.length ? 'Stay' : 'Stay connected'}
             </button>
             <button className="btn danger" onClick={confirmLeave}>
               {pendingLeave !== 'disconnect'
-                ? guard?.dirty
+                ? leaveGuards.some((g) => g.dirty)
                   ? 'Discard changes'
                   : 'Stop kernel and leave'
-                : guard?.dirty
+                : leaveGuards.some((g) => g.dirty)
                   ? 'Discard and disconnect'
                   : 'Disconnect'}
             </button>

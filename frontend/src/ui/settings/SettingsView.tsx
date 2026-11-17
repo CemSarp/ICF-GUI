@@ -146,7 +146,7 @@ export function SettingsView({
           <strong>Interactive kernels</strong> (experimental): open a notebook in the Notebooks tab and start a kernel
           to run cells one at a time on a GPU node of the Interactive partition. The kernel is started with{' '}
           <code>srun</code> and reached over this app&apos;s own SSH connection, with no notebook server, port forward
-          or token. It stops, and the GPU is released, when you stop it, leave the notebook, disconnect, after 30
+          or token. It stops, and the GPU is released, when you stop it, close the notebook, disconnect, after 30
           minutes without running a cell, or at its time limit.
         </p>
       </section>

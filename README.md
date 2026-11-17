@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.7.0-blue)
+![version](https://img.shields.io/badge/version-0.7.1-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 
@@ -279,7 +279,7 @@ flowchart LR
   [ICF_COMMANDS.md](docs/ICF_COMMANDS.md).
 - **Notebook kernels have no server.** The kernel runs on the GPU node and talks to the app over the
   app's own SSH connection: nothing listens on your Mac or the node, nothing is port-forwarded, and
-  there is no token. It stops, and the GPU is released, when you stop it, leave the notebook, disconnect,
+  there is no token. It stops, and the GPU is released, when you stop it, close the notebook, disconnect,
   after 30 idle minutes or at its time limit.
 - **Editor saves are safe:** a file is replaced only if it is unchanged since you opened it; otherwise
   you choose to reload or overwrite. Symbolic links and files outside your home are refused.

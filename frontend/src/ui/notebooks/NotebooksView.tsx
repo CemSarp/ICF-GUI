@@ -12,6 +12,7 @@ export function NotebooksView({
   status,
   snapshot,
   path,
+  active,
   startDir,
   focus,
   onToggleFocus,
@@ -22,6 +23,8 @@ export function NotebooksView({
   status: ConnectionStatus;
   snapshot: ClusterSnapshot | null;
   path: string | null;
+  /** False while another tab is showing (the page stays mounted to keep its kernel). */
+  active: boolean;
   startDir: string | null;
   focus: boolean;
   onToggleFocus: () => void;
@@ -37,6 +40,7 @@ export function NotebooksView({
         path={path}
         status={status}
         snapshot={snapshot}
+        active={active}
         focus={focus}
         onToggleFocus={onToggleFocus}
         onClose={onClose}
@@ -94,8 +98,8 @@ export function NotebooksView({
         <p className="muted small">
           Start a kernel from an open notebook to run cells one at a time on a GPU node of the Interactive partition,
           with variables kept between cells. The app asks SLURM for the allocation with <code>srun</code>, talks to the
-          kernel over its own SSH connection (no ports or tokens), and releases the GPU when you stop the kernel, leave
-          the notebook, disconnect, after 30 minutes without running a cell, or at the time limit. For long or
+          kernel over its own SSH connection (no ports or tokens), and keeps it while you visit other tabs. It releases
+          the GPU when you stop the kernel, close the notebook, disconnect, after 30 minutes without running a cell, or at the time limit. For long or
           unattended runs, use a batch notebook run (New job → Notebook).
         </p>
       </section>

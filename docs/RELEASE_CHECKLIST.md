@@ -149,6 +149,13 @@
       the release workflow was removed): downloaded zip passes `shasum -a 256 -c` and
       `codesign --verify --deep --strict`, version 0.6.0
 
+## v0.7.1 (notebook kernel kept across tabs, ADR-031)
+
+- [x] Frontend gates: lint, typecheck, 189 UI tests, production build
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [ ] Live (owner): start a kernel, visit another tab and come back; the kernel is still ready
+- [ ] Merged to `main`, tagged `v0.7.1`, released with `scripts/release.sh`
+
 ## v0.7.0 (GPU Workbench, ADR-040; head node choice, ADR-041)
 
 - [x] Frontend gates: lint, typecheck, 188 UI tests, production build

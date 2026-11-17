@@ -1,6 +1,6 @@
 # Security design
 
-Covers the app as of 0.7.0, including the GPU Workbench (ADR-040) and the head node choice
+Covers the app as of 0.7.1, including the GPU Workbench (ADR-040) and the head node choice
 (ADR-041). Decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Threat model in one paragraph
@@ -254,7 +254,7 @@ Login form ──invoke(JSON, in-process)──▶ Rust (Zeroizing<String>)
   IPC sockets in a private 0700 directory on the node, and its key never leaves the node. The five
   commands that start or drive a kernel are in their own capability, `kernel-mutations.json`. One
   reviewed preview starts at most one kernel, and one kernel runs at a time. Every way out releases
-  the GPU: Stop, leaving the notebook (asked first), Disconnect/quit, 30 minutes without a cell run,
+  the GPU: Stop, closing the notebook (asked first; other tabs keep it), Disconnect/quit, 30 minutes without a cell run,
   the wall time, SIGTERM, or the SSH session dropping (stdin EOF). If the job outlives a Stop, the app
   runs the owner-checked `scancel` for its id. Code sent to the kernel is the user's own cell text and
   runs with their account, like a batch job; it is capped at 1 MiB per cell and is never logged.
