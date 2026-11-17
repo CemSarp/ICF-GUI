@@ -147,6 +147,16 @@ def _icfcc_setup():
         finally:
             sys.argv = saved
 
+    # Widgets cannot be shown here, and tqdm's notebook bars only update through widgets (they stayed
+    # at 0%). Its plain-text bars update in place like in a terminal, so they are used instead.
+    try:
+        import tqdm.notebook as tqdm_nb
+        import tqdm.std as tqdm_std
+        tqdm_nb.tqdm = tqdm_nb.tqdm_notebook = tqdm_std.tqdm
+        tqdm_nb.trange = tqdm_nb.tnrange = tqdm_std.trange
+    except Exception:
+        pass
+
     for name, lang in (("cuda", "cuda"), ("cu", "cuda"), ("cpp", "cpp"), ("c", "c")):
         register_cell_magic(name)(lambda line, cell, lang=lang: compiled(lang, line, cell))
     register_cell_magic("icfcc_script")(script)
@@ -194,7 +204,15 @@ def to_output(msg_type, c):
             text = text[:MAX_PAYLOAD] + "\n[stream output truncated]"
         return {"output_type": "stream", "name": c.get("name", "stdout"), "text": text}
     if msg_type in ("display_data", "update_display_data"):
-        return {"output_type": "display_data", "data": capped(c.get("data")), "metadata": c.get("metadata", {})}
+        out = {"output_type": "display_data", "data": capped(c.get("data")), "metadata": c.get("metadata", {})}
+        # display(..., display_id=X) followed by update_display(..., display_id=X) (the Trainer's
+        # progress table, for one) replaces the earlier output instead of adding another.
+        did = (c.get("transient") or {}).get("display_id")
+        if isinstance(did, str) and 0 < len(did) <= 64:
+            out["transient"] = {"display_id": did}
+            if msg_type == "update_display_data":
+                out["transient"]["update"] = True
+        return out
     if msg_type == "execute_result":
         return {"output_type": "execute_result", "data": capped(c.get("data")), "metadata": c.get("metadata", {}), "execution_count": c.get("execution_count")}
     if msg_type == "error":

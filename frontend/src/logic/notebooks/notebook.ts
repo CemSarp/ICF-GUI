@@ -54,12 +54,26 @@ export function parseNotebook(text: string): ParsedNotebook {
 }
 
 /** Rebuild the file: only edited cells get a new `source`; everything else is kept as it was. */
+/** The cell as stored in the file: live-only `transient` keys (display ids) are not part of nbformat. */
+function forFile(cell: Cell): Cell {
+  if (!cell.outputs?.some((o) => o.transient)) return cell;
+  return {
+    ...cell,
+    outputs: cell.outputs.map((o) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { transient, ...rest } = o;
+      return rest;
+    }),
+  };
+}
+
 export function serializeNotebook(p: ParsedNotebook, cells: { cell: Cell; text: string }[]): string {
   const out: Notebook = {
     ...p.nb,
-    cells: cells.map(({ cell, text }) =>
-      text === join(cell.source) ? cell : { ...cell, source: typeof cell.source === 'string' ? text : toLines(text) },
-    ),
+    cells: cells.map(({ cell: c, text }) => {
+      const cell = forFile(c);
+      return text === join(cell.source) ? cell : { ...cell, source: typeof cell.source === 'string' ? text : toLines(text) };
+    }),
   };
   return JSON.stringify(out, null, p.indent) + (p.trailingNewline ? '\n' : '');
 }

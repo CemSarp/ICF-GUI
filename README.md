@@ -8,7 +8,7 @@ See which GPUs are free, run jobs and training on GPU nodes, work in Jupyter not
 your code on ICF, open projects in VS Code without password prompts, move datasets, and follow
 everything — without remembering a single `sinfo`, `sbatch` or `squeue` flag.
 
-![version](https://img.shields.io/badge/version-0.7.1-blue)
+![version](https://img.shields.io/badge/version-0.7.2-blue)
 ![platform](https://img.shields.io/badge/macOS-13%2B%20·%20Apple%20Silicon-lightgrey)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%20·%20Rust%20·%20React-orange)
 

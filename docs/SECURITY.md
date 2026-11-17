@@ -1,6 +1,6 @@
 # Security design
 
-Covers the app as of 0.7.1, including the GPU Workbench (ADR-040) and the head node choice
+Covers the app as of 0.7.2, including the GPU Workbench (ADR-040) and the head node choice
 (ADR-041). Decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Threat model in one paragraph

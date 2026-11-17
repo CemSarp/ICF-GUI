@@ -55,6 +55,41 @@ describe('Notebook rendering (pure)', () => {
     expect(richText(nodes)).toBe('alink');
   });
 
+  it('replaces a display that is updated by its display_id (the Trainer progress table)', () => {
+    const show = (html: string, update = false) =>
+      ({
+        output_type: 'display_data',
+        data: { 'text/html': html },
+        transient: update ? { display_id: 'd1', update: true } : { display_id: 'd1' },
+      }) as const;
+    let list = appendOutput([], { output_type: 'stream', name: 'stdout', text: 'start\n' });
+    list = appendOutput(list, show('<b>1/3</b>'));
+    list = appendOutput(list, { output_type: 'stream', name: 'stdout', text: 'between\n' });
+    list = appendOutput(list, show('<b>2/3</b>', true));
+    list = appendOutput(list, show('<b>3/3</b>', true));
+    expect(list.map((o) => o.output_type)).toEqual(['stream', 'display_data', 'stream']);
+    expect(list[1]).toMatchObject({ data: { 'text/html': '<b>3/3</b>' }, transient: { display_id: 'd1' } });
+    // An update for a display this cell never showed is shown, not lost.
+    const solo = appendOutput([], { ...show('<i>x</i>', true), transient: { display_id: 'other', update: true } });
+    expect(solo).toHaveLength(1);
+    // Display ids are live-only: they never reach the saved file.
+    const p = parseNotebook(v3.FILES[NB]!);
+    const cell = { ...p.nb.cells[1]!, outputs: list };
+    const saved = JSON.parse(serializeNotebook(p, [{ cell, text: [cell.source].flat().join('') }]));
+    expect(JSON.stringify(saved.cells[0].outputs)).not.toContain('transient');
+  });
+
+  it('shows a <progress> element as a bar and drops its other attributes', () => {
+    const { nodes } = sanitizeHtml(
+      '<div><progress value="800" max="8955" style="width:3000px" onclick="x()"></progress> 800/8955</div>' +
+        '<progress value="9" max="0"></progress>',
+    );
+    const bars = all(nodes).filter((n) => n.k === 'el' && n.tag === 'progress');
+    expect(bars[0]).toMatchObject({ attrs: { value: 800, max: 8955 } });
+    expect(bars[1]).toMatchObject({ tag: 'progress' });
+    expect((bars[1] as { attrs?: unknown }).attrs).toBeUndefined(); // an invalid max gives an indeterminate bar
+  });
+
   it('keeps terminal colours, collapses progress bars and merges streams', () => {
     expect(parseAnsi('\u001b[0;31mKeyError\u001b[0m: 44')).toEqual([{ text: 'KeyError', fg: 1 }, { text: ': 44' }]);
     expect(parseAnsi('\u001b[1;38;5;2mok\u001b[22m!')).toEqual([

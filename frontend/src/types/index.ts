@@ -718,6 +718,8 @@ export interface NotebookOutput {
   ename?: string;
   evalue?: string;
   traceback?: string[];
+  /** Live only (never saved): `display_id` names a display that later `update` outputs replace. */
+  transient?: { display_id?: string; update?: boolean };
 }
 
 /** Interactive Jupyter kernel on an Interactive partition (ADR-031). */

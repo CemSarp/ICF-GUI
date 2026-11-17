@@ -509,6 +509,13 @@ pre.md-code code {
   text-underline-offset: 2px;
   cursor: help;
 }
+.nb-rich progress {
+  width: 300px;
+  max-width: 100%;
+  height: 14px;
+  vertical-align: middle;
+  accent-color: var(--primary-fill);
+}
 .md-img {
   max-width: 100%;
   border-radius: var(--r-sm);
