@@ -135,6 +135,13 @@ fn driver_lines_parse_into_events_and_junk_is_ignored() {
     );
     let out = parse_driver_line(r#"{"t":"out","id":"c-1","output":{"output_type":"stream","name":"stdout","text":"hi\n"}}"#);
     assert!(matches!(out, Some(DriverMsg::Event(KernelEvent::Output { ref id, .. })) if id == "c-1"));
+    // A display's id (for update_display) travels with its output unchanged.
+    let shown = parse_driver_line(
+        r#"{"t":"out","id":"c-1","output":{"output_type":"display_data","data":{},"metadata":{},"transient":{"display_id":"d1","update":true}}}"#,
+    );
+    assert!(
+        matches!(shown, Some(DriverMsg::Event(KernelEvent::Output { ref output, .. })) if output["transient"]["display_id"] == "d1" && output["transient"]["update"] == true)
+    );
     assert_eq!(
         parse_driver_line(r#"{"t":"done","id":"c-1","count":3,"status":"ok"}"#),
         Some(DriverMsg::Event(KernelEvent::Done { id: "c-1".into(), count: Some(3), status: "ok".into() }))

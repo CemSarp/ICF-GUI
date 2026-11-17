@@ -70,6 +70,8 @@ function node(n: RichNode, key: number): ReactNode {
       const a = n.attrs;
       const props: Record<string, unknown> = { key };
       if (a?.start !== undefined) props.start = a.start;
+      if (a?.max !== undefined) props.max = a.max;
+      if (a?.value !== undefined) props.value = a.value;
       if (a?.colSpan) props.colSpan = a.colSpan;
       if (a?.rowSpan) props.rowSpan = a.rowSpan;
       if (a?.align) props.className = `align-${a.align}`;

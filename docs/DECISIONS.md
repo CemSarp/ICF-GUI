@@ -265,6 +265,12 @@ host-key-changed errors (ADR-003), and a second login.
   after 30 minutes without running a cell (driver), at the wall time (`--time`), on SIGTERM, and when
   the SSH session drops (stdin EOF / EPIPE). `kernel_stop` falls back to an owner-checked `scancel`
   of the job id `srun` reported, then kills the session. The idle disconnect waits while a kernel runs.
+- **Display updates and progress bars (0.7.2).** The driver forwards `transient.display_id` (and marks
+  `update_display_data`) on display outputs; the page replaces the outputs with that id in the same cell,
+  and strips the key before saving. `<progress value max>` is a whitelisted tag (numeric attributes only).
+  tqdm's notebook bars need widgets (comms), which are not relayed, so the startup snippet points
+  `tqdm.notebook.tqdm`/`trange` at the plain-text bars (`tqdm.std`) before user code imports `tqdm.auto`.
+  Widgets themselves stay unsupported.
 - **Rendering.** Markdown (markdown-it, parser only, `html: false`) and HTML outputs are converted to
   a whitelisted element tree, never inserted as HTML: raw HTML stays text, links do not navigate,
   images must be `data:` (inline outputs or cell attachments), SVG is shown through `<img>`.

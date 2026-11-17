@@ -53,6 +53,14 @@ export function displayItem(o: Output): DisplayItem | null {
  * name merges into one output (with carriage returns applied, so progress bars stay one line).
  */
 export function appendOutput(list: Output[], o: Output): Output[] {
+  const id = typeof o.transient?.display_id === 'string' ? o.transient.display_id : null;
+  if (id !== null) {
+    // display_id: an update replaces the outputs shown under that id (the Trainer's progress table),
+    // or is shown as a new one when there is none; every such output remembers its id.
+    const shown: Output = { ...o, transient: { display_id: id } };
+    const same = (x: Output) => x.transient?.display_id === id;
+    return o.transient?.update && list.some(same) ? list.map((x) => (same(x) ? shown : x)) : [...list, shown];
+  }
   const last = list[list.length - 1];
   if (o.output_type === 'stream' && last?.output_type === 'stream' && last.name === o.name) {
     return [...list.slice(0, -1), { ...last, text: collapseCR(join(last.text) + join(o.text)) }];

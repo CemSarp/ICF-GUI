@@ -149,6 +149,15 @@
       the release workflow was removed): downloaded zip passes `shasum -a 256 -c` and
       `codesign --verify --deep --strict`, version 0.6.0
 
+## v0.7.2 (live progress in notebooks, ADR-031)
+
+- [x] Frontend gates: lint, typecheck, 191 UI tests, production build
+- [x] Rust gates: fmt, clippy `--all-targets -D warnings`, tests
+- [x] Versions agree: `frontend/package.json`, `backend/Cargo.toml` (+ `Cargo.lock`), `backend/tauri.conf.json`
+- [ ] Live (owner): `Trainer.train()` shows one progress line and one table that update in place
+- [ ] Live (owner): `datasets.map(..., num_proc=N)` shows a progress bar that advances
+- [ ] Merged to `main`, tagged `v0.7.2`, released with `scripts/release.sh`
+
 ## v0.7.1 (notebook kernel kept across tabs, ADR-031)
 
 - [x] Frontend gates: lint, typecheck, 189 UI tests, production build

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.2] — 2026-11-17 · Live progress in notebooks
+
+### Fixed
+- **Progress that updates in place.** Outputs that a library updates through a `display_id` (the Hugging
+  Face `Trainer`'s progress line and loss table, `display(..., display_id=…)` with `update_display`)
+  now replace the earlier output instead of adding a new block per step. Display ids are used only
+  while the notebook is open and are never written to the `.ipynb`.
+- **`<progress>` bars** in HTML outputs are shown (as a plain bar; nothing else about the element is kept).
+- **Loaders that stayed at 0%.** `datasets.map(..., num_proc=N)`, `from tqdm.auto import tqdm` and
+  `tqdm.notebook` draw widget bars, which cannot be shown here and never updated. Kernels now start
+  with tqdm's plain-text bars instead, which update in place like in a terminal. (Widgets are still
+  not supported; a kernel started before this version keeps the old behaviour until restarted.)
+
 ## [0.7.1] — 2026-11-17 · Notebooks keep their kernel
 
 ### Changed

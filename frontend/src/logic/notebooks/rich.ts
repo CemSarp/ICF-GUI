@@ -35,9 +35,13 @@ export type RichTag =
   | 'tfoot'
   | 'tr'
   | 'th'
-  | 'td';
+  | 'td'
+  | 'progress';
 
 export interface RichAttrs {
+  /** `<progress>` (the Trainer's progress bar). */
+  value?: number;
+  max?: number;
   start?: number;
   colSpan?: number;
   rowSpan?: number;
@@ -86,6 +90,7 @@ const TAGS = new Set<string>([
   'tr',
   'th',
   'td',
+  'progress',
 ]);
 const RENAME: Record<string, RichTag> = {
   b: 'strong',
@@ -170,6 +175,14 @@ export function sanitizeHtml(html: string): { nodes: RichNode[]; truncated: bool
         const r = span(e.getAttribute('rowspan'));
         if (c) attrs.colSpan = c;
         if (r) attrs.rowSpan = r;
+      }
+      if (tag === 'progress') {
+        const max = Number(e.getAttribute('max'));
+        const value = Number(e.getAttribute('value'));
+        if (Number.isFinite(max) && max > 0 && Number.isFinite(value)) {
+          attrs.max = max;
+          attrs.value = Math.min(Math.max(value, 0), max);
+        }
       }
       out.push(Object.keys(attrs).length ? { k: 'el', tag, attrs, children } : { k: 'el', tag, children });
     }
