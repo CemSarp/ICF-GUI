@@ -16,6 +16,7 @@ export function NotebookPage({
   path,
   status,
   snapshot,
+  active,
   focus,
   onToggleFocus,
   onClose,
@@ -24,6 +25,7 @@ export function NotebookPage({
   path: string;
   status: ConnectionStatus;
   snapshot: ClusterSnapshot | null;
+  active: boolean;
   focus: boolean;
   onToggleFocus: () => void;
   onClose: () => void;
@@ -42,6 +44,7 @@ export function NotebookPage({
 
   // ⌃⌘F toggles full screen, as in macOS apps.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.metaKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
@@ -50,7 +53,7 @@ export function NotebookPage({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onToggleFocus]);
+  }, [active, onToggleFocus]);
 
   const ended = kernel.state.phase === 'ended' ? kernel.state : null;
 
@@ -168,7 +171,7 @@ export function NotebookPage({
               Your changes to <code>{p.name}</code> have not been saved to ICF.
             </p>
           )}
-          {kernel.active && <p>The kernel stops and its GPU is released when you leave this notebook.</p>}
+          {kernel.active && <p>The kernel stops and its GPU is released when you close this notebook.</p>}
           <div className="actions">
             <button className="btn" onClick={() => setLeaving(false)} data-autofocus>
               Stay

@@ -55,6 +55,8 @@ export function useAppShell() {
   const [openNotebook, setOpenNotebook] = usePersistentState<string | null>('notebook.open', null);
   /** The open editor or notebook: unsaved edits and/or a running kernel that leaving would discard. */
   const [guard, setGuard] = useState<PageGuard | null>(null);
+  /** The open notebook's guard. Separate: the notebook page stays mounted while you visit other tabs, so only closing it or disconnecting discards anything. */
+  const [nbGuard, setNbGuard] = useState<PageGuard | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   /** Navigation (or disconnect) held back while the editor has unsaved changes. */
   const [pendingLeave, setPendingLeave] = useState<View | 'disconnect' | null>(null);
@@ -137,13 +139,16 @@ export function useAppShell() {
   const disconnect = () => {
     setEditingFile(null);
     setGuard(null);
+    setNbGuard(null);
     if (focusMode) setFocus(false);
     void api.disconnect().then(() => qc.clear());
   };
   const guarded = !!guard;
   /** Sidebar click: asks first while the editor has unsaved changes or a kernel runs. */
   const navigate = (v: View) => (v === view && v === 'notebooks' ? undefined : guarded ? setPendingLeave(v) : go(v));
-  const requestDisconnect = () => (guarded || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
+  const requestDisconnect = () => (guarded || nbGuard || vscodeInUse ? setPendingLeave('disconnect') : disconnect());
+  /** What the leave dialog says will be lost: the editor's, and on disconnect also the notebook's. */
+  const leaveGuards = [guard, pendingLeave === 'disconnect' ? nbGuard : null].filter((g): g is PageGuard => !!g);
   /** Project files: notebooks open in the Notebooks tab, other text files in the editor. */
   /** A text file in the editor at a line (GPU Workbench diagnostics). */
   const openFileAt = (path: string, line: number, column: number | null) => {
@@ -155,7 +160,8 @@ export function useAppShell() {
       setEditingAt(null);
       return setEditingFile(path);
     }
-    setOpenNotebook(path);
+    // ponytail: a notebook with unsaved edits or a kernel stays open; closing it asks first.
+    if (!nbGuard || openNotebook === path) setOpenNotebook(path);
     go('notebooks');
   };
   const confirmLeave = () => {
@@ -234,6 +240,8 @@ export function useAppShell() {
     setOpenNotebook,
     guard,
     setGuard,
+    setNbGuard,
+    leaveGuards,
     focusMode,
     toggleFocus: () => setFocus(!focusMode),
     openFile,

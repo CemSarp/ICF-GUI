@@ -20,13 +20,16 @@ export interface ExecSink {
 }
 
 let seq = 0;
+/** Phases of the mounted kernels, to tell a reload's leftover kernel from another page's live one. */
+const mounted = new Set<{ current: KernelState['phase'] }>();
 const requestId = () => `r${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
 export const kernelActive = (s: KernelState) => s.phase === 'starting' || s.phase === 'queued' || s.phase === 'ready';
 
 /**
- * The notebook page's kernel (ADR-031). It lives exactly as long as the page: unmounting stops it,
- * and mounting stops any kernel a reloaded page left behind. Cells run in order; while the kernel
+ * The notebook page's kernel (ADR-031). It lives exactly as long as the page (which stays mounted
+ * while you visit other tabs): unmounting stops it, and mounting stops any kernel a reloaded page
+ * left behind (not one another mounted page still owns). Cells run in order; while the kernel
  * is still starting their requests wait here and are sent once it is ready.
  */
 export function useKernel() {
@@ -147,8 +150,11 @@ export function useKernel() {
   };
 
   useEffect(() => {
-    void api.kernelStop(null).catch(() => undefined);
+    if (![...mounted].some((p) => p.current !== 'off' && p.current !== 'ended'))
+      void api.kernelStop(null).catch(() => undefined);
+    mounted.add(phase);
     return () => {
+      mounted.delete(phase);
       if (phase.current !== 'off' && phase.current !== 'ended') void api.kernelStop(id.current).catch(() => undefined);
     };
   }, []);

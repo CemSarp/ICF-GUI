@@ -272,15 +272,31 @@ describe('Notebooks tab', () => {
     expect(within(cells()[3]!).getByText('[ ]:')).toBeInTheDocument(); // aborted: never ran
   });
 
-  it('asks before leaving while the kernel runs, then stops it', async () => {
+  it('keeps the kernel while you visit another tab; disconnecting asks, then stops it', async () => {
     await openNotebook();
     await startKernel();
     await userEvent.click(screen.getByRole('button', { name: 'Cluster' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Stop the kernel?' });
+    expect(await screen.findByRole('heading', { name: 'Cluster' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); // no prompt: nothing is lost
+    await userEvent.click(screen.getByRole('button', { name: 'Notebooks' }));
+    expect(await screen.findByText(/Python 3\.11\.9 · landonia01/)).toBeInTheDocument(); // same kernel, still ready
+    expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(0);
+    expect(backend.count('kernel_start')).toBe(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Disconnect from ICF?' });
     expect(within(sheet).getByText(/stops and its GPU is released/)).toBeInTheDocument();
+    expect(backend.count('connection_disconnect')).toBe(0);
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(backend.count('connection_disconnect')).toBe(1)); // the backend ends the kernel with the session
+  });
+
+  it('closing the notebook asks, then stops the kernel', async () => {
+    await openNotebook();
+    await startKernel();
+    await userEvent.click(screen.getByRole('button', { name: 'All notebooks' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Stop the kernel?' });
     expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(0);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Stop kernel and leave' }));
-    expect(await screen.findByRole('heading', { name: 'Cluster' })).toBeInTheDocument();
     await waitFor(() => expect(backend.count('kernel_stop', (a) => a.kernelId === 'k1')).toBe(1));
   });
 

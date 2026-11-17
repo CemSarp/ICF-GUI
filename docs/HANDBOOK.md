@@ -1,6 +1,6 @@
 # ICF Control Center Handbook
 
-Version 0.7.0 · the complete reference for every screen, setting and job type.
+Version 0.7.1 · the complete reference for every screen, setting and job type.
 
 ## About this handbook
 
@@ -10,7 +10,7 @@ what it stores and where, and how to fix the problems people run into. It is wri
 look things up by section, or use the search box on the Handbook screen.
 
 **For AI assistants.** If you were given this file to help someone use ICF Control Center, treat it
-as the authoritative description of version 0.7.0. Conventions: **bold** text is a label exactly as
+as the authoritative description of version 0.7.1. Conventions: **bold** text is a label exactly as
 it appears in the app (a button, tab, field or tile), *italics* are messages the app shows, and
 `code` is a command, path or value typed or shown literally. "ICF" is the University of Edinburgh
 Informatics GPU cluster; "SLURM" is its scheduler. When you answer, name the screen and the exact
@@ -935,7 +935,7 @@ kernel stays between runs and stops when you leave the file (asked first).
 The kernel chip shows *Requesting a GPU…*, *Queued · job N*, then the Python version, node and time
 left (tooltip: job, node and compilers found). **Interrupt** stops the running cell; **Restart**
 clears all variables; **Stop** releases the GPU. *Run all* stops at the first error. The kernel also
-stops when you leave the notebook or disconnect (asked first), after **30 minutes without running a
+stops when you close the notebook or disconnect (asked first; switching to another tab keeps it), after **30 minutes without running a
 cell**, or at its time limit. For long or unattended runs use **New job → Notebook**.
 
 ### CUDA, C and C++ cells

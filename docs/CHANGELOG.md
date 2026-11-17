@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] — 2026-11-17 · Notebooks keep their kernel
+
+### Changed
+- **Leaving the Notebooks tab keeps the kernel.** The open notebook stays alive in the background while
+  you visit other tabs, so the kernel, its variables, running cells and unsaved cell edits are still
+  there when you come back, and switching tabs no longer asks anything. The kernel still stops on
+  **Stop**, when you close the notebook (asked first), on **Disconnect** (asked first), after 30
+  minutes without running a cell and at its time limit. Opening another notebook from Projects while
+  one has a kernel or unsaved edits shows the open one instead; close it first.
+- The file editor's **Run on GPU** no longer stops a kernel a notebook is still using when the editor opens.
+
 ## [0.7.0] — 2026-11-13 · GPU Workbench and head node choice
 
 ### Added

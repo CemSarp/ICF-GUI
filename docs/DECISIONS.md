@@ -258,8 +258,10 @@ host-key-changed errors (ADR-003), and a second login.
 - **Limits.** Partitions whose name contains "interactive" only (checked in Rust); the resource checks
   of batch jobs (`validate_resources`), interpreter/toolchain checks (`check_env`) and a review
   sheet with every notice to confirm. One kernel at a time; one preview starts at most one `srun`.
-- **Lifetime.** The kernel lives exactly as long as the open notebook page. It ends on Stop, on
-  leaving the page (the app asks first), on Disconnect or quit (`close_session`/`RunEvent::Exit`),
+- **Lifetime.** The kernel lives exactly as long as the open notebook page. The page stays mounted
+  (hidden, like the terminal) while you visit other tabs, so switching tabs keeps the kernel and
+  unsaved cell edits and asks nothing; the idle limit below still applies. It ends on Stop, on
+  closing the notebook (the app asks first), on Disconnect (which asks) or quit (`close_session`/`RunEvent::Exit`),
   after 30 minutes without running a cell (driver), at the wall time (`--time`), on SIGTERM, and when
   the SSH session drops (stdin EOF / EPIPE). `kernel_stop` falls back to an owner-checked `scancel`
   of the job id `srun` reported, then kills the session. The idle disconnect waits while a kernel runs.

@@ -433,7 +433,7 @@ for the GPU. The chip shows *Queued · job N* until it starts, then the Python v
 time left. Variables stay in memory between cells. Outputs appear as they arrive, and **Save** writes
 them into the notebook, as Jupyter does.
 
-The kernel holds the GPU until you **Stop** it, leave the notebook or disconnect (the app asks first),
+The kernel holds the GPU until you **Stop** it, close the notebook or disconnect (the app asks first; switching to another tab keeps it),
 after 30 minutes without running a cell, or at its time limit. **Interrupt** stops the running cell;
 **Restart** clears all variables. *Run all* stops at the first error.
 
